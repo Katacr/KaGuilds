@@ -12,7 +12,7 @@ fun checkName( name:String): Boolean {
         } else
             2
     }
-    return l > 12
+    return l < 12
 
 }
 
