@@ -1,6 +1,5 @@
 package com.katacr.kaguilds
 
-import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import taboolib.common.LifeCycle
 import taboolib.common.platform.Awake
@@ -13,14 +12,9 @@ object Command {
         command(name = "KaGuilds", aliases = listOf("kg", "g", "guilds")){
             //二级指令
             literal("create"){
-                dynamic {
-                    execute<CommandSender> {sender, context, _ ->
-                        val name = context.get(1)
-                        if (!checkName(name)){
-                            sender.error("创建失败，您输入的名称长度过长。")
-                        }else
-                            sender.tips("创建成功，您已成功创建[${name}]公会。")
-
+                dynamic(comment = "请输入公会名称") {
+                    execute<Player> {sender, context, _ ->
+                        checkName(context.get(1),sender)
                     }
                 }
             }
