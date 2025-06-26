@@ -26,16 +26,12 @@ jobs:
       - uses: actions/checkout@v4
 
       # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: run gradlew build
+        run: echo gradlew build
 
       # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
 
-      - name: capture build artifacts
+      - name: update build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Artifacts
