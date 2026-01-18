@@ -1,0 +1,20 @@
+name: KaGuilds
+version: 1.0.0
+main: org.katacr.kaguilds.KaGuilds
+api-version: '1.20'
+
+softdepend: ["PlaceholderAPI"]
+
+commands:
+  kaguilds:
+    description: KaGuilds 主指令
+    aliases: [guild, kg] # 别名
+    permission: kaguilds.use
+
+permissions:
+  kaguilds.use:
+    description: 允许玩家使用基础公会指令
+    default: true  # 关键点：设置为 true 表示所有玩家默认拥有该权限
+  kaguilds.admin:
+    description: 允许玩家使用重载等管理指令
+    default: op    # 仅 OP 拥有管理权限

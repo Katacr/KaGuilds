@@ -1,0 +1,16 @@
+# KaGuilds 配置文件
+language: en_US  # en_US 或 zh_CN
+
+database:
+  # 是否使用 MySQL，若为 false 则使用 SQLite
+  use-mysql: false
+  host: "localhost"
+  port: 3306
+  db: "minecraft"
+  user: "root"
+  password: "password"
+
+# 公会基础设置
+settings:
+  default-max-members: 10
+  create-cost: 1000.0 # 以后可以对接 Vault 经济插件
