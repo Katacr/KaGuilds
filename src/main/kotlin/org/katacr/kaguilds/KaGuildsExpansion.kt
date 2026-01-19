@@ -2,7 +2,7 @@ package org.katacr.kaguilds
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import org.bukkit.OfflinePlayer
-import java.util.*
+
 
 class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 

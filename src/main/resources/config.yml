@@ -2,15 +2,24 @@
 language: en_US  # en_US 或 zh_CN
 
 database:
-  # 是否使用 MySQL，若为 false 则使用 SQLite
-  use-mysql: false
+  # 数据库类型: MySQL 或 SQLite
+  type: "SQLite"
   host: "localhost"
   port: 3306
-  db: "minecraft"
+  db: "kaguilds"
   user: "root"
   password: "password"
 
-# 公会基础设置
-settings:
-  default-max-members: 10
-  create-cost: 1000.0 # 以后可以对接 Vault 经济插件
+# 经济系统设置
+balance:
+  create: 10000.0  # 创建公会所需金币
+
+level: # 公会等级设置
+  1:
+    need-exp: 0 # 公会等级1需要的经验值，默认1级
+    max-members: 10 # 公会最大人数
+    max-money: 50000 # 公会金库最大金币
+  2:
+    need-exp: 5000 # 公会等级2需要的经验值
+    max-members: 20 # 公会最大人数
+    max-money: 100000 # 公会金库最大金币

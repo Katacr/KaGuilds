@@ -1,9 +1,11 @@
 prefix: "§b[KaGuilds] "
 
+# 帮助菜单
 help-header: "§8§m-------§r §bKaGuilds 帮助菜单 §8§m-------"
 help-format: "§6/kg %usage% §7- §f%description%"
 help-footer: "§8§m--------------------------------"
 console-help: "后台可用指令: /kg reload"
+
 # 指令描述
 desc-create: "创建新公会"
 desc-join: "申请加入公会"
@@ -16,20 +18,51 @@ desc-kick: "踢出公会成员"
 desc-leave: "退出当前公会"
 desc-delete: "解散当前公会"
 desc-reload: "重载配置文件"
+desc-bank: "管理公会金库"
+desc-invite: "邀请玩家加入"
+
 # 通用
 no-permission: "§c你没有权限执行此指令。"
 player-only: "§c该指令只能由玩家执行。"
 unknown-guild: "§c找不到公会: §f%name%"
 target-not-member: "§c玩家 §f%name% §c不是本公会成员。"
+not-in-guild: "§c你尚未加入任何公会。"
 
 # 创建
-create-usage: "§c用法: /guilds create [公会名称]"
-already-in-guild: "§c你已经在一个公会中了，请先退出！"
-name-exists: "§c名字已存在！"
+create-usage: "§c用法: /kg create <公会名称>"
+create-insufficient-funds: "§c创建公会需要 §f%cost% §c金币，你的余额不足！"
+create-pay-success: "§a已从你的账户扣除 §f%cost% §a金币用于创建公会。"
+create-failed-refund: "§c公会创建失败，已将金币退回你的账户。"
+econ-not-ready: "§c插件经济系统未就绪，请联系管理员。"
+already-in-guild: "§c你已经在一个公会中了！"
+name-exists: "§c该公会名称已被占用。"
 create-success: "§a公会 §f%name% §a创建成功！(ID: %id%)"
-create-failed: "§c创建失败，请查看后台报错。"
+create-failed: "§c创建公会时发生未知错误。"
 
-# 信息
+# 邀请
+invite-usage: "§c用法: /kg invite <玩家名>"
+invite-not-online: "§c该玩家目前不在线。"
+invite-already-member: "§c该玩家已经在一个公会中了。"
+invite-sent-sender: "§a已向 §f%name% §a发送入会邀请。"
+invite-received-target: "§b[公会] §f%guild% §b邀请你加入！输入 §6/kg accept %guild% §b来加入。"
+invite-expired: "§c邀请已过期或不存在。"
+invite-no-permission: "§c只有公会管理层可以邀请成员。"
+invite-name-mismatch: "§c你输入的公会名称与邀请信息不符。"
+
+# 金库
+bank-usage: "§c用法: /kg bank <add/get/log> [金额/页码]"
+bank-invalid-amount: "§c请输入有效的正数金额。"
+bank-insufficient-player: "§c你账户里的金币不足！"
+bank-insufficient-guild: "§c公会金库里的金币不足！"
+bank-full: "§c公会金库已满，无法再存入更多金币（上限: %max%）。"
+bank-add-success: "§a成功向金库捐赠了 §f%amount% §a金币。"
+bank-get-success: "§a成功从金库提取了 §f%amount% §a金币。"
+bank-no-permission: "§c只有公会会长或管理员可以从金库取钱。"
+bank-log-header: "§6--- 公会银行记录 (第 %page%/%total% 页) ---"
+bank-log-empty: "§7目前没有任何交易记录。"
+bank-log-invalid-page: "§c无效的页码。"
+
+# 信息展示
 info-console-usage: "§c后台控制台使用请指定公会名: /kg info [名称]"
 info-header: "§8§m---§r §b公会详情: §f%name% §8§m---"
 info-owner: "§7会长: §a%name%"
@@ -49,8 +82,8 @@ requests-none: "§a目前没有待处理的申请。"
 requests-header: "§b--- 待处理申请列表 ---"
 requests-format: "§7- §f%name% §a/kg accept %name%"
 
-# 审批与职位
-accept-usage: "§c用法: /kg accept [玩家名]"
+# 审批与职位管理
+accept-usage: "§c用法: /kg accept [玩家名/公会名]"
 not-staff: "§c权限不足，只有管理员可以操作。"
 accept-success-sender: "§a已批准 §f%name% §a加入公会。"
 accept-success-target: "§a你已获准加入公会！"
@@ -63,6 +96,11 @@ role-admin: "管理员"
 role-member: "普通成员"
 promote-success: "§a成功将 §f%name% %action% §a。"
 role-updated-target: "§e你的公会职位已被更新为: §f%role%"
+request-notify: "§b[公会] §f玩家 §a%player% §f申请加入公会，请使用 §6/kg requests §f查看。"
+deny-usage: "§c用法: /kg deny <玩家名>"
+deny-success-sender: "§a你已拒绝 §f%name% §a的入会申请。"
+deny-success-target: "§c你申请加入公会的请求已被拒绝。"
+deny-failed: "§c处理拒绝请求时出错，可能该申请已过期。"
 
 # 退出、解散与踢人
 leave-owner-limit: "§c会长无法直接退出公会，请使用 /kg delete 解散公会。"
@@ -76,7 +114,7 @@ kick-success-sender: "§a已将 §f%name% §a踢出公会。"
 kick-success-target: "§c你已被踢出公会。"
 reload-success: "§a配置文件已重载！"
 
-
+# PlaceholderAPI 变量
 papi-no-guild: "无公会"
 papi-error: "错误"
 papi-no-member: "无成员"
@@ -84,3 +122,8 @@ papi-role-owner: "§b会长"
 papi-role-admin: "§a管理员"
 papi-role-member: "§f成员"
 papi-role-none: "游客"
+
+# 聊天系统
+chat-usage: "§c用法: /guilds chat [消息]"
+chat-format: "§8[§b公会聊天§8] §a%player%§f: %message%"
+chat-no-guild: "§c你没有加入任何公会，无法使用聊天频道。"

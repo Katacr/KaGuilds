@@ -15,6 +15,9 @@ repositories {
     maven("https://repo.extendedclip.com/releases/") {
         name = "placeholderapi"
     }
+    maven("https://jitpack.io") {
+        name = "vaultapi"
+    }
 }
 
 dependencies {
@@ -25,6 +28,9 @@ dependencies {
     // SQLite 驱动 (MySQL 驱动通常服务端自带)
     implementation("org.xerial:sqlite-jdbc:3.42.0.0")
     compileOnly("me.clip:placeholderapi:2.11.7")
+    compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
 
 }
 

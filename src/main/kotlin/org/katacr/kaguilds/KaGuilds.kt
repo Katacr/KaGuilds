@@ -1,8 +1,14 @@
 package org.katacr.kaguilds
 
 import org.bukkit.plugin.java.JavaPlugin
+import java.util.UUID
+import net.milkbowl.vault.economy.Economy
+import org.bukkit.plugin.RegisteredServiceProvider
 
 class KaGuilds : JavaPlugin() {
+    val inviteCache = mutableMapOf<UUID, Int>()
+    var economy: Economy? = null
+    val playerGuildCache = mutableMapOf<UUID, Int>()
     lateinit var dbManager: DatabaseManager
     lateinit var langManager: LanguageManager
 
@@ -23,12 +29,21 @@ class KaGuilds : JavaPlugin() {
         val cmd = getCommand("kaguilds")
         cmd?.setExecutor(GuildCommand(this))
         cmd?.tabCompleter = GuildCommand(this)
-
+        if (!setupEconomy()) {
+            logger.severe("未找到 Vault 经济插件！经济功能将无法使用。")
+        }
         // 检查服务器是否安装了 PlaceholderAPI
         if (server.pluginManager.getPlugin("PlaceholderAPI") != null) {
             KaGuildsExpansion(this).register()
             logger.info("已成功对接 PlaceholderAPI 变量。")
         }
+        // 注册自定义插件消息通道
+        this.server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
+        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
+        // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
+        mutableMapOf<UUID, Int>()
+
+        server.pluginManager.registerEvents(GuildListener(this), this)
     }
     override fun onDisable() {// 使用 Kotlin 的属性初始化检查，防止在启动失败时调用报错
         if (::dbManager.isInitialized) {
@@ -40,5 +55,11 @@ class KaGuilds : JavaPlugin() {
     fun reloadPlugin() {
         reloadConfig()
         langManager.load()
+    }
+    private fun setupEconomy(): Boolean {
+        if (server.pluginManager.getPlugin("Vault") == null) return false
+        val rsp: RegisteredServiceProvider<Economy> = server.servicesManager.getRegistration(Economy::class.java) ?: return false
+        economy = rsp.provider
+        return true
     }
 }
