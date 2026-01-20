@@ -27,6 +27,8 @@ player-only: "§cThis command can only be executed by a player."
 unknown-guild: "§cCannot find guild: §f%name%"
 target-not-member: "§cPlayer §f%name% §cis not a member of this guild."
 not-in-guild: "§cYou are not in a guild."
+unknown-command: "§cUnknown command."
+help-hint: "§7Type /kg help for help."
 
 # Create
 create-usage: "§cUsage: /kg create <name>"
@@ -36,7 +38,7 @@ create-failed-refund: "§cCreation failed. Money has been refunded to your accou
 econ-not-ready: "§cEconomy system is not ready. Contact admin."
 already-in-guild: "§cYou are already in a guild!"
 name-exists: "§cThis guild name is already taken."
-create-success: "§aGuild §f%name% §acreated! (ID: %id%)"
+create-success: "§aGuild §f%name% §acreated!"
 create-failed: "§cAn error occurred during guild creation."
 
 # Invitation
@@ -63,14 +65,14 @@ bank-log-empty: "§7No transaction records found."
 bank-log-invalid-page: "§cInvalid page number."
 
 # Info
-info-console-usage: "§cPlease specify a guild name when using from console: /kg info [Name]"
-info-header: "§8§m---§r §bGuild Details: §f%name% §8§m---"
-info-owner: "§7Owner: §a%name%"
-info-members: "§7Members: §e%current% / %max%"
-info-level: "§7Level: §eLv.%level%"
-info-balance: "§7Balance: §6%balance%"
+info-console-usage: "&c[KaGuilds] Please specify a guild name from console: /kg info [Name]"
+info-header: "§b--- §6%name% §b---"
+info-owner: "§7Owner: §a%owner%"
+info-members: "§7Members: §e%count% §f(Online: §a%online%§f)"
+info-level: "§7Level: §eLv.%level% §8(Exp: %exp%)"
+info-balance: "§7Balance: §6%balance% $"
 info-announcement: "§7Notice: §f%announcement%"
-info-footer: "§8§m-----------------------"
+info-footer: "§b----------------------------"
 
 # Join & Requests
 join-usage: "§cUsage: /guilds join [Name]"

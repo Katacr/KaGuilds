@@ -20,7 +20,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
             val msgContent = `in`.readUTF()
 
             val formattedMsg = plugin.langManager.get("chat-format",
-                "player" to senderName, "message" to msgContent, withPrefix = false)
+                "player" to senderName, "message" to msgContent)
 
             // 这里的逻辑现在变得非常快
             plugin.server.onlinePlayers.forEach { onlinePlayer ->

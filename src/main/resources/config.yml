@@ -1,5 +1,12 @@
 # KaGuilds 配置文件
-language: en_US  # en_US 或 zh_CN
+language: zh_CN  # en_US 或 zh_CN
+
+guild:
+  name:
+    min-length: 3
+    max-length: 16
+    # 正则表达式：允许英文字母、数字、下划线、汉字
+    regex: "^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$"
 
 database:
   # 数据库类型: MySQL 或 SQLite

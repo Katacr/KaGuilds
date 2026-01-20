@@ -4,6 +4,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.util.UUID
 import net.milkbowl.vault.economy.Economy
 import org.bukkit.plugin.RegisteredServiceProvider
+import org.katacr.kaguilds.service.GuildService
 
 class KaGuilds : JavaPlugin() {
     val inviteCache = mutableMapOf<UUID, Int>()
@@ -11,6 +12,8 @@ class KaGuilds : JavaPlugin() {
     val playerGuildCache = mutableMapOf<UUID, Int>()
     lateinit var dbManager: DatabaseManager
     lateinit var langManager: LanguageManager
+    var nameRegex: Regex? = null
+    lateinit var guildService: GuildService
 
     override fun onEnable() {
         // 1. 释放并加载配置文件
@@ -21,8 +24,9 @@ class KaGuilds : JavaPlugin() {
         // 2. 初始化数据库管理器
         dbManager = DatabaseManager(this)
         dbManager.setup()
-
-        // 3. 注册指令
+        // 3. 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
+        guildService = GuildService(this)
+        // 4. 注册指令
         getCommand("guilds")?.setExecutor(GuildCommand(this))
 
         logger.info("KaGuilds 已启用！")
@@ -42,7 +46,6 @@ class KaGuilds : JavaPlugin() {
         this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
         // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
         mutableMapOf<UUID, Int>()
-
         server.pluginManager.registerEvents(GuildListener(this), this)
     }
     override fun onDisable() {// 使用 Kotlin 的属性初始化检查，防止在启动失败时调用报错
@@ -56,6 +59,16 @@ class KaGuilds : JavaPlugin() {
         reloadConfig()
         langManager.load()
     }
+    fun loadRegex() {
+        val pattern = config.getString("guild.name.regex", "^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$")
+        nameRegex = try {
+            pattern?.let { Regex(it) }
+        } catch (e: Exception) {
+            logger.warning("配置文件中的正则表达式格式有误，将使用默认规则！")
+            Regex("^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$")
+        }
+    }
+
     private fun setupEconomy(): Boolean {
         if (server.pluginManager.getPlugin("Vault") == null) return false
         val rsp: RegisteredServiceProvider<Economy> = server.servicesManager.getRegistration(Economy::class.java) ?: return false

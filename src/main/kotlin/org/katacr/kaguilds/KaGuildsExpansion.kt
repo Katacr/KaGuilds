@@ -24,11 +24,12 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 
         // 1. 获取该玩家所属的公会 ID
         val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
-            ?: return lang.get("papi-no-guild", withPrefix = false)
+            ?: return lang.get("papi-no-guild")
 
         // 2. 根据 ID 获取公会对象
         val guild = plugin.dbManager.getGuildById(guildId)
-            ?: return lang.get("papi-error", withPrefix = false)
+            ?: return lang.get("papi-error")
+
 
         return when (params.lowercase()) {
             "name" -> guild.name
@@ -42,17 +43,17 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 
             "role_name" -> {
                 when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
-                    "OWNER" -> lang.get("papi-role-owner", withPrefix = false)
-                    "ADMIN" -> lang.get("papi-role-admin", withPrefix = false)
-                    "MEMBER" -> lang.get("papi-role-member", withPrefix = false)
-                    else -> lang.get("papi-role-none", withPrefix = false)
+                    "OWNER" -> lang.get("papi-role-owner")
+                    "ADMIN" -> lang.get("papi-role-admin")
+                    "MEMBER" -> lang.get("papi-role-member")
+                    else -> lang.get("papi-role-none")
                 }
             }
 
             "members" -> {
                 val memberList = plugin.dbManager.getMemberNames(guildId)
                 if (memberList.isEmpty()) {
-                    lang.get("papi-no-member", withPrefix = false)
+                    lang.get("papi-no-member")
                 } else {
                     // 注意：成员列表通常不需要翻译玩家名，只需要翻译连接符或空状态
                     memberList.joinToString(", ")
