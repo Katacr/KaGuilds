@@ -6,7 +6,7 @@ import org.bukkit.plugin.messaging.PluginMessageListener
 import java.util.UUID
 import kotlin.collections.forEach
 
-class PluginMessageListener(private val plugin: KaGuilds, val subChannel: Any) : PluginMessageListener {
+class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListener {
     override fun onPluginMessageReceived(channel: String, player: Player, message: ByteArray) {
 
         if (channel != "kaguilds:chat") return
@@ -149,6 +149,9 @@ class PluginMessageListener(private val plugin: KaGuilds, val subChannel: Any) :
                 }
             }
 
+            /*
+             * 处理跨服公会成员变动
+             */
             "MemberJoin" -> {
                 val gId = `in`.readInt()
                 val pName = `in`.readUTF()

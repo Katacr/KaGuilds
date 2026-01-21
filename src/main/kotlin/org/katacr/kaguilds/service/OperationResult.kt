@@ -12,12 +12,6 @@ sealed class OperationResult {
     // 经济相关：携带“当前余额”或“还差多少”
     data class InsufficientFunds(val required: Double) : OperationResult()
 
-    // 银行相关：携带“金库上限”
-    data class BankFull(val limit: Double) : OperationResult()
-    object BankInsufficient : OperationResult()
-
-    // 名称校验相关：携带“错误原因”
-    data class InvalidName(val reason: String) : OperationResult()
     object NameAlreadyExists : OperationResult()
 
     // 系统错误

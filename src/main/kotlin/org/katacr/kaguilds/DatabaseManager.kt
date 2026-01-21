@@ -2,8 +2,6 @@ package org.katacr.kaguilds
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.bukkit.entity.Player
-import org.katacr.kaguilds.service.OperationResult
 import java.sql.Connection
 import java.sql.Statement
 import java.util.UUID
@@ -11,7 +9,9 @@ import kotlin.math.ceil
 
 class DatabaseManager(val plugin: KaGuilds) {
     private var dataSource: HikariDataSource? = null
-
+    /**
+     * 初始化数据库
+     */
     fun setup() {
         val config = HikariConfig()
         // 获取配置中的 type 字符串，默认为 SQLite
@@ -37,7 +37,9 @@ class DatabaseManager(val plugin: KaGuilds) {
         createTables()
 
     }
-
+    /**
+     * 创建数据库表
+     */
     private fun createTables() {
         val isMySQL = plugin.config.getString("database.type", "sqlite").equals("mysql", true)
         val autoIncrement = if (isMySQL) "AUTO_INCREMENT" else "AUTOINCREMENT"
@@ -45,7 +47,7 @@ class DatabaseManager(val plugin: KaGuilds) {
         connection.use { conn ->
             val statement = conn.createStatement()
 
-            // 1. 公会主表 (修复了缺失的 exp 和 owner_name)
+            // 1. 公会主表
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_data (
                 id INTEGER PRIMARY KEY $autoIncrement,
@@ -62,7 +64,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
-            // 2. 成员表 (建议移除 player_uuid 的 PRIMARY KEY，改为普通索引，增加自增 ID)
+            // 2. 成员表
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_members (
                 id INTEGER PRIMARY KEY $autoIncrement,
@@ -85,7 +87,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
-            // 4. 银行日志表 (考虑到你之前提到的 bank log 功能)
+            // 4. 银行日志表 ( bank log 功能)
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_bank_logs (
                 id INTEGER PRIMARY KEY $autoIncrement,
@@ -104,7 +106,10 @@ class DatabaseManager(val plugin: KaGuilds) {
     fun close() {
         dataSource?.close()
     }
-    // 根据玩家 UUID 获取公会 ID
+
+    /**
+     * 根据玩家 UUID 获取公会 ID
+     */
     fun getGuildIdByPlayer(uuid: UUID): Int? {
         connection.use { conn ->
             val ps = conn.prepareStatement("SELECT guild_id FROM guild_members WHERE player_uuid = ?")
@@ -115,7 +120,9 @@ class DatabaseManager(val plugin: KaGuilds) {
         return null
     }
 
-    // 根据公会 ID 获取公会对象
+    /**
+     * 根据公会 ID 获取公会对象
+     */
     fun getGuildById(id: Int): GuildData? {
         val sql = "SELECT * FROM guild_data WHERE id = ?"
         connection.use { conn ->
@@ -141,6 +148,9 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return null
     }
+    /**
+     * 获取指定公会的成员数量
+     */
     fun getMemberCount(guildId: Int, existingConn: Connection? = null): Int {
         // 如果有传入的连接，直接用；没有则申请
         val conn = existingConn ?: dataSource?.connection ?: throw IllegalStateException("数据库未初始化")
@@ -217,58 +227,6 @@ class DatabaseManager(val plugin: KaGuilds) {
         return list
     }
 
-    /**
-     * 接受申请：这是一个“原子操作”，涉及两张表的变动
-     */
-    fun acceptRequest(guildId: Int, playerUuid: UUID): Boolean {
-        return try {
-            connection.use { conn ->
-                conn.autoCommit = false // 开启事务
-                try {
-                    // 1. 删除申请记录
-                    val del = conn.prepareStatement("DELETE FROM guild_requests WHERE guild_id = ? AND player_uuid = ?")
-                    del.setInt(1, guildId)
-                    del.setString(2, playerUuid.toString())
-                    del.executeUpdate()
-
-                    // 2. 添加成员记录
-                    val add = conn.prepareStatement("INSERT INTO guild_members (player_uuid, guild_id, role, join_time) VALUES (?, ?, ?, ?)")
-                    add.setString(1, playerUuid.toString())
-                    add.setInt(2, guildId)
-                    add.setString(3, "MEMBER")
-                    add.setLong(4, System.currentTimeMillis())
-                    add.executeUpdate()
-
-                    conn.commit() // 提交事务
-                    true
-                } catch (e: Exception) {
-                    conn.rollback() // 出错则回滚
-                    e.printStackTrace()
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    /**
-     * 拒绝申请
-     */
-    fun deleteRequest(guildId: Int, playerUuid: UUID): Boolean {
-        return try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement("DELETE FROM guild_requests WHERE guild_id = ? AND player_uuid = ?")
-                ps.setInt(1, guildId)
-                ps.setString(2, playerUuid.toString())
-                ps.executeUpdate() > 0
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
     /**
      * 检查玩家在特定公会中是否拥有管理权限 (ADMIN 或 OWNER)
      */
@@ -370,22 +328,6 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         }
     }
-    /**
-     * 根据公会ID获取公会名称
-     */
-    fun getGuildName(guildId: Int): String? {
-        return try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement("SELECT name FROM guild_data WHERE id = ?")
-                ps.setInt(1, guildId)
-                val rs = ps.executeQuery()
-                if (rs.next()) rs.getString("name") else null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
 
     /**
      * 添加公会成员 (增加 playerName 参数)
@@ -402,25 +344,6 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
-    /**
-     * 检查是否存在入会申请
-     */
-    fun hasRequest(guildId: Int, playerUuid: UUID): Boolean {
-        return try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement(
-                    "SELECT 1 FROM guild_requests WHERE guild_id = ? AND player_uuid = ?"
-                )
-                ps.setInt(1, guildId)
-                ps.setString(2, playerUuid.toString())
-                val rs = ps.executeQuery()
-                rs.next()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
     /**
      * 更新公会余额
      * @param guildId 公会ID
@@ -552,6 +475,9 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 创建公会
+     */
     fun createGuild(name: String, ownerUuid: UUID, ownerName: String): Int {
         val sqlGuild = "INSERT INTO guild_data (name, owner_uuid, owner_name, level, balance, exp) VALUES (?, ?, ?, 1, 0, 0);"
 
@@ -588,7 +514,9 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         }
     }
-
+    /**
+     * 删除申请记录
+     */
     fun removeRequest(guildId: Int, playerUuid: UUID): Boolean {
         val sql = "DELETE FROM guild_requests WHERE guild_id = ? AND player_uuid = ?"
         connection.use { conn ->
@@ -599,39 +527,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         }
     }
-    /**
-     * 申请加入公会
-     */
-    fun requestJoin(player: Player, guildName: String, callback: (OperationResult) -> Unit) {
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 1. 检查自己是否已有公会
-            if (plugin.dbManager.getGuildIdByPlayer(player.uniqueId) != null) {
-                callback(OperationResult.AlreadyInGuild)
-                return@Runnable
-            }
 
-            // 2. 检查公会是否存在
-            val guildId = plugin.dbManager.getGuildIdByName(guildName)
-            if (guildId == null) {
-                callback(OperationResult.Error("该公会不存在"))
-                return@Runnable
-            }
-
-            // 3. 检查是否已经申请过 (通过刚才上传的 DB 代码里的 getRequests)
-            val currentRequests = plugin.dbManager.getRequests(guildId)
-            if (currentRequests.any { it.first == player.uniqueId }) {
-                callback(OperationResult.Error("你已经申请过该公会了，请等待审核"))
-                return@Runnable
-            }
-
-            // 4. 写入申请表
-            if (plugin.dbManager.addRequest(guildId, player.uniqueId, player.name)) {
-                callback(OperationResult.Success)
-            } else {
-                callback(OperationResult.Error("申请提交失败，请联系管理员"))
-            }
-        })
-    }
     /**
      * 根据公会名称获取 ID
      */
@@ -661,54 +557,6 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
-    /**
-     * 接受申请
-     */
-    fun acceptRequest(sender: Player, targetName: String, callback: (OperationResult) -> Unit) {
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 1. 检查操作者权限
-            val guildId = plugin.dbManager.getGuildIdByPlayer(sender.uniqueId) ?: return@Runnable callback(OperationResult.NotInGuild)
-            val role = plugin.dbManager.getPlayerRole(sender.uniqueId)
-            if (role != "OWNER" && role != "ADMIN") {
-                callback(OperationResult.NoPermission)
-                return@Runnable
-            }
-
-            // 2. 在申请列表中通过“名字”找到该玩家的 UUID
-            val requests = plugin.dbManager.getRequests(guildId)
-            val targetPair = requests.find { (uuid, _) ->
-                // 匹配名字 (忽略大小写)
-                plugin.server.getOfflinePlayer(uuid).name?.equals(targetName, ignoreCase = true) == true
-            }
-
-            if (targetPair == null) {
-                callback(OperationResult.Error("未找到该玩家的申请记录"))
-                return@Runnable
-            }
-
-            val targetUuid = targetPair.first
-
-            // 3. 检查目标玩家是否已经加入了别的公会
-            if (plugin.dbManager.getGuildIdByPlayer(targetUuid) != null) {
-                plugin.dbManager.removeRequest(guildId, targetUuid) // 清理掉无效申请
-                callback(OperationResult.Error("该玩家已加入其他公会"))
-                return@Runnable
-            }
-
-            // 4. 执行添加成员逻辑 (使用 DBManager 已有的 addMember)
-            if (plugin.dbManager.addMember(guildId, targetUuid, targetName, "MEMBER")) {
-                // 5. 成功后删除申请记录
-                plugin.dbManager.removeRequest(guildId, targetUuid)
-
-                // 6. 如果目标在线，立即刷新他的公会缓存，让他能立刻用公会频道
-                plugin.playerGuildCache[targetUuid] = guildId
-
-                callback(OperationResult.Success)
-            } else {
-                callback(OperationResult.Error("加入失败：数据库写入错误"))
-            }
-        })
-    }
     /**
      * 通过玩家名获取其 UUID
      */

@@ -21,7 +21,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         val subCommand = args[0].lowercase()
 
-        // 2. 处理 reload (支持控制台)
+        // 2. 处理 /kg reload 命令
         if (subCommand == "reload") {
             if (!sender.hasPermission("kaguilds.admin")) {
                 sender.sendMessage(lang.get("no-permission"))
@@ -38,6 +38,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return true
         }
 
+        // 3. 处理 /kg 子命令
         when (subCommand) {
             "info" -> handleInfo(sender)
             "create" -> handleCreate(sender, args)
@@ -521,7 +522,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     }
 
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
-        val list = mutableListOf("help", "create", "join", "info", "requests", "accept", "promote", "demote", "leave", "kick", "delete", "chat", "bank","invite")
+        val list = mutableListOf("help", "create", "join", "info", "requests", "accept", "promote", "demote", "leave", "kick", "delete", "chat", "bank","invite","yes","no")
         if (sender.hasPermission("kaguilds.admin")) list.add("reload")
         return if (args.size == 1) list.filter { it.startsWith(args[0], ignoreCase = true) } else null
     }

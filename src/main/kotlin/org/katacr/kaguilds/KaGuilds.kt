@@ -7,6 +7,7 @@ import org.bukkit.plugin.RegisteredServiceProvider
 import org.katacr.kaguilds.service.GuildService
 
 class KaGuilds : JavaPlugin() {
+
     val inviteCache = mutableMapOf<UUID, Int>()
     var economy: Economy? = null
     val playerGuildCache = mutableMapOf<UUID, Int>()
@@ -15,10 +16,13 @@ class KaGuilds : JavaPlugin() {
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
 
+    /**
+     * 启用插件
+     */
     override fun onEnable() {
-        // 1. 释放并加载配置文件
+        // 0. 释放并加载配置文件
         saveDefaultConfig()
-        // 初始化语言管理器
+        // 1. 初始化语言管理器
         langManager = LanguageManager(this)
         langManager.load()
         // 2. 初始化数据库管理器
@@ -43,22 +47,29 @@ class KaGuilds : JavaPlugin() {
         }
         // 注册自定义插件消息通道
         this.server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
-        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this, "kaguilds:chat"))
+        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
         // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
         mutableMapOf<UUID, Int>()
         server.pluginManager.registerEvents(GuildListener(this), this)
     }
+
+    /**
+     * 关闭插件
+     */
     override fun onDisable() {// 使用 Kotlin 的属性初始化检查，防止在启动失败时调用报错
         if (::dbManager.isInitialized) {
             dbManager.close()
         }
         logger.info("KaGuilds 已安全关闭。")
     }
-    // 在 reload 逻辑中也要加上这一行
     fun reloadPlugin() {
         reloadConfig()
         langManager.load()
     }
+
+    /**
+     * 加载公会名称正则表达式
+     */
     fun loadRegex() {
         val pattern = config.getString("guild.name.regex", "^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$")
         nameRegex = try {
@@ -69,6 +80,9 @@ class KaGuilds : JavaPlugin() {
         }
     }
 
+    /**
+     * 设置经济系统
+     */
     private fun setupEconomy(): Boolean {
         if (server.pluginManager.getPlugin("Vault") == null) return false
         val rsp: RegisteredServiceProvider<Economy> = server.servicesManager.getRegistration(Economy::class.java) ?: return false

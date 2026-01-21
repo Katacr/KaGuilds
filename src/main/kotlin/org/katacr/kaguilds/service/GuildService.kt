@@ -192,7 +192,9 @@ class GuildService(private val plugin: KaGuilds) {
         }
     }
 
-    // 提取本地发送逻辑，方便复用
+    /*
+     * 单服逻辑：发送踢出通知
+     */
     private fun sendLocalKickMessage(guildId: Int, targetName: String) {
         val kickMsg = plugin.langManager.get("member-kick-notify", "player" to targetName)
         val targetPrivateMsg = plugin.langManager.get("kick-notice-to-target")
@@ -538,7 +540,6 @@ class GuildService(private val plugin: KaGuilds) {
     fun declineInvite(player: Player) {
         plugin.inviteCache.remove(player.uniqueId)
     }
-    // GuildService.kt
 
     /**
      * 统一分发成员变动通知 (加入/退出/踢出)
@@ -563,6 +564,9 @@ class GuildService(private val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 单服模式：向本地公会成员发送通知
+     */
     private fun sendLocalMemberStatus(guildId: Int, playerName: String, type: String) {
         val langKey = if (type == "JOIN") "member-join-notify" else "member-leave-notify"
         val msg = plugin.langManager.get(langKey, "player" to playerName)
