@@ -43,7 +43,7 @@ class KaGuilds : JavaPlugin() {
         }
         // 注册自定义插件消息通道
         this.server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
-        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
+        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this, "kaguilds:chat"))
         // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
         mutableMapOf<UUID, Int>()
         server.pluginManager.registerEvents(GuildListener(this), this)

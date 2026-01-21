@@ -6,15 +6,18 @@ import org.bukkit.plugin.messaging.PluginMessageListener
 import java.util.UUID
 import kotlin.collections.forEach
 
-class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListener {
+class PluginMessageListener(private val plugin: KaGuilds, val subChannel: Any) : PluginMessageListener {
     override fun onPluginMessageReceived(channel: String, player: Player, message: ByteArray) {
+
         if (channel != "kaguilds:chat") return
 
         val `in` = ByteStreams.newDataInput(message)
         val subChannel = `in`.readUTF()
         when (subChannel) {
+            /*
+             * 处理跨服聊天
+             */
             "Chat" -> {
-
             val targetGuildId = `in`.readInt()
             val senderName = `in`.readUTF()
             val msgContent = `in`.readUTF()
@@ -30,27 +33,30 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     }
                 }
             }
-            // 在 PluginMessageListener.kt 的 when(subChannel) 块中
+            /*
+             * 处理跨服公会缓存
+             */
             "SyncCache" -> {
-                val action = `in`.readUTF()
-                val uuidStr = `in`.readUTF()
-
                 try {
+                    val uuidStr = `in`.readUTF()
+                    val gId = `in`.readInt()
                     val targetUuid = UUID.fromString(uuidStr)
-                    when (action) {
-                        "REMOVE" -> {
-                            plugin.playerGuildCache.remove(targetUuid)
-                        }
-                        "UPDATE" -> {
-                            val newGuildId = `in`.readInt() // 读取传过来的 guildId
-                            // 如果该玩家在我们这台服务器在线，他的聊天功能将立即解锁
-                            plugin.playerGuildCache[targetUuid] = newGuildId
-                        }
+
+                    if (gId == -1) {
+                        // 如果 ID 为 -1，表示该玩家退出了公会
+                        plugin.playerGuildCache.remove(targetUuid)
+                    } else {
+                        // 更新缓存
+                        plugin.playerGuildCache[targetUuid] = gId
                     }
+                    // plugin.logger.info("已同步玩家 $uuidStr 的公会缓存状态")
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    plugin.logger.warning("同步缓存数据解析失败: ${e.message}")
                 }
             }
+            /*
+             * 处理跨服公会清除
+             */
             "CLEAR_GUILD" -> {
                 val targetId = `in`.readInt()
                 // 遍历本服缓存，清除所有属于该公会的玩家记录
@@ -80,31 +86,128 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     }
                 }
             }
+            /*
+             * 处理跨服邀请
+             */
             "CrossInvite" -> {
                 val targetName = `in`.readUTF()
                 val guildId = `in`.readInt()
                 val guildName = `in`.readUTF()
+                val senderName = `in`.readUTF()
 
-                // 检查目标玩家是否在该子服在线
-                val targetPlayer = plugin.server.getPlayer(targetName)
+                // 寻找目标玩家是否在本服
+                val targetPlayer = plugin.server.onlinePlayers.find { it.name.equals(targetName, true) }
+
                 if (targetPlayer != null) {
-                    // 1. 检查他是否已经有公会
+                    // 异步检查目标玩家是否有公会（防止他在别的服刚加了公会）
                     plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                         if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) == null) {
-                            // 2. 存入本服邀请缓存
+
+                            // 1. 存入本服的邀请缓存
                             plugin.inviteCache[targetPlayer.uniqueId] = guildId
 
-                            // 3. 发送提示（回到主线程发消息）
+                            // 2. 发送提示
                             plugin.server.scheduler.runTask(plugin, Runnable {
-                                targetPlayer.sendMessage(plugin.langManager.get("invite-received-target", "guild" to guildName))
+                                val msg = plugin.langManager.get("invite-received-target",
+                                    "player" to senderName, "guild" to guildName)
+                                targetPlayer.sendMessage(msg)
+                                targetPlayer.playSound(targetPlayer.location, org.bukkit.Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1f)
                             })
 
-                            // 4. 设置过期
+                            // 3. 60秒后自动过期
                             plugin.server.scheduler.runTaskLater(plugin, Runnable {
                                 plugin.inviteCache.remove(targetPlayer.uniqueId)
                             }, 1200L)
                         }
                     })
+                }
+            }
+            /*
+             * 通知玩家有新的申请
+             */
+            "NotifyRequest" -> {
+                val targetId = `in`.readInt()
+                val gName = `in`.readUTF()
+                val appName = `in`.readUTF()
+
+                val msg = plugin.langManager.get("notify-new-request", "player" to appName, "guild" to gName)
+
+                plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                    // 先查缓存确认公会
+                    if (plugin.playerGuildCache[onlinePlayer.uniqueId] == targetId) {
+                        // 再异步查权限发送
+                        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                            val role = plugin.dbManager.getPlayerRole(onlinePlayer.uniqueId)
+                            if (role == "OWNER" || role == "ADMIN") {
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    onlinePlayer.sendMessage(msg)
+                                    onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+                                })
+                            }
+                        })
+                    }
+                }
+            }
+
+            "MemberJoin" -> {
+                val gId = `in`.readInt()
+                val pName = `in`.readUTF()
+
+                val msg = plugin.langManager.get("member-join-notify", "player" to pName)
+                val welcomeMsg = plugin.langManager.get("request-accepted-notice")
+
+                plugin.server.onlinePlayers.forEach { p ->
+                    // 逻辑 A: 发送给公会里的老成员 (通过缓存判断)
+                    if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                        // 注意：如果新人已经在该服更新了缓存，他也会收到这条“热烈欢迎 XXX”
+                        p.sendMessage(msg)
+                    }
+
+                    // 逻辑 B: 专门给新人发私信 (通过名字判断，不依赖缓存)
+                    // 这样即使缓存同步慢了几毫秒，他也能第一时间看到
+                    else if (p.name.equals(pName, ignoreCase = true)) {
+                        p.sendMessage(welcomeMsg)
+                        p.playSound(p.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
+                    }
+                }
+            }
+
+            /*
+             * 处理跨服公会成员变动
+             */
+            "MemberLeave" -> {
+                val gId = `in`.readInt()
+                val pName = `in`.readUTF()
+                val msg = plugin.langManager.get("member-leave-notify", "player" to pName)
+
+                plugin.server.onlinePlayers.forEach { p ->
+                    if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                        p.sendMessage(msg)
+                    }
+                }
+            }
+
+            /*
+             * 处理跨服公会成员变动
+             */
+            "MemberKick" -> {
+                val gId = `in`.readInt()
+                val tName = `in`.readUTF()
+
+                val kickMsg = plugin.langManager.get("member-kick-notify", "player" to tName)
+                val targetPrivateMsg = plugin.langManager.get("kick-notice-to-target")
+
+                plugin.server.onlinePlayers.forEach { p ->
+                    // 通知该公会的在线成员
+                    if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                        p.sendMessage(kickMsg)
+                    }
+                    // 寻找被踢的目标玩家并私信
+                    if (p.name.equals(tName, ignoreCase = true)) {
+                        p.sendMessage(targetPrivateMsg)
+                        // 踢出时清理该服可能存在的内存缓存(双重保险)
+                        plugin.playerGuildCache.remove(p.uniqueId)
+                    }
                 }
             }
         }

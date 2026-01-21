@@ -1,6 +1,9 @@
 # KaGuilds 配置文件
 language: zh_CN  # en_US 或 zh_CN
 
+proxy: false # 是否启用代理模式
+
+
 guild:
   name:
     min-length: 3

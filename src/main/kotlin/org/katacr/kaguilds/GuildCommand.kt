@@ -1,14 +1,12 @@
 package org.katacr.kaguilds
 
-import com.google.common.io.ByteStreams
+
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
-import org.bukkit.scheduler.BukkitTask
 import org.katacr.kaguilds.service.OperationResult
-import java.util.UUID
 
 class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter {
 
@@ -55,6 +53,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "kick" -> handleKick(sender, args)
             "chat" -> handleChat(sender, args)
             "bank" -> handleBank(sender, args)
+            "yes" -> handleYes(sender)
+            "no" -> handleNo(sender)
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -62,6 +62,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
         return true
     }
+    /*
+     * 处理 /kg leave 命令
+     */
     private fun handleLeave(player: Player) {
         plugin.guildService.leaveGuild(player) { result ->
             val lang = plugin.langManager
@@ -74,6 +77,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg chat 命令
+     */
     private fun handleChat(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
         // 检查参数：/kg chat <消息...>
@@ -87,6 +93,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         plugin.guildService.sendGuildChat(player, message)
     }
 
+    /*
+     * 处理 /kg bank 命令
+     */
     private fun handleBank(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
 
@@ -212,6 +221,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         })
     }
 
+    /*
+     * 处理 /kg kick 命令
+     */
     private fun handleKick(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
@@ -229,6 +241,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg delete 命令
+     */
     private fun handleDelete(player: Player) {
         plugin.guildService.deleteGuild(player) { result ->
             val lang = plugin.langManager
@@ -242,6 +257,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg create 命令
+     */
     private fun handleCreate(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
@@ -262,6 +280,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg info 命令
+     */
     private fun handleInfo(player: Player) {
         plugin.guildService.getDetailedInfo(player) { result, info ->
             when (result) {
@@ -282,6 +303,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg promote 命令
+     * 处理 /kg demote 命令
+     */
     private fun handleRoleChange(sender: Player, args: Array<out String>, newRole: String, roleDisplay: String) {
         val lang = plugin.langManager
         if (args.size < 2) {
@@ -303,30 +328,46 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 newRole -> sender.sendMessage(lang.get("already-has-role", "name" to targetName, "role" to roleDisplay))
                 else -> {
                     if (plugin.dbManager.updateMemberRole(guildId, targetOffline.uniqueId, newRole)) {
-                        sender.sendMessage(lang.get("promote-success", "name" to targetName, "action" to args[0]))
+                        sender.sendMessage(lang.get("promote-success", "name" to targetName, "action" to lang.get("promote-action-${args[0]}")))
                         targetOffline.player?.sendMessage(lang.get("role-updated-target", "role" to roleDisplay))
                     }
                 }
             }
         })
     }
+
+    /*
+    * 处理 /kg invite 命令
+    */
     private fun handleInvite(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
             player.sendMessage(plugin.langManager.get("invite-usage"))
             return
         }
+
         plugin.guildService.invitePlayer(player, args[1]) { result ->
             val lang = plugin.langManager
-            when (result) {
-                is OperationResult.Success -> player.sendMessage(lang.get("invite-success", "player" to args[1]))
-                is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
-                is OperationResult.NotInGuild -> player.sendMessage(lang.get("not-in-guild"))
-                else -> {}
-            }
+            // 回到主线程执行消息反馈
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                when (result) {
+                    is OperationResult.Success -> {
+                        val isProxy = plugin.config.getBoolean("proxy", false)
+                        val msgKey = if (isProxy) "invite-success-proxy" else "invite-success"
+                        player.sendMessage(lang.get(msgKey, "player" to args[1]))
+                    }
+                    is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
+                    is OperationResult.NotInGuild -> player.sendMessage(lang.get("not-in-guild"))
+                    is OperationResult.Error -> player.sendMessage(result.message)
+                    else -> {}
+                }
+            })
         }
     }
 
+    /*
+     * 处理 /kg join 命令
+     */
     private fun handleJoin(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
@@ -344,6 +385,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg requests 命令
+     */
     private fun handleRequests(player: Player) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
@@ -368,23 +412,31 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         })
     }
 
+    /*
+     * 处理 /kg accept 命令
+     */
     private fun handleAccept(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
             player.sendMessage(plugin.langManager.get("accept-usage"))
             return
         }
+
+        // 调用 Service 层处理申请逻辑 (之前已经写好的 acceptRequest)
         plugin.guildService.acceptRequest(player, args[1]) { result ->
             val lang = plugin.langManager
             when (result) {
-                is OperationResult.Success -> player.sendMessage(lang.get("accept-success-sender", "name" to args[1]))
+                is OperationResult.Success -> player.sendMessage(lang.get("accept-success", "player" to args[1]))
                 is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
-                is OperationResult.Error -> player.sendMessage("§c${result.message}")
+                is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
         }
     }
 
+    /*
+     * 处理 /kg deny 命令
+     */
     private fun handleDeny(player: Player, args: Array<out String>) {
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
@@ -402,17 +454,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
-
-    private fun executeInvite(sender: Player, targetUuid: UUID, guildId: Int, guildName: String) {
-        plugin.inviteCache[targetUuid] = guildId
-        sender.sendMessage(plugin.langManager.get("invite-sent-sender", "name" to plugin.server.getOfflinePlayer(targetUuid).name!!))
-        plugin.server.getPlayer(targetUuid)?.sendMessage(plugin.langManager.get("invite-received-target", "guild" to guildName))
-        plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            plugin.inviteCache.remove(targetUuid)
-        }, 1200L)
-    }
-
-
+    /*
+     * 处理 /kg help 命令
+     */
     private fun sendHelp(sender: Player) {
         val lang = plugin.langManager
 
@@ -444,6 +488,36 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             )
         }
         sender.sendMessage(lang.get("help-footer"))
+    }
+    /*
+     * 处理 /kg yes 命令
+     */
+    private fun handleYes(player: Player) {
+        plugin.guildService.acceptInvite(player) { result ->
+            val lang = plugin.langManager
+            when (result) {
+                is OperationResult.Success -> {
+                    player.sendMessage(lang.get("invite-accepted"))
+                    // 播放成功音效
+                    player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
+                }
+                is OperationResult.AlreadyInGuild -> player.sendMessage(lang.get("join-already-in-guild"))
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
+    }
+
+    /*
+     * 处理 /kg no 命令
+     */
+    private fun handleNo(player: Player) {
+        if (!plugin.inviteCache.containsKey(player.uniqueId)) {
+            player.sendMessage(plugin.langManager.get("invite-none"))
+            return
+        }
+        plugin.guildService.declineInvite(player)
+        player.sendMessage(plugin.langManager.get("invite-declined"))
     }
 
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {

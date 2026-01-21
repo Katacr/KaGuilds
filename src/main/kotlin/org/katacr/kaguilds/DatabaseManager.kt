@@ -709,7 +709,23 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         })
     }
-
+    /**
+     * 通过玩家名获取其 UUID
+     */
+    fun getUuidByPlayerName(playerName: String): UUID? {
+        val sql = "SELECT player_uuid FROM guild_members WHERE player_name = ? LIMIT 1"
+        dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, playerName)
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    // 如果数据库里存的是 String，这里转回 UUID 对象
+                    return UUID.fromString(rs.getString("player_uuid"))
+                }
+            }
+        }
+        return null
+    }
     // 公会数据模型
     data class GuildData(
         val id: Int,
