@@ -533,15 +533,21 @@ class DatabaseManager(val plugin: KaGuilds) {
     /**
      * 根据公会名称获取 ID
      */
-    fun getGuildIdByName(name: String): Int? {
+    fun getGuildIdByName(name: String): Int {
         val sql = "SELECT id FROM guild_data WHERE name = ?"
-        connection.use { conn ->
-            val ps = conn.prepareStatement(sql)
-            ps.setString(1, name)
-            val rs = ps.executeQuery()
-            if (rs.next()) return rs.getInt("id")
+        return try {
+            connection.use { conn ->
+                val ps = conn.prepareStatement(sql)
+                ps.setString(1, name)
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    return rs.getInt("id")
+                }
+                -1 // 必须明确返回 -1
+            }
+        } catch (e: Exception) {
+            -1
         }
-        return null
     }
 
     /**
@@ -591,6 +597,25 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         } ?: false
     }
+
+    /**
+     * 更新公会名称
+     */
+    fun renameGuild(guildId: Int, newName: String): Boolean {
+        val sql = "UPDATE guild_data SET name = ? WHERE id = ?"
+        return try {
+            connection.use { conn ->
+                val ps = conn.prepareStatement(sql)
+                ps.setString(1, newName)
+                ps.setInt(2, guildId)
+                ps.executeUpdate() > 0
+            }
+        } catch (e: Exception) {
+            // 如果是因为名字重复导致的异常，可以在这里记录或处理
+            false
+        }
+    }
+
     // 公会数据模型
     data class GuildData(
         val id: Int,

@@ -7,6 +7,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.service.OperationResult
+import org.katacr.kaguilds.service.GuildService
 
 class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter {
 
@@ -58,6 +59,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "no" -> handleNo(sender)
             "settp" -> handleSetTp(sender)
             "tp" -> handleTp(sender)
+            "rename" -> handleRename(sender, args)
+            "buff" -> handleBuff(sender, args)
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -65,6 +68,28 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
         return true
     }
+
+    /*
+     * 处理 /kg buff 命令
+     */
+    private fun handleBuff(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+        if (args.size < 2) {
+            player.sendMessage(lang.get("buff-usage"))
+            return
+        }
+        val buffKey = args[1]
+        plugin.guildService.buyBuff(player, buffKey) { result ->
+
+            when (result) {
+                is OperationResult.Success -> {} // 成功消息由 dispatchBuff 统一发送
+                is OperationResult.InsufficientFunds -> player.sendMessage(lang.get("create-insufficient")) // 复用余额不足
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
+    }
+
     /*
      * 处理 /kg leave 命令
      */
@@ -190,32 +215,28 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                             if (plugin.dbManager.updateGuildBalance(guildId, amount)) {
                                 plugin.dbManager.logBankTransaction(guildId, player.name, "ADD", amount)
                                 player.sendMessage(lang.get("bank-add-success", "amount" to amount.toString()))
+                                plugin.guildService.dispatchBankNotification(guildId, player.name, "deposit", amount)
                             }
                         })
                     })
                 }
 
                 "get" -> {
-                    // 1. 权限检查：只有管理层能取钱
-                    if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
-                        player.sendMessage(lang.get("not-staff"))
-                        return@Runnable
-                    }
-
-                    // 2. 检查公会余额是否足够
+                    // 1. 检查公会余额是否足够
                     if (guildData.balance < amount) {
                         player.sendMessage(lang.get("bank-insufficient-guild"))
                         return@Runnable
                     }
 
-                    // 3. 更新数据库扣款
+                    // 2. 更新数据库扣款
                     if (plugin.dbManager.updateGuildBalance(guildId, -amount)) {
                         plugin.dbManager.logBankTransaction(guildId, player.name, "GET", amount)
 
-                        // 4. 发放金币给玩家 (回到同步线程)
+                        // 3. 发放金币给玩家 (回到同步线程)
                         plugin.server.scheduler.runTask(plugin, Runnable {
                             econ.depositPlayer(player, amount)
                             player.sendMessage(lang.get("bank-get-success", "amount" to amount.toString()))
+                            plugin.guildService.dispatchBankNotification(guildId, player.name, "withdraw", amount)
                         })
                     }
                 }
@@ -549,9 +570,96 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg rename 命令
+     */
+    private fun handleRename(player: Player, args: Array<out String>) {
+        if (args.size < 2) {
+            player.sendMessage(plugin.langManager.get("rename-usage"))
+            return
+        }
+
+        // 2. 定义变量 newName
+        val newName = args[1]
+
+        // 3. 调用 Service
+        plugin.guildService.renameGuild(player, newName) { result ->
+            when (result) {
+                is OperationResult.Success -> {
+                    // 如果需要显示扣费金额，可以从 config 读取
+                    val price = plugin.config.getDouble("balance.rename", 5000.0).toString()
+                    player.sendMessage(plugin.langManager.get("rename-success",
+                        "name" to newName,
+                        "price" to price
+                    ))
+                }
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
+    }
+
+    /*
+     * 处理指令自动补全
+     */
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
-        val list = mutableListOf("help", "create", "join", "info", "requests", "accept", "promote", "demote", "leave", "kick", "delete", "chat", "bank","invite","yes","no","settp","tp")
-        if (sender.hasPermission("kaguilds.admin")) list.add("reload")
-        return if (args.size == 1) list.filter { it.startsWith(args[0], ignoreCase = true) } else null
+        if (sender !is Player) return emptyList()
+
+        return when (args.size) {
+            // 第一级指令补全: /kg <TAB>
+            1 -> {
+                val list = mutableListOf(
+                    "help", "create", "join", "info", "requests", "accept", "promote",
+                    "demote", "leave", "kick", "delete", "chat", "bank", "invite",
+                    "yes", "no", "settp", "tp", "rename", "buff"
+                )
+                if (sender.hasPermission("kaguilds.admin")) list.add("reload")
+                list.filter { it.startsWith(args[0], ignoreCase = true) }
+            }
+
+            // 第二级指令补全: /kg sub <TAB>
+            2 -> {
+                val subCommand = args[0].lowercase()
+                when (subCommand) {
+                    // 金库二级指令
+                    "bank" -> {
+                        listOf("add", "get", "log").filter { it.startsWith(args[1], ignoreCase = true) }
+                    }
+
+                    // Buff 二级指令 (从配置文件动态读取)
+                    "buff" -> {
+                        // 获取当前玩家公会等级 (同步获取，若数据库性能好可直接查，或查缓存)
+                        val guildId = plugin.playerGuildCache[sender.uniqueId]
+                        if (guildId != null) {
+                            // 尝试从数据库获取等级 (注意: 同步操作建议有缓存，否则建议直接展示所有Buff)
+                            val guildData = plugin.dbManager.getGuildData(guildId)
+                            val level = guildData?.level ?: 1
+
+                            // 只展示该等级允许使用的 Buff
+                            val allowedBuffs = plugin.config.getStringList("level.$level.use-buff")
+                            if (allowedBuffs.isNotEmpty()) {
+                                return allowedBuffs.filter { it.startsWith(args[1], ignoreCase = true) }
+                            }
+                        }
+                        // 如果不在公会，展示所有配置的 Buff 键
+                        val section = plugin.config.getConfigurationSection("guild.buffs")
+                        section?.getKeys(false)?.filter { it.startsWith(args[1], ignoreCase = true) }?.toList()
+                    }
+
+                    // 针对需要玩家名的指令，返回 null 会自动触发 Bukkit 默认的在线玩家补全
+                    "kick", "promote", "demote", "invite", "join", "accept" -> null
+
+                    else -> emptyList()
+                }
+            }
+
+            // 第三级指令 (例如 /kg bank log <TAB>)
+            3 -> {
+                // 如果有需要可以继续扩展，目前逻辑下返回空
+                emptyList()
+            }
+
+            else -> emptyList()
+        }
     }
 }

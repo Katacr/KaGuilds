@@ -2,10 +2,75 @@
 language: zh_CN  # en_US 或 zh_CN
 
 proxy: false # 是否启用代理模式
-server-name: server # 服务器名称，用于跨服邀请/通讯
+server-id: server # 服务器名称，用于跨服邀请/通讯
 
 guild:
-  name:
+  buff-time: 90 # 公会buff时间(秒)
+  buffs:
+    NightVision: # 指令参数  /kg buff NightVision
+      type: NIGHT_VISION # Bukkit 药水效果枚举名
+      price: 1000.0      # 价格
+      amplifier: 0       # 效果等级 (0=一级, 1=二级)
+      name: "夜视"       # 显示名称
+    Speed:
+      type: SPEED
+      price: 2000.0
+      amplifier: 1       # 速度 II
+      name: "疾跑 II"
+    Haste:
+      type: FAST_DIGGING
+      price: 3000.0
+      amplifier: 1
+      name: "急迫 II"
+    Jump:
+      type: JUMP
+      price: 800.0
+      amplifier: 1 # 跳跃提升 II
+      name: "跳跃提升 II"
+    WaterBreathing:
+      type: WATER_BREATHING
+      price: 1200.0
+      amplifier: 0
+      name: "水下呼吸"
+    Luck:
+      type: LUCK
+      price: 2000.0
+      amplifier: 0
+      name: "幸运"
+    Strength:
+      type: INCREASE_DAMAGE # 注意：力量叫 INCREASE_DAMAGE
+      price: 5000.0
+      amplifier: 0          # 力量 I (力量II通常太过变态，建议给I)
+      name: "力量"
+    Resistance:
+      type: DAMAGE_RESISTANCE # 注意：抗性提升叫 DAMAGE_RESISTANCE
+      price: 4000.0
+      amplifier: 0
+      name: "抗性提升"
+    FireResist:
+      type: FIRE_RESISTANCE
+      price: 1500.0
+      amplifier: 0
+      name: "防火"
+    Regeneration:
+      type: REGENERATION
+      price: 6000.0       # 生命恢复是非常昂贵的属性
+      amplifier: 0        # 恢复 I
+      name: "生命恢复"
+    Absorption:
+      type: ABSORPTION
+      price: 2500.0
+      amplifier: 1        # 伤害吸收 II (增加金心)
+      name: "伤害吸收 II"
+
+  teleport: # 传送设置
+    disabled-worlds: # 禁止设置传送点的世界
+      - "world_nether"
+      - "world_the_end"
+    cooldown: 3 # 传送时间(秒)
+
+
+  name: # 名称设置
     min-length: 3
     max-length: 16
     # 正则表达式：允许英文字母、数字、下划线、汉字
@@ -23,6 +88,8 @@ database:
 # 经济系统设置
 balance:
   create: 10000.0  # 创建公会所需金币
+  rename: 3000.0  # 公会改名所需金币
+
 
 level: # 公会等级设置
   1:
@@ -30,23 +97,64 @@ level: # 公会等级设置
     max-members: 10 # 公会最大人数
     max-money: 50000 # 公会金库最大金币
     tp-money: 500 # 传送费用，等级越高费用越便宜
+    use-buff: # 允许使用的buff列表
+     - NightVision
+     - Speed
+
+
   2:
     need-exp: 5000 # 公会等级2需要的经验值
     max-members: 20 # 公会最大人数
     max-money: 100000 # 公会金库最大金币
     tp-money: 300 # 传送费用，等级越高费用越便宜
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+
   3:
     need-exp: 10000 # 公会等级3需要的经验值
     max-members: 30 # 公会最大人数
     max-money: 200000 # 公会金库最大金币
     tp-money: 200 # 传送费用，等级越高费用越便宜
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+
   4:
     need-exp: 20000 # 公会等级4需要的经验值
     max-members: 40 # 公会最大人数
     max-money: 400000 # 公会金库最大金币
     tp-money: 100 # 传送费用，等级越高费用越便宜
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+      - Strength
+      - Resistance
+
   5:
     need-exp: 50000 # 公会等级5需要的经验值
     max-members: 50 # 公会最大人数
     max-money: 600000 # 公会金库最大金币
     tp-money: 50 # 传送费用，等级越高费用越便宜
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+      - Strength
+      - Resistance
+      - FireResist
+      - Regeneration
+      - Absorption

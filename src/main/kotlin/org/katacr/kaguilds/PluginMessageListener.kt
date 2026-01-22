@@ -3,6 +3,7 @@ package org.katacr.kaguilds
 import com.google.common.io.ByteStreams
 import org.bukkit.entity.Player
 import org.bukkit.plugin.messaging.PluginMessageListener
+import org.katacr.kaguilds.service.OperationResult
 import java.util.UUID
 import kotlin.collections.forEach
 
@@ -212,6 +213,68 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         plugin.playerGuildCache.remove(p.uniqueId)
                     }
                 }
+            }
+
+            /*
+             * 处理跨服名称变动通知
+             */
+            "RenameSync" -> {
+                // 按照发送顺序读取：1. Int (ID)  2. UTF (Name)
+                val guildId = `in`.readInt()
+                val newGuildName = `in`.readUTF() // 这里定义了局部变量
+
+                // 逻辑处理：例如更新该服务器的缓存或广播通知
+                plugin.server.onlinePlayers.forEach { p ->
+                    if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                        p.sendMessage(plugin.langManager.get("rename-success-notify", "name" to newGuildName))
+                    }
+                }
+            }
+
+            /*
+             * 处理跨服银行变动通知
+             */
+            "BankSync" -> {
+                val gId = `in`.readInt()
+                val pName = `in`.readUTF()
+                val type = `in`.readUTF()
+                val amount = `in`.readDouble()
+
+                val langKey = if (type == "deposit") "bank-deposit-notify" else "bank-withdraw-notify"
+                val msg = plugin.langManager.get(langKey, "player" to pName, "amount" to amount.toString())
+
+                plugin.server.onlinePlayers.forEach { p ->
+                    if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                        p.sendMessage(msg)
+                    }
+                }
+            }
+
+            /*
+             * 处理跨服buff
+             */
+            "BuffSync" -> {
+                val gId = `in`.readInt()
+                val typeName = `in`.readUTF()
+                val seconds = `in`.readInt()
+                val amplifier = `in`.readInt()
+                val buyerName = `in`.readUTF()
+                val buffName = `in`.readUTF()
+
+                val type = org.bukkit.potion.PotionEffectType.getByName(typeName) ?: return
+                val durationTicks = seconds * 20
+                val effect = org.bukkit.potion.PotionEffect(type, durationTicks, amplifier)
+
+                val msg = plugin.langManager.get("buff-received", "player" to buyerName, "buff" to buffName)
+
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    plugin.server.onlinePlayers.forEach { p ->
+                        if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                            p.addPotionEffect(effect)
+                            p.sendMessage(msg)
+                        }
+                    }
+                })
             }
         }
     }

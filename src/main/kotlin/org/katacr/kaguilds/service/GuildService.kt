@@ -3,6 +3,8 @@ package org.katacr.kaguilds.service
 import org.katacr.kaguilds.KaGuilds
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.DatabaseManager
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
 
 class GuildService(private val plugin: KaGuilds) {
     data class GuildInfo(
@@ -10,6 +12,9 @@ class GuildService(private val plugin: KaGuilds) {
         val memberNames: List<String>,
         val onlineCount: Int
     )
+
+    // 记录玩家 UUID 和对应的 BukkitTask
+    private val teleportTasks = mutableMapOf<java.util.UUID, org.bukkit.scheduler.BukkitTask>()
     /**
      * 获取公会详细展示信息
      */
@@ -192,7 +197,7 @@ class GuildService(private val plugin: KaGuilds) {
         }
     }
 
-    /*
+    /**
      * 单服逻辑：发送踢出通知
      */
     private fun sendLocalKickMessage(guildId: Int, targetName: String) {
@@ -282,7 +287,11 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             val guildId = plugin.dbManager.getGuildIdByName(guildName)
-                ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("join-guild-not-found")))
+
+            if (guildId == -1) {
+                callback(OperationResult.Error(plugin.langManager.get("join-guild-not-found")))
+                return@Runnable
+            }
 
             val currentRequests = plugin.dbManager.getRequests(guildId)
             if (currentRequests.any { it.first == player.uniqueId }) {
@@ -588,7 +597,12 @@ class GuildService(private val plugin: KaGuilds) {
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
-
+        // 检查世界是否被禁用
+        val worldName = player.world.name
+        val disabledWorlds = plugin.config.getStringList("guild.teleport.disabled-worlds")
+        if (disabledWorlds.contains(worldName)) {
+            return callback(OperationResult.Error(plugin.langManager.get("tp-world-disabled")))
+        }
         // 格式修改为: serverName:worldName,x,y,z,yaw,pitch
         // plugin.config 中应该有一个标识当前服务器名字的配置，比如 "server-name: lobby1"
         val serverName = plugin.config.getString("server-id", "unknown")
@@ -608,63 +622,305 @@ class GuildService(private val plugin: KaGuilds) {
      * 传送到公会点
      */
     fun teleportToGuild(player: Player, callback: (OperationResult) -> Unit) {
-        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+        val uuid = player.uniqueId
+        val guildId = plugin.playerGuildCache[uuid] ?: return callback(OperationResult.NotInGuild)
+
+        // 如果已经在传送中，不要重复开启
+        if (isTeleporting(uuid)) return
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
-            val locStr = guildData.teleportLocation // 需要你在 GuildData 中读取这个字段
+            val locStr = guildData.teleportLocation
 
-            // 如果没有设置传送点，则不允许传送
+            // 1. 检查传送点是否存在
             if (locStr.isNullOrEmpty()) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-not-set")))
             }
 
-            // 解析服务器名和坐标
+            // 2. 跨服判断
             val mainParts = locStr.split(":")
             val targetServer = mainParts[0]
             val currentServer = plugin.config.getString("server-id", "unknown")
 
-            // 如果开启了代理模式，且服务器名不匹配
             if (plugin.config.getBoolean("proxy", false) && targetServer != currentServer) {
                 return@Runnable callback(OperationResult.Error(
                     plugin.langManager.get("tp-wrong-server", "server" to targetServer)
                 ))
             }
 
-            // 获取当前等级对应的费用
+            // 3. 获取等级费用与倒计时设置
             val level = guildData.level
             val cost = plugin.config.getDouble("level.$level.tp-money", 500.0)
+            val cooldown = plugin.config.getInt("guild.teleport.cooldown", 3)
 
-            // 检查经济
+            // 4. 检查经济
             if (plugin.economy?.has(player, cost) == false) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-insufficient-money", "cost" to cost.toString())))
             }
 
-            // 切回主线程进行扣费和传送
+            // 5. 核心逻辑：判断是否需要等待
+            if (cooldown <= 0) {
+                // --- 瞬间传送分支 ---
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    executeFinalTeleport(player, locStr, cost)
+                    callback(OperationResult.Success)
+                })
+            } else {
+                // --- 延迟传送分支 ---
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    player.sendMessage(plugin.langManager.get("tp-starting", "time" to cooldown.toString()))
+
+                    val task = plugin.server.scheduler.runTaskLater(plugin, Runnable {
+                        executeFinalTeleport(player, locStr, cost)
+                        teleportTasks.remove(uuid)
+                        callback(OperationResult.Success)
+                    }, cooldown * 20L)
+
+                    teleportTasks[uuid] = task
+                })
+            }
+        })
+    }
+
+    /**
+     * 内部私有方法：执行扣费和物理传送
+     */
+    private fun executeFinalTeleport(player: Player, locStr: String, cost: Double) {
+        // 扣费
+        plugin.economy?.withdrawPlayer(player, cost)
+
+        try {
+            // 这里的 locStr 格式是 serverName:world,x,y,z,yaw,pitch
+            // 我们需要先去掉 serverName: 部分，再解析坐标
+            val coordPart = locStr.substringAfter(":")
+            val parts = coordPart.split(",")
+
+            val world = plugin.server.getWorld(parts[0])
+            if (world == null) {
+                player.sendMessage(plugin.langManager.get("tp-world-error"))
+                return
+            }
+
+            val destination = org.bukkit.Location(
+                world, parts[1].toDouble(), parts[2].toDouble(), parts[3].toDouble(),
+                parts[4].toFloat(), parts[5].toFloat()
+            )
+
+            player.teleport(destination)
+            player.playSound(player.location, org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
+        } catch (e: Exception) {
+            player.sendMessage("§c传送点数据解析失败，请联系管理员重新设置。")
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * 检查玩家是否正在传送
+     */
+    fun isTeleporting(uuid: java.util.UUID): Boolean {
+        return teleportTasks.containsKey(uuid)
+    }
+    /**
+     * 取消玩家的传送任务
+     */
+    fun cancelTeleport(uuid: java.util.UUID) {
+        teleportTasks.remove(uuid)?.cancel()
+    }
+    /**
+     * 修改公会名称
+     */
+    fun renameGuild(player: Player, newName: String, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        // 1. 权限检查 (仅限会长)
+        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        if (role != "OWNER") {
+            return callback(OperationResult.Error(plugin.langManager.get("rename-only-owner")))
+        }
+
+        // 2. 名字合法性检查
+        if (newName.length > 16 || newName.isEmpty()) {
+            return callback(OperationResult.Error(plugin.langManager.get("create-invalid-name")))
+        }
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 3. 检查名字是否已存在 (注意这里的逻辑已经修正为判断 -1)
+            val existingId = plugin.dbManager.getGuildIdByName(newName)
+            if (existingId != -1 && existingId != guildId) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
+            }
+
+            // 4. 检查经济
+            val cost = plugin.config.getDouble("balance.rename", 5000.0)
+            if (plugin.economy?.has(player, cost) == false) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-insufficient")))
+            }
+
+            // 5. 执行扣费
             plugin.server.scheduler.runTask(plugin, Runnable {
-                // 扣费
                 plugin.economy?.withdrawPlayer(player, cost)
 
-                // 反序列化坐标
-                try {
-                    val parts = locStr.split(",")
-                    val world = plugin.server.getWorld(parts[0])
-                    if (world == null) {
-                        player.sendMessage(plugin.langManager.get("tp-world-error"))
-                        return@Runnable
-                    }
-                    val destination = org.bukkit.Location(
-                        world, parts[1].toDouble(), parts[2].toDouble(), parts[3].toDouble(),
-                        parts[4].toFloat(), parts[5].toFloat()
-                    )
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    // 执行数据库改名
+                    if (plugin.dbManager.renameGuild(guildId, newName)) {
 
-                    player.teleport(destination)
-                    player.playSound(player.location, org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
-                    callback(OperationResult.Success)
-                } catch (e: Exception) {
-                    callback(OperationResult.Error("传送点数据解析失败"))
-                }
+                        // --- 核心复刻功能：本地广播给全公会成员 ---
+                        plugin.server.scheduler.runTask(plugin, Runnable {
+                            val renameMsg = plugin.langManager.get("rename-success-notify", "name" to newName)
+                            plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                                // 检查在线玩家是否属于该公会 (利用缓存提升效率)
+                                if (plugin.playerGuildCache[onlinePlayer.uniqueId] == guildId) {
+                                    onlinePlayer.sendMessage(renameMsg)
+                                }
+                            }
+                        })
+
+                        // 6. 跨服同步 (如果开启了代理模式)
+                        syncRenameProxy(guildId, newName)
+
+                        callback(OperationResult.Success)
+                    } else {
+                        callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                    }
+                })
             })
         })
+    }
+
+    /**
+     * 跨服同步改名通知
+     */
+    fun syncRenameProxy(guildId: Int, newName: String) {
+        val isProxy = plugin.config.getBoolean("proxy", false)
+        if (isProxy) {
+            val out = com.google.common.io.ByteStreams.newDataOutput()
+            out.writeUTF("RenameSync")
+            out.writeInt(guildId)
+            out.writeUTF(newName)
+            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        }
+    }
+
+    /**
+     * 分发金库变动通知
+     * @param type "deposit" 或 "withdraw"
+     */
+    internal fun dispatchBankNotification(guildId: Int, playerName: String, type: String, amount: Double) {
+        // 1. 本地通知 (单服模式必走)
+        val langKey = if (type == "deposit") "bank-deposit-notify" else "bank-withdraw-notify"
+        val msg = plugin.langManager.get(langKey,
+            "player" to playerName,
+            "amount" to amount.toString()
+        )
+
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            plugin.server.onlinePlayers.forEach { p ->
+                if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                    p.sendMessage(msg)
+                }
+            }
+        })
+
+        // 2. 跨服通知 (仅在开启 proxy 时发送)
+        if (plugin.config.getBoolean("proxy", false)) {
+            val out = com.google.common.io.ByteStreams.newDataOutput()
+            out.writeUTF("BankSync")
+            out.writeInt(guildId)
+            out.writeUTF(playerName)
+            out.writeUTF(type)
+            out.writeDouble(amount)
+            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        }
+    }
+
+    /**
+     * 购买公会 Buff
+     */
+    fun buyBuff(player: Player, buffKey: String, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 获取公会数据以确认等级
+            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+            val level = guildData.level
+
+            // 2. 检查当前等级是否允许使用该 Buff
+            // 从 level.X.use-buff 路径读取列表
+            val allowedBuffs = plugin.config.getStringList("level.$level.use-buff")
+
+            // 这里的 contains 区分大小写，建议确保 config 中的 key 和指令输入一致
+            // 或者使用 val found = allowedBuffs.any { it.equals(buffKey, ignoreCase = true) }
+            if (!allowedBuffs.contains(buffKey)) {
+                val errorMsg = plugin.langManager.get("buff-level-low", "level" to level.toString())
+                return@Runnable callback(OperationResult.Error(errorMsg))
+            }
+
+            // 3. 读取 Buff 具体配置
+            val path = "guild.buffs.$buffKey"
+            if (!plugin.config.contains(path)) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("buff-not-exist")))
+            }
+
+            val typeStr = plugin.config.getString("$path.type")
+            val price = plugin.config.getDouble("$path.price")
+            val amplifier = plugin.config.getInt("$path.amplifier", 0)
+            val buffName = plugin.config.getString("$path.name", buffKey)
+
+            val potionType = org.bukkit.potion.PotionEffectType.getByName(typeStr ?: "")
+                ?: return@Runnable callback(OperationResult.Error("配置错误：无效的效果类型 $typeStr"))
+
+            // 4. 检查经济
+            if (plugin.economy?.has(player, price) == false) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-insufficient")))
+            }
+
+            // 5. 扣费并分发
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                plugin.economy?.withdrawPlayer(player, price)
+
+                val durationSeconds = plugin.config.getInt("guild.buff-time", 90)
+                dispatchBuff(guildId, potionType, durationSeconds, amplifier, player.name, buffName!!)
+
+                callback(OperationResult.Success)
+            })
+        })
+    }
+
+    /**
+     * 分发 Buff (本地 + 跨服)
+     */
+    private fun dispatchBuff(guildId: Int, type: PotionEffectType, seconds: Int, amplifier: Int, buyerName: String, buffName: String) {
+        val durationTicks = seconds * 20
+
+        // 1. 本地分发 (切回主线程确保安全)
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            // 构建药水效果
+            val effect = PotionEffect(type, durationTicks, amplifier)
+
+            // 遍历在线玩家
+            plugin.server.onlinePlayers.forEach { p ->
+                if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                    p.addPotionEffect(effect)
+                    p.sendMessage(plugin.langManager.get("buff-received",
+                        "player" to buyerName,
+                        "buff" to buffName
+                    ))
+                }
+            }
+        })
+
+        // 2. 跨服分发
+        if (plugin.config.getBoolean("proxy", false)) {
+            val out = com.google.common.io.ByteStreams.newDataOutput()
+            out.writeUTF("BuffSync")
+            out.writeInt(guildId)
+            out.writeUTF(type.name) // 传递药水枚举名
+            out.writeInt(seconds)
+            out.writeInt(amplifier)
+            out.writeUTF(buyerName)
+            out.writeUTF(buffName)
+
+            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        }
     }
 }
