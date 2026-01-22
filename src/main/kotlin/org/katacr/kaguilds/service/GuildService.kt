@@ -577,4 +577,94 @@ class GuildService(private val plugin: KaGuilds) {
             }
         }
     }
+
+    /**
+     * 设置公会传送点
+     */
+    fun setGuildTP(player: Player, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        if (role != "OWNER" && role != "ADMIN") {
+            return callback(OperationResult.NoPermission)
+        }
+
+        // 格式修改为: serverName:worldName,x,y,z,yaw,pitch
+        // plugin.config 中应该有一个标识当前服务器名字的配置，比如 "server-name: lobby1"
+        val serverName = plugin.config.getString("server-id", "unknown")
+        val loc = player.location
+        val locStr = "$serverName:${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            if (plugin.dbManager.setGuildLocation(guildId, locStr)) {
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 传送到公会点
+     */
+    fun teleportToGuild(player: Player, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+            val locStr = guildData.teleportLocation // 需要你在 GuildData 中读取这个字段
+
+            // 如果没有设置传送点，则不允许传送
+            if (locStr.isNullOrEmpty()) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-not-set")))
+            }
+
+            // 解析服务器名和坐标
+            val mainParts = locStr.split(":")
+            val targetServer = mainParts[0]
+            val currentServer = plugin.config.getString("server-id", "unknown")
+
+            // 如果开启了代理模式，且服务器名不匹配
+            if (plugin.config.getBoolean("proxy", false) && targetServer != currentServer) {
+                return@Runnable callback(OperationResult.Error(
+                    plugin.langManager.get("tp-wrong-server", "server" to targetServer)
+                ))
+            }
+
+            // 获取当前等级对应的费用
+            val level = guildData.level
+            val cost = plugin.config.getDouble("level.$level.tp-money", 500.0)
+
+            // 检查经济
+            if (plugin.economy?.has(player, cost) == false) {
+                return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-insufficient-money", "cost" to cost.toString())))
+            }
+
+            // 切回主线程进行扣费和传送
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                // 扣费
+                plugin.economy?.withdrawPlayer(player, cost)
+
+                // 反序列化坐标
+                try {
+                    val parts = locStr.split(",")
+                    val world = plugin.server.getWorld(parts[0])
+                    if (world == null) {
+                        player.sendMessage(plugin.langManager.get("tp-world-error"))
+                        return@Runnable
+                    }
+                    val destination = org.bukkit.Location(
+                        world, parts[1].toDouble(), parts[2].toDouble(), parts[3].toDouble(),
+                        parts[4].toFloat(), parts[5].toFloat()
+                    )
+
+                    player.teleport(destination)
+                    player.playSound(player.location, org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
+                    callback(OperationResult.Success)
+                } catch (e: Exception) {
+                    callback(OperationResult.Error("传送点数据解析失败"))
+                }
+            })
+        })
+    }
 }

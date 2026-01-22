@@ -56,6 +56,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "bank" -> handleBank(sender, args)
             "yes" -> handleYes(sender)
             "no" -> handleNo(sender)
+            "settp" -> handleSetTp(sender)
+            "tp" -> handleTp(sender)
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -521,8 +523,34 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         player.sendMessage(plugin.langManager.get("invite-declined"))
     }
 
+    /*
+     * 处理 /kg settp 命令
+     */
+    private fun handleSetTp(player: Player) {
+        plugin.guildService.setGuildTP(player) { result ->
+            when (result) {
+                is OperationResult.Success -> player.sendMessage(plugin.langManager.get("tp-set-success"))
+                is OperationResult.NoPermission -> player.sendMessage(plugin.langManager.get("not-staff"))
+                else -> player.sendMessage((result as OperationResult.Error).message)
+            }
+        }
+    }
+
+    /*
+     * 处理 /kg tp 命令
+     */
+    private fun handleTp(player: Player) {
+        plugin.guildService.teleportToGuild(player) { result ->
+            when (result) {
+                is OperationResult.Success -> player.sendMessage(plugin.langManager.get("tp-success"))
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
+    }
+
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
-        val list = mutableListOf("help", "create", "join", "info", "requests", "accept", "promote", "demote", "leave", "kick", "delete", "chat", "bank","invite","yes","no")
+        val list = mutableListOf("help", "create", "join", "info", "requests", "accept", "promote", "demote", "leave", "kick", "delete", "chat", "bank","invite","yes","no","settp","tp")
         if (sender.hasPermission("kaguilds.admin")) list.add("reload")
         return if (args.size == 1) list.filter { it.startsWith(args[0], ignoreCase = true) } else null
     }

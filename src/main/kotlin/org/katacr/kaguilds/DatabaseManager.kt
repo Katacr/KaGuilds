@@ -60,6 +60,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                 announcement TEXT,
                 icon VARCHAR(32) DEFAULT 'SHIELD',
                 max_members INT DEFAULT 20,
+                teleport_location TEXT DEFAULT NULL,
                 create_time BIGINT
             )
         """)
@@ -140,6 +141,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                             balance = rs.getDouble("balance"),
                             announcement = rs.getString("announcement") ?: "暂无公告",
                             maxMembers = rs.getInt("max_members"),
+                            teleportLocation = rs.getString("teleport_location"), // <-- 读取新增字段
                             createTime = rs.getLong("create_time")
                         )
                     }
@@ -365,7 +367,7 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 获取公会当前详细数据（适配最新 GuildData 模型）
+     * 获取公会当前详细数据（完整版，包含传送点）
      */
     fun getGuildData(guildId: Int): GuildData? {
         return try {
@@ -374,7 +376,6 @@ class DatabaseManager(val plugin: KaGuilds) {
                 ps.setInt(1, guildId)
                 val rs = ps.executeQuery()
                 if (rs.next()) {
-                    // 使用具名参数确保类型和顺序 100% 准确
                     return GuildData(
                         id = rs.getInt("id"),
                         name = rs.getString("name") ?: "Unknown",
@@ -385,6 +386,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                         balance = rs.getDouble("balance"),
                         announcement = rs.getString("announcement"),
                         maxMembers = rs.getInt("max_members"),
+                        teleportLocation = rs.getString("teleport_location"), // <-- 读取新增字段
                         createTime = rs.getLong("create_time")
                     )
                 }
@@ -574,17 +576,33 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return null
     }
+
+    /**
+     * 设置公会传送点
+     */
+    fun setGuildLocation(guildId: Int, locationStr: String?): Boolean {
+        // 确保这里也是 guild_data
+        val sql = "UPDATE guild_data SET teleport_location = ? WHERE id = ?"
+        return dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, locationStr)
+                ps.setInt(2, guildId)
+                ps.executeUpdate() > 0
+            }
+        } ?: false
+    }
     // 公会数据模型
     data class GuildData(
         val id: Int,
         val name: String,
-        val ownerUuid: String,
+        val ownerUuid: String, // 或者是 UUID 类型，取决于你之前的定义
         val ownerName: String?,
         val level: Int,
         val exp: Int,
         val balance: Double,
         val announcement: String?,
         val maxMembers: Int,
+        val teleportLocation: String?, // <-- 新增字段
         val createTime: Long
     )
 }

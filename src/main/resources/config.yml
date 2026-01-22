@@ -2,7 +2,7 @@
 language: zh_CN  # en_US 或 zh_CN
 
 proxy: false # 是否启用代理模式
-
+server-name: server # 服务器名称，用于跨服邀请/通讯
 
 guild:
   name:
@@ -29,7 +29,24 @@ level: # 公会等级设置
     need-exp: 0 # 公会等级1需要的经验值，默认1级
     max-members: 10 # 公会最大人数
     max-money: 50000 # 公会金库最大金币
+    tp-money: 500 # 传送费用，等级越高费用越便宜
   2:
     need-exp: 5000 # 公会等级2需要的经验值
     max-members: 20 # 公会最大人数
     max-money: 100000 # 公会金库最大金币
+    tp-money: 300 # 传送费用，等级越高费用越便宜
+  3:
+    need-exp: 10000 # 公会等级3需要的经验值
+    max-members: 30 # 公会最大人数
+    max-money: 200000 # 公会金库最大金币
+    tp-money: 200 # 传送费用，等级越高费用越便宜
+  4:
+    need-exp: 20000 # 公会等级4需要的经验值
+    max-members: 40 # 公会最大人数
+    max-money: 400000 # 公会金库最大金币
+    tp-money: 100 # 传送费用，等级越高费用越便宜
+  5:
+    need-exp: 50000 # 公会等级5需要的经验值
+    max-members: 50 # 公会最大人数
+    max-money: 600000 # 公会金库最大金币
+    tp-money: 50 # 传送费用，等级越高费用越便宜
