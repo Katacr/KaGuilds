@@ -403,26 +403,37 @@ class DatabaseManager(val plugin: KaGuilds) {
      * @param page 页码（从1开始）
      */
     fun getBankLogs(guildId: Int, page: Int): List<String> {
+
         val logs = mutableListOf<String>()
-        val offset = (page - 1) * 10 // 每页10条
+        val offset = (page - 1) * 10
+        val sql = "SELECT * FROM guild_bank_logs WHERE guild_id = ? ORDER BY time DESC LIMIT 10 OFFSET ?"
 
         try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement(
-                    "SELECT * FROM guild_bank_logs WHERE guild_id = ? ORDER BY time DESC LIMIT 10 OFFSET ?"
-                )
-                ps.setInt(1, guildId)
-                ps.setInt(2, offset)
-                val rs = ps.executeQuery()
+            // 关键修复：从 dataSource 获取连接，确保不会关死物理连接
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setInt(2, offset)
+                    val rs = ps.executeQuery()
 
-                val dateFormat = java.text.SimpleDateFormat("MM-dd HH:mm")
-                while (rs.next()) {
-                    val typeStr = if (rs.getString("type") == "ADD") "§a存入" else "§c提取"
-                    val time = dateFormat.format(java.util.Date(rs.getLong("time")))
-                    logs.add("§8[$time] §7${rs.getString("player_name")} $typeStr §f${rs.getDouble("amount")} §7金币")
+                    val dateFormat = java.text.SimpleDateFormat(plugin.config.get("date-format") as String?)
+                    while (rs.next()) {
+                        val typeRaw = rs.getString("type")
+                        // 兼容管理员的操作类型
+                        val typeStr = when(typeRaw) {
+                            "ADD" -> plugin.langManager.get("bank-text-add")  //"§a存入"
+                            "REMOVE" -> plugin.langManager.get("bank-text-remove") //"§c强行扣除"
+                            "SET" -> plugin.langManager.get("bank-text-set") //"§b强行重置"
+                            else -> plugin.langManager.get("bank-text-get") //"§c取出"
+                        }
+                        val time = dateFormat.format(java.util.Date(rs.getLong("time")))
+                        logs.add("§7[$time] §7${rs.getString("player_name")} $typeStr §f${rs.getDouble("amount")} §7${plugin.langManager.get("balance-name")}")
+                    }
                 }
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return logs
     }
 
@@ -447,21 +458,23 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 记录银行操作日志
      */
     fun logBankTransaction(guildId: Int, playerName: String, type: String, amount: Double) {
+        // 移除 SQL 中的 reason 字段
+        val sql = "INSERT INTO guild_bank_logs (guild_id, player_name, type, amount, time) VALUES (?, ?, ?, ?, ?)"
         try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement(
-                    "INSERT INTO guild_bank_logs (guild_id, player_name, type, amount, time) VALUES (?, ?, ?, ?, ?)"
-                )
-                ps.setInt(1, guildId)
-                ps.setString(2, playerName)
-                ps.setString(3, type)
-                ps.setDouble(4, amount)
-                ps.setLong(5, System.currentTimeMillis())
-                ps.executeUpdate()
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, playerName)
+                    ps.setString(3, type)
+                    ps.setDouble(4, amount)
+                    ps.setLong(5, System.currentTimeMillis())
+                    ps.executeUpdate()
+                }
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
-
     /**
      * 检查公会名称是否已存在（不区分大小写）
      */
@@ -536,15 +549,17 @@ class DatabaseManager(val plugin: KaGuilds) {
     fun getGuildIdByName(name: String): Int {
         val sql = "SELECT id FROM guild_data WHERE name = ?"
         return try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement(sql)
-                ps.setString(1, name)
-                val rs = ps.executeQuery()
-                if (rs.next()) {
-                    return rs.getInt("id")
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, name)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        rs.getInt("id")
+                    } else {
+                        -1
+                    }
                 }
-                -1 // 必须明确返回 -1
-            }
+            } ?: -1
         } catch (e: Exception) {
             -1
         }
@@ -603,15 +618,17 @@ class DatabaseManager(val plugin: KaGuilds) {
      */
     fun renameGuild(guildId: Int, newName: String): Boolean {
         val sql = "UPDATE guild_data SET name = ? WHERE id = ?"
+        // 关键：从 dataSource 获取连接，而不是直接用单例 connection
         return try {
-            connection.use { conn ->
-                val ps = conn.prepareStatement(sql)
-                ps.setString(1, newName)
-                ps.setInt(2, guildId)
-                ps.executeUpdate() > 0
-            }
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, newName)
+                    ps.setInt(2, guildId)
+                    ps.executeUpdate() > 0
+                }
+            } ?: false
         } catch (e: Exception) {
-            // 如果是因为名字重复导致的异常，可以在这里记录或处理
+            e.printStackTrace()
             false
         }
     }

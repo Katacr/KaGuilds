@@ -12,9 +12,18 @@ class GuildService(private val plugin: KaGuilds) {
         val memberNames: List<String>,
         val onlineCount: Int
     )
+    // 定义待处理动作类型
+    sealed class PendingAction {
+        data class Create(val guildName: String) : PendingAction()
+        object Delete : PendingAction()
+        object Leave : PendingAction()
+    }
+
 
     // 记录玩家 UUID 和对应的 BukkitTask
     private val teleportTasks = mutableMapOf<java.util.UUID, org.bukkit.scheduler.BukkitTask>()
+    // 缓存：UUID -> 动作
+    private val pendingConfirmations = mutableMapOf<java.util.UUID, PendingAction>()
     /**
      * 获取公会详细展示信息
      */
@@ -277,35 +286,55 @@ class GuildService(private val plugin: KaGuilds) {
     }
 
     /**
-     * 申请加入公会
+     * 申请加入公会 (支持名称或 #ID)
      */
-    fun requestJoin(player: Player, guildName: String, callback: (OperationResult) -> Unit) {
+    fun requestJoin(player: Player, input: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 检查是否已在公会
             if (plugin.dbManager.getGuildIdByPlayer(player.uniqueId) != null) {
                 callback(OperationResult.AlreadyInGuild)
                 return@Runnable
             }
 
-            val guildId = plugin.dbManager.getGuildIdByName(guildName)
+            // 2. 解析 ID 或 名称
+            val guildId: Int
+            val guildName: String
+
+            if (input.startsWith("#")) {
+                val id = input.substring(1).toIntOrNull() ?: -1
+                val data = plugin.dbManager.getGuildById(id)
+                if (data == null) {
+                    callback(OperationResult.Error(plugin.langManager.get("join-guild-not-found")))
+                    return@Runnable
+                }
+                guildId = data.id
+                guildName = data.name
+            } else {
+                guildId = plugin.dbManager.getGuildIdByName(input)
+                guildName = input
+            }
 
             if (guildId == -1) {
                 callback(OperationResult.Error(plugin.langManager.get("join-guild-not-found")))
                 return@Runnable
             }
 
+            // 3. 检查重复申请
             val currentRequests = plugin.dbManager.getRequests(guildId)
             if (currentRequests.any { it.first == player.uniqueId }) {
                 callback(OperationResult.Error(plugin.langManager.get("join-already-requested")))
                 return@Runnable
             }
 
+            // 4. 添加申请并通知
             if (plugin.dbManager.addRequest(guildId, player.uniqueId, player.name)) {
-                // 统一分发申请通知
+                // 这里已经能拿到真实的 guildName 了
                 dispatchGuildNotification(guildId, "NotifyRequest", guildId, guildName, player.name)
                 callback(OperationResult.Success)
             }
         })
     }
+
     /**
      * 内部工具：发送公会通知（兼容单服/跨服）
      */
@@ -886,6 +915,206 @@ class GuildService(private val plugin: KaGuilds) {
         })
     }
 
+    /**
+     * 存入待确认动作，30秒后自动过期
+     */
+    fun setPendingAction(uuid: java.util.UUID, action: PendingAction) {
+        pendingConfirmations[uuid] = action
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            // 只有当当前的 action 还是我们要删除的那个时才移除（防止覆盖后被误删）
+            if (pendingConfirmations[uuid] == action) {
+                pendingConfirmations.remove(uuid)
+            }
+        }, 20 * 30L)
+    }
+
+    /**
+     * 检查玩家是否有待确认的动作 (不消耗它)
+     */
+    fun hasPendingAction(uuid: java.util.UUID): Boolean {
+        return pendingConfirmations.containsKey(uuid)
+    }
+    /**
+     * 获取并消耗待确认动作
+     */
+    fun consumePendingAction(uuid: java.util.UUID): PendingAction? {
+        return pendingConfirmations.remove(uuid)
+    }
+
+    /**
+     * 管理员强行改名公会
+     */
+    fun adminRenameGuild(guildId: Int, newName: String, callback: (OperationResult) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 检查名称是否被【其他】公会占用
+            val existingId = plugin.dbManager.getGuildIdByName(newName)
+            if (existingId != -1 && existingId != guildId) {
+                callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
+                return@Runnable
+            }
+
+            // 2. 执行改名
+            if (plugin.dbManager.renameGuild(guildId, newName)) {
+                // 1. 本地通知 (当前子服的公会成员)
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    val notifyMsg = plugin.langManager.get("admin-rename-notify", "name" to newName)
+                    plugin.server.onlinePlayers.forEach { p ->
+                        if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                            p.sendMessage(notifyMsg)
+                        }
+                    }
+                })
+
+                // 2. 跨服广播通知 (发送给其他子服)
+                if (plugin.config.getBoolean("proxy", false)) {
+                    val out = com.google.common.io.ByteStreams.newDataOutput()
+                    out.writeUTF("AdminRenameSync") // 新增子通道名
+                    out.writeInt(guildId)
+                    out.writeUTF(newName)
+
+                    plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(
+                        plugin, "kaguilds:chat", out.toByteArray()
+                    )
+                }
+
+                // 3. 执行现有的同步逻辑 (同步数据库缓存等)
+                syncRenameProxy(guildId, newName)
+
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 管理员强行解散公会
+     */
+    fun adminDeleteGuild(guildId: Int, callback: (OperationResult) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 检查公会是否存在
+            val data = plugin.dbManager.getGuildData(guildId)
+            if (data == null) {
+                callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found")))
+                return@Runnable
+            }
+
+            // 2. 执行数据库删除操作
+            // 请确保 dbManager.deleteGuild(guildId) 内部会清理成员表和申请表
+            if (plugin.dbManager.deleteGuild(guildId)) {
+
+                // 3. 本地清理：通知在线成员并移除缓存
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    val notifyMsg = plugin.langManager.get("admin-delete-notify")
+                    plugin.server.onlinePlayers.forEach { player ->
+                        if (plugin.playerGuildCache[player.uniqueId] == guildId) {
+                            plugin.playerGuildCache.remove(player.uniqueId)
+                            player.sendMessage(notifyMsg)
+                        }
+                    }
+                })
+
+                // 4. 跨服同步清理
+                if (plugin.config.getBoolean("proxy", false)) {
+                    val out = com.google.common.io.ByteStreams.newDataOutput()
+                    out.writeUTF("DeleteSync")
+                    out.writeInt(guildId)
+
+                    // 使用第一个在线玩家作为发送媒介
+                    plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(
+                        plugin, "kaguilds:chat", out.toByteArray()
+                    )
+                }
+
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 管理员获取指定 ID 的公会详细信息
+     */
+    fun getAdminGuildInfo(guildId: Int, callback: (OperationResult, GuildInfo?) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 获取基础数据
+            val data = plugin.dbManager.getGuildData(guildId)
+            if (data == null) {
+                callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found", "id" to guildId.toString())), null)
+                return@Runnable
+            }
+
+            // 2. 获取成员列表名称
+            val members = plugin.dbManager.getMemberNames(guildId)
+
+            // 3. 计算在线人数 (遍历全服缓存)
+            val onlineCount = plugin.playerGuildCache.values.count { it == guildId }
+
+            val info = GuildInfo(data, members, onlineCount)
+            callback(OperationResult.Success, info)
+        })
+    }
+
+    /**
+     * 管理员强行操作公会金库 (适配增量 SQL 版本)
+     */
+    fun adminManageBank(guildId: Int, action: String, amount: Double, callback: (OperationResult, Double) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 先获取当前数据（仅用于计算逻辑和日志）
+            val guildData = plugin.dbManager.getGuildData(guildId)
+            if (guildData == null) {
+                callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found")), 0.0)
+                return@Runnable
+            }
+
+            // 2. 根据不同动作确定【传给数据库的变化量】
+            val delta = when (action.lowercase()) {
+                "add" -> amount // 存 100，传给 SQL 就是 +100
+                "remove" -> -amount // 取 100，传给 SQL 就是 -100
+                "set" -> {
+                    // 特殊处理 SET：由于底层是 balance = balance + ?
+                    // 目标值 x 的变化量应该是：x - 当前余额
+                    amount - guildData.balance
+                }
+                else -> 0.0
+            }
+
+            // 3. 拦截非法扣费：如果是取钱，且余额不足
+            if (action.lowercase() == "remove" && guildData.balance < amount) {
+                // 强制把扣除量改为当前余额，防止变成负数 (或者直接报错)
+                // delta = -guildData.balance
+            }
+
+            // 4. 调用你提供的增量更新方法
+            if (plugin.dbManager.updateGuildBalance(guildId, delta)) {
+                // 记录日志 (记录的是变动金额 amount)
+                plugin.dbManager.logBankTransaction(guildId, "ADMIN", action.uppercase(), amount)
+
+                // 获取最新余额返回给回调
+                val newBalance = guildData.balance + delta
+
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Success, newBalance)
+                })
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("error-database")), 0.0)
+            }
+        })
+    }
+
+    /**
+     * 管理员查看指定公会的金库日志
+     */
+    fun getAdminBankLogs(guildId: Int, page: Int, callback: (List<String>) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val logs = plugin.dbManager.getBankLogs(guildId, page)
+            // 回到主线程执行回调
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                callback(logs)
+            })
+        })
+    }
     /**
      * 分发 Buff (本地 + 跨服)
      */

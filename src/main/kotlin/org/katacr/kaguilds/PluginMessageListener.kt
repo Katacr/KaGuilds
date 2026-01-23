@@ -68,6 +68,9 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     }
                 }
             }
+            /*
+             * 处理跨服公会通知
+             */
             "NotifyStaff" -> {
                 val targetGuildId = `in`.readInt()
                 val applicantName = `in`.readUTF()
@@ -275,6 +278,42 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         }
                     }
                 })
+            }
+
+            /*
+             * 处理跨服公会删除
+             */
+            "DeleteSync" -> {
+                val gId = `in`.readInt()
+                // 清理本子服所有该公会成员的缓存
+                val iterator = plugin.playerGuildCache.entries.iterator()
+                while (iterator.hasNext()) {
+                    val entry = iterator.next()
+                    if (entry.value == gId) {
+                        iterator.remove()
+                        // 如果该玩家在线，顺便通知一下
+                        plugin.server.getPlayer(entry.key)?.sendMessage(
+                            plugin.langManager.get("admin-delete-notify")
+                        )
+                    }
+                }
+            }
+
+            /*
+             * 处理跨服公会改名
+             */
+            "AdminRenameSync" -> {
+                val gId = `in`.readInt()
+                val newName = `in`.readUTF()
+
+                val notifyMsg = plugin.langManager.get("admin-rename-notify", "name" to newName)
+
+                // 遍历本服务器玩家，如果是该公会的，则发送通知
+                plugin.server.onlinePlayers.forEach { p ->
+                    if (plugin.playerGuildCache[p.uniqueId] == gId) {
+                        p.sendMessage(notifyMsg)
+                    }
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ language: zh_CN  # en_US 或 zh_CN
 
 proxy: false # 是否启用代理模式
 server-id: server # 服务器名称，用于跨服邀请/通讯
+date-format: "yyyy-MM-dd HH:mm:ss"
 
 guild:
   buff-time: 90 # 公会buff时间(秒)
