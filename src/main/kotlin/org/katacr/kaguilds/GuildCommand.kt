@@ -13,14 +13,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
         val lang = plugin.langManager
+        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm")
+        val subCommand = args[0].lowercase()
 
         // 1. 帮助与控制台基础检查
         if (args.isEmpty() || args[0].equals("help", ignoreCase = true)) {
             if (sender is Player) sendHelp(sender) else sender.sendMessage(lang.get("console-help"))
             return true
         }
-
-        val subCommand = args[0].lowercase()
 
         // 2. 处理 /kg reload 命令
         if (subCommand == "reload") {
@@ -34,11 +34,25 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return true
         }
 
+        // 3. 检查执行者是否是玩家
         if (sender !is Player) {
             sender.sendMessage(lang.get("player-only"))
             return true
         }
 
+        // 4. 检查玩家是否有公会
+        if (!whiteList.contains(subCommand)) {
+            // 尝试从缓存或数据库获取玩家公会 ID
+            val guildId = plugin.playerGuildCache[sender.uniqueId] ?: plugin.dbManager.getGuildIdByPlayer(sender.uniqueId)
+
+            if (guildId == null) {
+                sender.sendMessage(lang.get("error-not-has-guild"))
+                return true
+            } else {
+                // 顺便回填缓存，防止下次还要查数据库
+                plugin.playerGuildCache[sender.uniqueId] = guildId
+            }
+        }
         // 3. 处理 /kg 子命令
         when (subCommand) {
             "info" -> handleInfo(sender)
@@ -63,6 +77,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "buff" -> handleBuff(sender, args)
             "confirm" -> handleConfirm(sender)
             "admin" -> handleAdmin(sender, args)
+            "transfer" -> handleTransfer(sender, args)
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -272,14 +287,27 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg create 命令
      */
     private fun handleCreate(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("create-usage"))
+            player.sendMessage(lang.get("create-usage"))
             return
         }
         val guildName = args[1]
 
-        if (plugin.nameRegex?.matches(guildName) == false) {
-            player.sendMessage(plugin.langManager.get("create-invalid-name"))
+        val min = plugin.config.getInt("guild.name-settings.min-length", 2)
+        val max = plugin.config.getInt("guild.name-settings.max-length", 10)
+        val regexStr = plugin.config.getString("guild.name-settings.regex") ?: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
+
+        // 1. 长度校验
+        if (guildName.length !in min..max) {
+            player.sendMessage(lang.get("create-invalid-length",
+                "min" to min.toString(), "max" to max.toString()))
+            return
+        }
+
+        // 2. 正则表达式校验
+        if (!guildName.matches(Regex(regexStr))) {
+            player.sendMessage(lang.get("create-invalid-name"))
             return
         }
 
@@ -650,6 +678,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             is GuildService.PendingAction.Create -> performCreate(player, action.guildName)
             is GuildService.PendingAction.Delete -> performDelete(player)
             is GuildService.PendingAction.Leave -> performLeave(player)
+            is GuildService.PendingAction.Transfer -> performTransfer(player, action.targetName)
+
         }
     }
 
@@ -695,17 +725,86 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     }
 
     /*
+     * 执行转让确认逻辑
+     */
+    private fun performTransfer(player: Player, targetName: String) {
+        val lang = plugin.langManager
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 获取当前公会ID
+            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId) ?: return@Runnable
+
+            // 2. 调用 Service 层执行逻辑
+            plugin.guildService.adminTransferGuild(guildId, targetName) { result ->
+                // 回到主线程发消息
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (result is OperationResult.Success) {
+                        player.sendMessage(lang.get("transfer-success", "player" to targetName))
+
+                    } else if (result is OperationResult.Error) {
+                        player.sendMessage(result.message)
+                    }
+                })
+            }
+        })
+    }
+
+    /*
+     * 处理 /kg transfer 命令
+     */
+    private fun handleTransfer(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+        if (args.size < 2) {
+            player.sendMessage(lang.get("transfer-usage"))
+            return
+        }
+        val targetName = args[1]
+
+        // 1. 异步检查权限（涉及数据库查询）
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+
+            // 检查是否在公会中
+            if (guildId == null) {
+                player.sendMessage(lang.get("not-in-guild"))
+                return@Runnable
+            }
+
+            val guildData = plugin.dbManager.getGuildData(guildId)
+
+            // 检查是否是会长 (对比 UUID)
+            if (guildData?.ownerUuid != player.uniqueId.toString()) {
+                player.sendMessage(lang.get("no-guild-admin")) // 确保语言文件有这个节点
+                return@Runnable
+            }
+
+            // 检查目标玩家是否是自己
+            if (player.name.equals(targetName, ignoreCase = true)) {
+                player.sendMessage(lang.get("error-player-is-yourself"))
+                return@Runnable
+            }
+
+            // 2. 检查通过，回到主线程设置确认动作
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                player.sendMessage(lang.get("transfer-confirm-notice", "player" to targetName))
+                plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Transfer(targetName))
+            })
+        })
+    }
+
+    /*
      * 处理管理员指令 /kg admin
      */
     private fun handleAdmin(sender: CommandSender, args: Array<out String>) {
+        val lang = plugin.langManager
         // 权限检查
         if (!sender.hasPermission("kaguilds.admin")) {
-            sender.sendMessage(plugin.langManager.get("no-permission"))
+            sender.sendMessage(lang.get("no-permission"))
             return
         }
 
         if (args.size < 2) {
-            sender.sendMessage(plugin.langManager.get("admin-usage"))
+            sender.sendMessage(lang.get("admin-usage"))
             return
         }
 
@@ -713,31 +812,38 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "rename" -> {
                 // 格式: /kg admin rename #ID [新名称]
                 if (args.size < 4) {
-                    sender.sendMessage(plugin.langManager.get("admin-rename-usage"))
+                    sender.sendMessage(lang.get("admin-rename-usage"))
                     return
                 }
 
                 val idStr = args[2].replace("#", "")
                 val guildId = idStr.toIntOrNull()
                 if (guildId == null) {
-                    sender.sendMessage(plugin.langManager.get("error-invalid-id"))
+                    sender.sendMessage(lang.get("error-invalid-id"))
                     return
                 }
 
                 val newName = args[3]
-                // 这里可以根据需要选择是否套用正则表达式检查
-                if (plugin.nameRegex?.matches(newName) == false) {
-                    sender.sendMessage(plugin.langManager.get("create-invalid-name"))
+                val min = plugin.config.getInt("guild.name-settings.min-length", 2)
+                val max = plugin.config.getInt("guild.name-settings.max-length", 10)
+
+                if (newName.length !in min..max) {
+                    sender.sendMessage(lang.get("create-invalid-length", "min" to min.toString(), "max" to max.toString()))
+                    return
+                }
+
+                if (!newName.matches(Regex(plugin.config.getString("guild.name-settings.regex") ?: ""))) {
+                    sender.sendMessage(lang.get("create-invalid-name"))
                     return
                 }
 
                 plugin.guildService.adminRenameGuild(guildId, newName) { result ->
                     when (result) {
                         is OperationResult.Success ->
-                            sender.sendMessage(plugin.langManager.get("admin-rename-success",
+                            sender.sendMessage(lang.get("admin-rename-success",
                                 "id" to guildId.toString(), "name" to newName))
                         is OperationResult.NameAlreadyExists ->
-                            sender.sendMessage(plugin.langManager.get("create-name-exists"))
+                            sender.sendMessage(lang.get("create-name-exists"))
                         is OperationResult.Error ->
                             sender.sendMessage(result.message)
                         else -> {}
@@ -746,17 +852,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             }
             "delete" -> {
                 if (args.size < 3) {
-                    sender.sendMessage(plugin.langManager.get("admin-delete-usage"))
+                    sender.sendMessage(lang.get("admin-delete-usage"))
                     return
                 }
 
                 val idStr = args[2].replace("#", "")
-                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(plugin.langManager.get("error-invalid-id"))
+                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
                 plugin.guildService.adminDeleteGuild(guildId) { result ->
                     when (result) {
                         is OperationResult.Success ->
-                            sender.sendMessage(plugin.langManager.get("admin-delete-success", "id" to guildId.toString()))
+                            sender.sendMessage(lang.get("admin-delete-success", "id" to guildId.toString()))
                         is OperationResult.Error ->
                             sender.sendMessage(result.message)
                         else -> {}
@@ -765,18 +871,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             }
             "info" -> {
                 if (args.size < 3) {
-                    sender.sendMessage(plugin.langManager.get("admin-info-usage"))
+                    sender.sendMessage(lang.get("admin-info-usage"))
                     return
                 }
 
                 val idStr = args[2].replace("#", "")
-                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(plugin.langManager.get("error-invalid-id"))
+                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
                 plugin.guildService.getAdminGuildInfo(guildId) { result, info ->
                     if (result is OperationResult.Success && info != null) {
 
                         val d = info.data
-                        val lang = plugin.langManager
                         val coloredList = renderMemberList(info.memberNames, guildId)
 
                         sender.sendMessage(lang.get("info-admin-header", "id" to d.id.toString()))
@@ -793,7 +898,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "bank" -> {
-                val lang = plugin.langManager
                 if (args.size < 4) {
 
                     sender.sendMessage(lang.get("admin-bank-usage"))
@@ -855,10 +959,56 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     }
                 }
             }
+            "transfer" -> {
+                val lang = plugin.langManager
+                if (args.size < 4) return sender.sendMessage(lang.get("admin-transfer-usage"))
+                val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
+                val targetName = args[3]
 
-            else -> sender.sendMessage(plugin.langManager.get("admin-usage"))
+                plugin.guildService.adminTransferGuild(guildId, targetName) { result ->
+                    if (result is OperationResult.Success) {
+                        sender.sendMessage(lang.get("admin-transfer-success", "player" to targetName))
+                    } else if (result is OperationResult.Error) {
+                        sender.sendMessage(result.message)
+                    }
+                }
+            }
+            "kick" -> {
+                if (args.size < 4) return sender.sendMessage(lang.get("admin-kick-usage"))
+                val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
+                val targetName = args[3]
+
+                plugin.guildService.adminKickMember(guildId, targetName) { result ->
+                    if (result is OperationResult.Success) {
+                        sender.sendMessage(lang.get("admin-kick-member-success", "player" to targetName, "id" to guildId.toString()))
+                    } else if (result is OperationResult.Error) {
+                        sender.sendMessage(result.message)
+                    }
+                }
+            }
+
+            "join" -> {
+                if (args.size < 4) return sender.sendMessage(lang.get("admin-join-usage"))
+                val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
+
+                // 强制加入仅支持在线玩家，方便获取最新的 Name 和 UUID
+                val targetPlayer = plugin.server.getPlayer(args[3])
+                    ?: return sender.sendMessage(lang.get("error-player-not-online"))
+
+                plugin.guildService.adminJoinMember(guildId, targetPlayer) { result ->
+                    if (result is OperationResult.Success) {
+                        sender.sendMessage(lang.get("admin-join-member-success", "player" to targetPlayer.name, "id" to guildId.toString()))
+
+                    } else if (result is OperationResult.Error) {
+                        sender.sendMessage(result.message)
+                    }
+                }
+            }
+
+            else -> sender.sendMessage(lang.get("admin-usage"))
         }
     }
+
     /*
      * 处理指令自动补全
      */
@@ -871,7 +1021,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = mutableListOf(
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
-                    "yes", "no", "settp", "tp", "rename", "buff", "deny"
+                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer"
                 )
 
                 // 权限指令判断
@@ -894,8 +1044,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 when (subCommand) {
                     "admin" -> {
                         if (!sender.hasPermission("kaguilds.admin")) return emptyList()
-                        // 补全管理员的三大审查功能
-                        listOf("info", "rename", "delete", "bank").filter { it.startsWith(args[1], ignoreCase = true) }
+
+                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join")
+                            .filter { it.startsWith(args[1], ignoreCase = true) }
                     }
 
                     "bank" -> {
@@ -923,21 +1074,46 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             3 -> {
                 if (args[0].equals("admin", ignoreCase = true)) {
-                    // 当输入到第三个参数且前面是 admin 子指令时，提示 # 引导输入 ID
+                    // 提示 # 引导输入 ID，或者如果是 reload 等不需要 ID 的子指令则不返回
                     return listOf("#").filter { it.startsWith(args[2]) }
                 }
                 emptyList()
             }
 
-            // 修改 args.size == 4 的部分
             4 -> {
-                if (args[0].equals("admin", ignoreCase = true) && args[1].equals("bank", ignoreCase = true)) {
-                    listOf("see", "log", "add", "remove", "set").filter { it.startsWith(args[3], ignoreCase = true) }
-                } else {
-                    emptyList() // 必须加上 else 分支
+                val sub = args[0].lowercase()
+                val adminSub = args[1].lowercase()
+
+                if (sub == "admin") {
+                    when (adminSub) {
+                        "bank" -> {
+                            // /kg admin bank #1 <TAB>
+                            return listOf("see", "log", "add", "remove", "set").filter { it.startsWith(args[3], ignoreCase = true) }
+                        }
+                        "kick", "join", "transfer" -> {
+                            // /kg admin transfer #1 <TAB> -> 补全在线玩家
+                            return null // 返回 null 代表由 Bukkit 默认补全在线玩家名
+                        }
+                        "rename" -> {
+                            // /kg admin rename #1 <TAB> -> 提示输入名称
+                            return listOf("<name>")
+                        }
+                    }
                 }
+                emptyList()
             }
 
+            5 -> {
+                if (args[0].equals("admin", ignoreCase = true) && args[1].equals("bank", ignoreCase = true)) {
+                    val bankAction = args[3].lowercase()
+                    if (listOf("add", "remove", "set").contains(bankAction)) {
+                        return listOf("<money>")
+                    } else if (bankAction == "log") {
+                        return listOf("<page>")
+                    }
+                }
+                emptyList()
+            }
             else -> emptyList()
         }
     }

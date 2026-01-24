@@ -3,7 +3,6 @@ package org.katacr.kaguilds
 import com.google.common.io.ByteStreams
 import org.bukkit.entity.Player
 import org.bukkit.plugin.messaging.PluginMessageListener
-import org.katacr.kaguilds.service.OperationResult
 import java.util.UUID
 import kotlin.collections.forEach
 

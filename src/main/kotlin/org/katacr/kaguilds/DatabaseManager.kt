@@ -103,7 +103,7 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     val connection: Connection
-        get() = dataSource?.connection ?: throw IllegalStateException("数据库未初始化")
+        get() = dataSource?.connection ?: throw IllegalStateException(plugin.langManager.get("error-database"))
     fun close() {
         dataSource?.close()
     }
@@ -155,7 +155,7 @@ class DatabaseManager(val plugin: KaGuilds) {
      */
     fun getMemberCount(guildId: Int, existingConn: Connection? = null): Int {
         // 如果有传入的连接，直接用；没有则申请
-        val conn = existingConn ?: dataSource?.connection ?: throw IllegalStateException("数据库未初始化")
+        val conn = existingConn ?: dataSource?.connection ?: throw IllegalStateException(plugin.langManager.get("error-database"))
 
         val ps = conn.prepareStatement("SELECT COUNT(*) FROM guild_members WHERE guild_id = ?")
         ps.setInt(1, guildId)
@@ -632,6 +632,104 @@ class DatabaseManager(val plugin: KaGuilds) {
             false
         }
     }
+
+    /**
+     * 转让公会所有权 (底层实现 - 修复版本)
+     */
+    fun transferGuildOwnership(guildId: Int, oldOwnerUuid: UUID, newOwnerUuid: UUID, newOwnerName: String): Boolean {
+        // 同时更新 UUID 和 Name
+        val updateOwner = "UPDATE guild_data SET owner_uuid = ?, owner_name = ? WHERE id = ?"
+        val updateRole = "UPDATE guild_members SET role = ? WHERE player_uuid = ?"
+
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.autoCommit = false
+                try {
+                    // 1. 更新公会主表的所有者信息
+                    conn.prepareStatement(updateOwner).use { ps ->
+                        ps.setString(1, newOwnerUuid.toString())
+                        ps.setString(2, newOwnerName)
+                        ps.setInt(3, guildId)
+                        ps.executeUpdate()
+                    }
+
+                    // 2. 将新会长职位设为 OWNER
+                    conn.prepareStatement(updateRole).use { ps ->
+                        ps.setString(1, "OWNER")
+                        ps.setString(2, newOwnerUuid.toString())
+                        ps.executeUpdate()
+                    }
+
+                    // 3. 将原会长职位降为 MEMBER
+                    conn.prepareStatement(updateRole).use { ps ->
+                        ps.setString(1, "MEMBER")
+                        ps.setString(2, oldOwnerUuid.toString())
+                        ps.executeUpdate()
+                    }
+
+                    conn.commit()
+                    true
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 根据玩家名获取 UUID (从数据库或 Bukkit 获取)
+     */
+    fun getPlayerUuidByName(playerName: String): UUID? {
+        // 优先尝试从在线玩家获取
+        val onlinePlayer = plugin.server.getPlayer(playerName)
+        if (onlinePlayer != null) return onlinePlayer.uniqueId
+
+        // 如果玩家不在线，从数据库的 guild_members 表中查询 (假设你存了名字)
+        // 或者通过 Bukkit.getOfflinePlayer (注意：这在某些版本上可能是耗时操作)
+        return try {
+            dataSource?.connection?.use { conn ->
+                val sql = "SELECT player_uuid FROM guild_members WHERE player_name = ? LIMIT 1"
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, playerName)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        UUID.fromString(rs.getString("player_uuid"))
+                    } else {
+                        null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // DatabaseManager.kt
+
+    /**
+     * 强行将玩家移出公会 (由 UUID)
+     */
+    fun removeMember(playerUuid: UUID): Boolean {
+        val sql = "DELETE FROM guild_members WHERE player_uuid = ?"
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    ps.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+
 
     // 公会数据模型
     data class GuildData(

@@ -5,6 +5,7 @@ import org.bukkit.entity.Player
 import org.katacr.kaguilds.DatabaseManager
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import java.util.UUID
 
 class GuildService(private val plugin: KaGuilds) {
     data class GuildInfo(
@@ -15,15 +16,16 @@ class GuildService(private val plugin: KaGuilds) {
     // 定义待处理动作类型
     sealed class PendingAction {
         data class Create(val guildName: String) : PendingAction()
+        data class Transfer(val targetName: String) : PendingAction()
         object Delete : PendingAction()
         object Leave : PendingAction()
     }
 
 
     // 记录玩家 UUID 和对应的 BukkitTask
-    private val teleportTasks = mutableMapOf<java.util.UUID, org.bukkit.scheduler.BukkitTask>()
+    private val teleportTasks = mutableMapOf<UUID, org.bukkit.scheduler.BukkitTask>()
     // 缓存：UUID -> 动作
-    private val pendingConfirmations = mutableMapOf<java.util.UUID, PendingAction>()
+    private val pendingConfirmations = mutableMapOf<UUID, PendingAction>()
     /**
      * 获取公会详细展示信息
      */
@@ -84,7 +86,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 3. 切换回主线程处理经济（Vault 非线程安全）
             plugin.server.scheduler.runTask(plugin, Runnable {
-                val econ = plugin.economy ?: return@Runnable callback(OperationResult.Error("经济系统未就绪"))
+                val econ = plugin.economy ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-vault")))
 
                 if (!econ.has(player, cost)) {
                     callback(OperationResult.InsufficientFunds(cost))
@@ -110,7 +112,7 @@ class GuildService(private val plugin: KaGuilds) {
                         plugin.server.scheduler.runTask(plugin, Runnable {
                             econ.depositPlayer(player, cost)
                         })
-                        callback(OperationResult.Error("数据库写入失败，已退款"))
+                        callback(OperationResult.Error(plugin.langManager.get("error-database")))
                     }
                 })
             })
@@ -136,7 +138,7 @@ class GuildService(private val plugin: KaGuilds) {
                 plugin.playerGuildCache.entries.removeIf { it.value == guildId }
                 callback(OperationResult.Success)
             } else {
-                callback(OperationResult.Error("数据库执行失败"))
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
             }
         })
     }
@@ -427,10 +429,8 @@ class GuildService(private val plugin: KaGuilds) {
             if (plugin.dbManager.addMember(guildId, targetUuid, targetName, "MEMBER")) {
                 plugin.dbManager.removeRequest(guildId, targetUuid)
 
-                // === 核心修复 1: 立即更新本地内存缓存 (解决无法聊天问题) ===
                 plugin.playerGuildCache[targetUuid] = guildId
 
-                // === 核心修复 2: 跨服模式则发包，单服模式则直接本地通知 ===
                 val isProxy = plugin.config.getBoolean("proxy", false)
                 if (isProxy) {
                     syncPlayerCache(targetUuid, guildId) // 告诉其他子服同步缓存
@@ -502,7 +502,7 @@ class GuildService(private val plugin: KaGuilds) {
                 plugin.playerGuildCache.remove(player.uniqueId)
                 callback(OperationResult.Success)
             } else {
-                callback(OperationResult.Error("数据库操作失败，请联系管理员"))
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
             }
         })
     }
@@ -1151,5 +1151,88 @@ class GuildService(private val plugin: KaGuilds) {
 
             plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
         }
+    }
+
+    /**
+     * 转让公会所有权
+     */
+    fun adminTransferGuild(guildId: Int, newOwnerName: String, callback: (OperationResult) -> Unit) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val data = plugin.dbManager.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error("未找到公会"))
+
+            val oldOwnerUuid = UUID.fromString(data.ownerUuid)
+            val newOwnerUuid = plugin.dbManager.getPlayerUuidByName(newOwnerName)
+                ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-not-in-guild", "player" to newOwnerName)))
+
+            if (plugin.dbManager.transferGuildOwnership(guildId, oldOwnerUuid, newOwnerUuid, newOwnerName)) {
+
+                // 1. 更新缓存
+                plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                    if (plugin.playerGuildCache[onlinePlayer.uniqueId] == guildId) {
+                        plugin.playerGuildCache.remove(onlinePlayer.uniqueId)
+                    }
+                }
+                plugin.playerGuildCache.remove(oldOwnerUuid)
+                plugin.playerGuildCache.remove(newOwnerUuid)
+
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Success)
+                })
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 管理员强制踢人
+     */
+    fun adminKickMember(guildId: Int, targetName: String, callback: (OperationResult) -> Unit) {
+        val lang = plugin.langManager
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val targetUuid = plugin.dbManager.getPlayerUuidByName(targetName)
+                ?: return@Runnable callback(OperationResult.Error(lang.get("error-not-has-player", "player" to targetName)))
+
+            // 1. 检查是否在指定的公会中
+            val currentGuildId = plugin.dbManager.getGuildIdByPlayer(targetUuid)
+            if (currentGuildId != guildId) {
+                return@Runnable callback(OperationResult.Error(lang.get("error-not-in-guild", "player" to targetName)))
+            }
+
+            // 2. 安全检查：禁止踢出会长
+            val data = plugin.dbManager.getGuildData(guildId)
+            if (data?.ownerUuid == targetUuid.toString()) {
+                return@Runnable callback(OperationResult.Error(lang.get("error-player-is-master")))
+            }
+
+            // 3. 调用你现有的 removeMember(Int, UUID)
+            if (plugin.dbManager.removeMember(guildId, targetUuid)) {
+                plugin.playerGuildCache.remove(targetUuid) // 刷新缓存
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(lang.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 管理员强制加人
+     */
+    fun adminJoinMember(guildId: Int, targetPlayer: Player, callback: (OperationResult) -> Unit) {
+        val lang = plugin.langManager
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 检查玩家是否已有公会
+            if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
+                return@Runnable callback(OperationResult.Error(lang.get("invite-already-member")))
+            }
+
+            // 2. 调用现有的 addMember(Int, UUID, String, String)
+            if (plugin.dbManager.addMember(guildId, targetPlayer.uniqueId, targetPlayer.name, "MEMBER")) {
+                plugin.playerGuildCache[targetPlayer.uniqueId] = guildId // 同步缓存
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(lang.get("error-database")))
+            }
+        })
     }
 }

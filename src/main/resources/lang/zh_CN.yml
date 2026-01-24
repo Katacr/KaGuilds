@@ -30,6 +30,7 @@ desc-admin: "管理员管理指令"
 
 # 通用错误消息
 no-permission: "§c你没有权限执行此指令。"
+no-guild-admin: "§c你不是公会管理员，无法执行此指令。"
 player-only: "§c该指令只能由玩家执行。"
 unknown-command: "&c未知的子指令。"
 help-hint: "&7请输入 &f/kg help &7查看所有指令用法。"
@@ -45,7 +46,8 @@ create-pay-success: "§a已从你的账户扣除 §f%cost% §a金币用于创建
 create-failed-refund: "§c公会创建失败，已将金币退回你的账户。"
 create-success: "§a公会 §f%name% §a创建成功！"
 create-failed: "§c创建公会时发生未知错误。"
-create-invalid-name: "§c公会名称包含非法字符或长度不符！"
+create-invalid-length: "§c公会名称长度必须在 %min% 到 %max% 个字符之间！"
+create-invalid-name: "§c公会名称包含非法字符！仅限中文、字母和数字。"
 
 # 邀请与申请相关
 invite-usage: "§c用法: /kg invite <玩家名>"
@@ -114,6 +116,9 @@ promote-success: "§a成功将 §f%name% %action% §a。"
 promote-action-promote: "§a提升为 §b管理员"
 promote-action-demote: "§a降级为 §f普通成员"
 role-updated-target: "§e你的公会职位已被更新为: §f%role%"
+transfer-usage: "§c用法: /kg transfer <成员名称>"
+transfer-confirm-notice: "§e你确定要将公会转让给 §b%player% §e吗？此操作不可逆！输入 §f/kg confirm §e确认。"
+transfer-success: "§a§l[!] §a你已成功将公会转让给 §e%player%§a。"
 
 kick-usage: "§c用法: /kg kick [玩家名]"
 kick-cannot-owner: "§c你不能踢出会长。"
@@ -189,7 +194,7 @@ confirm-leave: "§e您确定要退出当前公会吗？"
 confirm-hint: "§e若确定，请在 30 秒内输入 §6/kg confirm §e以执行。"
 
 # 管理员指令相关
-admin-usage: "§c用法: /kg admin [rename]"
+admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join>"
 admin-rename-notify: "§6[公会公告] §e管理员已将公会名称统一修改为 §b%name%§e。"
 admin-delete-usage: "§c用法: /kg admin delete #ID"
 admin-delete-notify: "§c§l[公会公告] §e你的公会已被管理员强制解散。"
@@ -209,6 +214,15 @@ admin-bank-see: "§a[管理] 公会 #%id% 的当前余额为: §e%balance% §a�
 admin-bank-no-log: "§7该公会目前没有任何金库记录。"
 admin-bank-success: "§a[管理] 操作成功！公会 #%id% 的最新余额为: §e%balance% §a金币。"
 admin-bank-log-header: "§b§l=== 公会 #%id% 行政审计日志 (第 %page% 页) ==="
+admin-transfer-usage: "§c用法: /kg admin transfer #ID <玩家>"
+admin-transfer-success: "§a[管理] 已成功将公会转让给 §e%player%§a。"
+admin-transfer-notify: "§6[公会公告] §e管理员已强制变更公会会长为 §b%player%§e。"
+admin-kick-usage: "§c用法: /kg admin kick #ID <玩家名>"
+admin-join-usage: "§c用法: /kg admin join #ID <玩家名>"
+admin-kick-member-success: "§a[管理] 已成功将玩家 §e%player% §c移出 §6 #%id% §a公会。"
+admin-kick-member-notify: "§6[公会公告] §e管理员已将玩家 §b%player% §e移出公会。"
+admin-join-member-success: "§a[管理] 已成功将玩家 §e%player% §b加入 §6 #%id% §a公会。"
+admin-join-member-notify: "§6[公会公告] §e管理员已将玩家 §b%player% §e加入公会。"
 
 # 成员状态通知
 member-join-notify: "§8[§a+§8] §7热烈欢迎 §f%player% §7加入公会！"
@@ -225,10 +239,18 @@ target-not-member: "§c玩家 §f%name% §c不是本公会成员。"
 
 # 重载与错误处理
 reload-success: "§a配置文件已重载！"
+error-not-has-guild: "§c你未加入或创建公会，无法使用该指令。"
 error-guild-not-found: "§c未找到 ID 为 #%id% 的公会。"
 error-invalid-id: "§c无效的公会 ID，请使用 #1 这种格式。"
 error-invalid-number: "§c请输入有效的数字金额。"
 error-missing-args: "§7指令用法错误，请使用 /kg help 查看帮助。"
+error-player-not-online: "§c该玩家目前不在线。"
+error-player-is-yourself: "§c你不能对自己进行操作。"
+error-player-is-master: "§c你不能对会长进行操作。"
+error-not-has-player: "§c没有找到玩家 %player% 的相关信息。"
+error-not-in-guild: "§c玩家 %player% 不是当前公会的成员。"
+error-database: "§c数据库操作失败，请联系管理员。"
+error-vault: "§cVault 插件未安装或未启用，请联系管理员。"
 
 # PlaceholderAPI相关
 papi-no-guild: "无公会"

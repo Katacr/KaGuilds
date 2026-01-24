@@ -71,11 +71,11 @@ guild:
     cooldown: 3 # 传送时间(秒)
 
 
-  name: # 名称设置
+  name-settings: # 名称设置
     min-length: 3
     max-length: 16
     # 正则表达式：允许英文字母、数字、下划线、汉字
-    regex: "^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$"
+    regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
 
 database:
   # 数据库类型: MySQL 或 SQLite
