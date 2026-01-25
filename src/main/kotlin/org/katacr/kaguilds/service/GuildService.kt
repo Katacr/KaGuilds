@@ -1358,19 +1358,29 @@ class GuildService(private val plugin: KaGuilds) {
         if (vaultLocks.containsKey(lockKey)) {
             val occupantUuid = vaultLocks[lockKey]
             if (occupantUuid != player.uniqueId) {
-                player.sendMessage("§c[公会] 仓库 #$vaultIndex 正被其他成员使用中 (跨服锁定)")
+                player.sendMessage("§c[公会] 仓库 # $ vaultIndex 正被其他成员使用中 (跨服锁定)")
                 return false
             }
             return true
         }
 
-        // 2. 写入本地锁
+        // 2. 检查跨服锁（如果开启了代理模式）
+        if (plugin.config.getBoolean("proxy", false) && !isFromNetwork) {
+            val isLocked = plugin.dbManager.isVaultLocked(guildId, vaultIndex)
+            if (isLocked) {
+                player.sendMessage("§c[公会] 仓库 # $ vaultIndex 正被其他成员使用中 (跨服锁定)")
+                return false
+            }
+        }
+
+        // 3. 写入本地锁
         vaultLocks[lockKey] = player.uniqueId
 
-        // 3. 跨服同步：如果不是从网络收到的，就发给其他服
+        // 4. 跨服同步：如果不是从网络收到的，就发给其他服
         if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
             sendVaultSyncPacket(guildId, vaultIndex, player.uniqueId, "Lock")
         }
+
         return true
     }
 

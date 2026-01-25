@@ -23,9 +23,12 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
 
             // 2. 异步保存并解锁
             plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                plugin.dbManager.saveVault(guildId, index, data)
-                // releaseVaultLock 内部会处理跨服广播
-                plugin.guildService.releaseVaultLock(guildId, index)
+                if (plugin.dbManager.saveVault(guildId, index, data)) {
+                    plugin.guildService.releaseVaultLock(guildId, index)
+                } else {
+                    // 可选：记录错误日志
+                    plugin.logger.warning("Failed to save vault data for guild  $ guildId, index  $ index")
+                }
             })
         }
     }
