@@ -34,7 +34,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
     fun onPlayerMove(event: PlayerMoveEvent) {
         // 只有当坐标（Block）发生变化时才取消，原地转头不取消
         val from = event.from
-        val to = event.to ?: return
+        val to = event.to
         if (from.blockX != to.blockX || from.blockY != to.blockY || from.blockZ != to.blockZ) {
             val player = event.player
             if (plugin.guildService.isTeleporting(player.uniqueId)) {

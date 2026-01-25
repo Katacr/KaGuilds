@@ -18,18 +18,19 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              * 处理跨服聊天
              */
             "Chat" -> {
-            val targetGuildId = `in`.readInt()
-            val senderName = `in`.readUTF()
-            val msgContent = `in`.readUTF()
+                val targetGuildId = `in`.readInt()
+                val senderName = `in`.readUTF()
+                val msgContent = `in`.readUTF()
 
-            val formattedMsg = plugin.langManager.get("chat-format",
-                "player" to senderName, "message" to msgContent)
+                val formattedMsg = plugin.langManager.get("chat-format",
+                    "player" to senderName, "message" to msgContent)
 
-            // 这里的逻辑现在变得非常快
-            plugin.server.onlinePlayers.forEach { onlinePlayer ->
-                val cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
-                if (cachedId != null && cachedId == targetGuildId) {
-                    onlinePlayer.sendMessage(formattedMsg)
+                plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                    // 这里的逻辑：如果玩家本地缓存匹配，则发送
+                    var cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+
+                    if (cachedId != null && cachedId == targetGuildId) {
+                        onlinePlayer.sendMessage(formattedMsg)
                     }
                 }
             }
@@ -41,15 +42,10 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     val uuidStr = `in`.readUTF()
                     val gId = `in`.readInt()
                     val targetUuid = UUID.fromString(uuidStr)
-
-                    if (gId == -1) {
-                        // 如果 ID 为 -1，表示该玩家退出了公会
-                        plugin.playerGuildCache.remove(targetUuid)
-                    } else {
-                        // 更新缓存
+                    plugin.playerGuildCache.remove(targetUuid)
+                    if (gId != -1) {
                         plugin.playerGuildCache[targetUuid] = gId
                     }
-                    // plugin.logger.info("已同步玩家 $uuidStr 的公会缓存状态")
                 } catch (e: Exception) {
                     plugin.logger.warning("同步缓存数据解析失败: ${e.message}")
                 }
@@ -312,6 +308,76 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     if (plugin.playerGuildCache[p.uniqueId] == gId) {
                         p.sendMessage(notifyMsg)
                     }
+                }
+            }
+
+            /*
+             * 处理跨服公会库存锁定
+             */
+            "VaultSync" -> {
+                val action = `in`.readUTF() // "Lock" 或 "Unlock"
+                val gId = `in`.readInt()
+                val vIndex = `in`.readInt()
+                val uIdString = `in`.readUTF()
+                val uId = UUID.fromString(uIdString)
+
+                when (action) {
+                    "Lock" -> plugin.guildService.syncRemoteLock(gId, vIndex, uId)
+                    "Unlock" -> plugin.guildService.releaseVaultLock(gId, vIndex, true)
+                    "ForceUnlockAll" -> plugin.guildService.vaultLocks.clear() // 强制全清
+                }
+            }
+
+            /*
+             * 处理跨服公会会长变更
+             */
+            "GuildTransfer" -> {
+                val gId = `in`.readInt()
+                val newOwnerUuidString = `in`.readUTF()
+                val newOwnerName = `in`.readUTF()
+                val newOwnerUuid = UUID.fromString(newOwnerUuidString)
+
+                plugin.server.onlinePlayers.forEach { p ->
+                    // 关键：直接根据当前内存里的缓存判断
+                    val cachedId = plugin.playerGuildCache[p.uniqueId]
+
+                    if (cachedId == gId) {
+                        // 1. 发送通知
+                        if (p.uniqueId == newOwnerUuid) {
+                            p.sendMessage("§a[公会] 你已被任命为新会长！")
+                        } else {
+                            p.sendMessage("§e[公会] 公会会长已变更为 $newOwnerName。")
+                        }
+
+                        // 2. 彻底移除旧缓存，强制下次任何操作都重新读库
+                        plugin.playerGuildCache.remove(p.uniqueId)
+
+                        // 3. 异步预加载新数据 (可选，但建议延迟 1 秒，等待数据库写入同步)
+                        plugin.server.scheduler.runTaskLaterAsynchronously(plugin, Runnable {
+                            val newId = plugin.dbManager.getGuildIdByPlayer(p.uniqueId)
+                            if (newId != null) {
+                                plugin.playerGuildCache[p.uniqueId] = newId
+                            }
+                        }, 20L) // 延迟 1 秒（20 ticks）
+                    }
+                }
+            }
+
+            "ForceRefreshMembers" -> {
+                val targetGuildId = `in`.readInt()
+
+                // 强制本服所有在线玩家，只要属于该公会，就立即重新读库
+                plugin.server.onlinePlayers.forEach { p ->
+                    // 我们不判断 cachedId == targetGuildId，因为缓存可能是错的
+                    // 直接异步读库校验
+                    plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                        val realGuildId = plugin.dbManager.getGuildIdByPlayer(p.uniqueId)
+                        if (realGuildId == targetGuildId) {
+                            // 修正并激活缓存
+                            plugin.playerGuildCache[p.uniqueId] = targetGuildId
+                            // 此时缓存已回正，Chat 功能立即恢复正常
+                        }
+                    })
                 }
             }
         }

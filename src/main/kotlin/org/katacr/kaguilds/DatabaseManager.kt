@@ -8,7 +8,7 @@ import java.util.UUID
 import kotlin.math.ceil
 
 class DatabaseManager(val plugin: KaGuilds) {
-    private var dataSource: HikariDataSource? = null
+    var dataSource: HikariDataSource? = null
     /**
      * 初始化数据库
      */
@@ -77,7 +77,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
-            // 3. 申请表 (在 createTables 方法中修改)
+            // 3. 申请表
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_requests (
                 id INTEGER PRIMARY KEY $autoIncrement,
@@ -88,7 +88,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
-            // 4. 银行日志表 ( bank log 功能)
+            // 4. 银行日志表
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_bank_logs (
                 id INTEGER PRIMARY KEY $autoIncrement,
@@ -97,6 +97,17 @@ class DatabaseManager(val plugin: KaGuilds) {
                 type VARCHAR(10),
                 amount DOUBLE,
                 time BIGINT
+            )
+        """)
+
+            // --- 新增：5. 公会仓库表 ---
+            // 我们使用 (guild_id, vault_index) 作为复合主键，确保同一个公会不会有两个相同的仓库编号
+            statement.execute("""
+            CREATE TABLE IF NOT EXISTS guild_vaults (
+                guild_id INT NOT NULL,
+                vault_index INT NOT NULL,
+                items_data TEXT,
+                PRIMARY KEY (guild_id, vault_index)
             )
         """)
         }
@@ -634,7 +645,7 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 转让公会所有权 (底层实现 - 修复版本)
+     * 转让公会所有权
      */
     fun transferGuildOwnership(guildId: Int, oldOwnerUuid: UUID, newOwnerUuid: UUID, newOwnerName: String): Boolean {
         // 同时更新 UUID 和 Name
@@ -709,28 +720,154 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
-    // DatabaseManager.kt
-
     /**
-     * 强行将玩家移出公会 (由 UUID)
+     * 保存仓库内容到数据库
+     * @param guildId 公会ID
+     * @param index 仓库编号 (1-9)
+     * @param data 序列化后的 Base64 字符串
      */
-    fun removeMember(playerUuid: UUID): Boolean {
-        val sql = "DELETE FROM guild_members WHERE player_uuid = ?"
-        return try {
+    fun saveVault(guildId: Int, index: Int, data: String) {
+        // MySQL 语法: INSERT ... ON DUPLICATE KEY UPDATE
+        // SQLite 语法: INSERT OR REPLACE ... (和 MySQL 有点区别)
+
+        // 为了兼容性，建议分两步，或者使用 Upsert 语法。
+        // 这里用最稳妥的兼容写法：先尝试 UPDATE，如果没更新到(不存在)，则 INSERT
+
+        val updateSql = "UPDATE guild_vaults SET items_data = ? WHERE guild_id = ? AND vault_index = ?"
+        val insertSql = "INSERT INTO guild_vaults (guild_id, vault_index, items_data) VALUES (?, ?, ?)"
+
+        try {
             dataSource?.connection?.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    ps.setString(1, playerUuid.toString())
+                // 1. 尝试更新数据 (保留原本的 lock 信息，虽然我们马上要解锁了，但保持原子性更好)
+                val updated = conn.prepareStatement(updateSql).use { ps ->
+                    ps.setString(1, data)
+                    ps.setInt(2, guildId)
+                    ps.setInt(3, index)
                     ps.executeUpdate() > 0
                 }
-            } ?: false
+
+                // 2. 如果没更新到（说明是第一次存东西），则插入
+                if (!updated) {
+                    conn.prepareStatement(insertSql).use { ps ->
+                        ps.setInt(1, guildId)
+                        ps.setInt(2, index)
+                        ps.setString(3, data)
+                        ps.executeUpdate()
+                    }
+                }
+            }
         } catch (e: Exception) {
+            plugin.logger.severe("保存公会 #$guildId 的仓库 #$index 时出错: ${e.message}")
             e.printStackTrace()
-            false
         }
     }
 
+    /**
+     * 从数据库获取仓库内容
+     * @return 返回 Base64 字符串，如果数据库中没有记录则返回 null
+     */
+    fun getVaultData(guildId: Int, index: Int): String? {
+        val sql = "SELECT items_data FROM guild_vaults WHERE guild_id = ? AND vault_index = ?"
 
+        try {
+            return dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setInt(2, index)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        rs.getString("items_data")
+                    } else {
+                        null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("读取公会 #$guildId 的仓库 #$index 时出错: ${e.message}")
+            e.printStackTrace()
+            return null
+        }
+    }
 
+    /**
+     * 尝试通过数据库抢占锁 (带过期检查)
+     */
+    fun grabPhysicsLock(guildId: Int, index: Int, playerUuid: UUID): Boolean {
+        val now = System.currentTimeMillis()
+        val expireTime = now + 60000 // 默认锁有效期 60 秒
+
+        // 逻辑：如果(当前没有锁) 或者 (旧锁已经过期)，则允许抢占
+        val sql = """
+        UPDATE guild_vaults 
+        SET last_editor = ?, lock_expire = ? 
+        WHERE guild_id = ? AND vault_index = ? 
+        AND (last_editor IS NULL OR last_editor = '' OR lock_expire < ?)
+    """.trimIndent()
+
+        return dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, playerUuid.toString())
+                ps.setLong(2, expireTime)
+                ps.setInt(3, guildId)
+                ps.setInt(4, index)
+                ps.setLong(5, now)
+                ps.executeUpdate() > 0
+            }
+        } ?: false
+    }
+
+    /**
+     * 服务器启动时调用，清理所有锁定记录
+     * (如果你是跨服，建议慎用，或者只清理属于本服标记的锁)
+     */
+    fun clearAllVaultLocksOnStartup() {
+        val sql = "UPDATE guild_vaults SET last_editor = NULL, lock_expire = 0"
+        dataSource?.connection?.use { it.createStatement().execute(sql) }
+    }
+
+    /**
+     * 尝试通过数据库抢占锁 (带过期检查)
+     * @return true 代表抢锁成功
+     */
+    fun tryGrabLock(guildId: Int, index: Int, playerUuid: UUID): Boolean {
+        val now = System.currentTimeMillis()
+        val expireAt = now + 30000
+
+        // 新增 OR last_editor = ?
+        val sql = """
+        UPDATE guild_vaults 
+        SET last_editor = ?, lock_expire = ? 
+        WHERE guild_id = ? AND vault_index = ? 
+        AND (last_editor IS NULL OR last_editor = '' OR last_editor = ? OR lock_expire < ?)
+    """.trimIndent()
+
+        return dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, playerUuid.toString())
+                ps.setLong(2, expireAt)
+                ps.setInt(3, guildId)
+                ps.setInt(4, index)
+                // 新增第5个参数：传入自己的 UUID
+                ps.setString(5, playerUuid.toString())
+                ps.setLong(6, now)
+                ps.executeUpdate() > 0
+            }
+        } ?: false
+    }
+
+    /**
+     * 释放数据库锁
+     */
+    fun releasePhysicsLock(guildId: Int, index: Int) {
+        val sql = "UPDATE guild_vaults SET last_editor = NULL, lock_expire = 0 WHERE guild_id = ? AND vault_index = ?"
+        dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setInt(1, guildId)
+                ps.setInt(2, index)
+                ps.executeUpdate()
+            }
+        }
+    }
     // 公会数据模型
     data class GuildData(
         val id: Int,

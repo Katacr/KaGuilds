@@ -98,6 +98,7 @@ level: # 公会等级设置
     max-members: 10 # 公会最大人数
     max-money: 50000 # 公会金库最大金币
     tp-money: 500 # 传送费用，等级越高费用越便宜
+    vaults: 1  # 拥有仓库数量
     use-buff: # 允许使用的buff列表
      - NightVision
      - Speed
@@ -108,6 +109,7 @@ level: # 公会等级设置
     max-members: 20 # 公会最大人数
     max-money: 100000 # 公会金库最大金币
     tp-money: 300 # 传送费用，等级越高费用越便宜
+    vaults: 2  # 拥有仓库数量
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -119,6 +121,7 @@ level: # 公会等级设置
     max-members: 30 # 公会最大人数
     max-money: 200000 # 公会金库最大金币
     tp-money: 200 # 传送费用，等级越高费用越便宜
+    vaults: 3  # 拥有仓库数量
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -132,6 +135,7 @@ level: # 公会等级设置
     max-members: 40 # 公会最大人数
     max-money: 400000 # 公会金库最大金币
     tp-money: 100 # 传送费用，等级越高费用越便宜
+    vaults: 4  # 拥有仓库数量
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -147,6 +151,7 @@ level: # 公会等级设置
     max-members: 50 # 公会最大人数
     max-money: 600000 # 公会金库最大金币
     tp-money: 50 # 传送费用，等级越高费用越便宜
+    vaults: 5  # 拥有仓库数量（上限9个）
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed

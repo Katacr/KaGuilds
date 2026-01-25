@@ -5,6 +5,9 @@ import org.bukkit.entity.Player
 import org.katacr.kaguilds.DatabaseManager
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import org.bukkit.scheduler.BukkitTask
+import org.katacr.kaguilds.listener.VaultHolder
+import org.katacr.kaguilds.util.SerializationUtil
 import java.util.UUID
 
 class GuildService(private val plugin: KaGuilds) {
@@ -21,11 +24,13 @@ class GuildService(private val plugin: KaGuilds) {
         object Leave : PendingAction()
     }
 
-
     // 记录玩家 UUID 和对应的 BukkitTask
-    private val teleportTasks = mutableMapOf<UUID, org.bukkit.scheduler.BukkitTask>()
+    private val teleportTasks = mutableMapOf<UUID, BukkitTask>()
     // 缓存：UUID -> 动作
     private val pendingConfirmations = mutableMapOf<UUID, PendingAction>()
+    // 锁：Pair(公会ID, 仓库编号) -> 使用者的 UUID
+    val vaultLocks = mutableMapOf<Pair<Int, Int>, UUID>()
+
     /**
      * 获取公会详细展示信息
      */
@@ -511,9 +516,26 @@ class GuildService(private val plugin: KaGuilds) {
      * 发送公会频道聊天 (支持跨服)
      */
     fun sendGuildChat(player: Player, message: String) {
-        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
-        // 统一分发聊天消息
-        dispatchGuildNotification(guildId, "Chat", guildId, player.name, message)
+        // 异步执行数据库检查，避免主线程卡顿
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 强制去数据库拉取最新的 guildId，而不是只信缓存
+            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            if (guildId == null) {
+                // 同步回主线程发消息
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    player.sendMessage(plugin.langManager.get("not-in-guild"))
+                })
+                // 同时清理本地错误的缓存
+                plugin.playerGuildCache.remove(player.uniqueId)
+                return@Runnable
+            }
+
+            // 2. 更新一下本地缓存，确保后续逻辑也是对的
+            plugin.playerGuildCache[player.uniqueId] = guildId
+
+            // 3. 统一分发聊天消息
+            dispatchGuildNotification(guildId, "Chat", guildId, player.name, message)
+        })
     }
     /**
      * 接受公会邀请 (由被邀请人执行 /kg yes)
@@ -558,7 +580,7 @@ class GuildService(private val plugin: KaGuilds) {
      * @param uuid 玩家UUID
      * @param guildId 公会ID (若为-1或不存在可表示退出公会，具体看业务逻辑)
      */
-    private fun syncPlayerCache(uuid: java.util.UUID, guildId: Int) {
+    private fun syncPlayerCache(uuid: UUID, guildId: Int) {
         // 如果没开代理模式，不需要同步，因为只有一个服务器
         if (!plugin.config.getBoolean("proxy", false)) return
 
@@ -895,7 +917,7 @@ class GuildService(private val plugin: KaGuilds) {
             val amplifier = plugin.config.getInt("$path.amplifier", 0)
             val buffName = plugin.config.getString("$path.name", buffKey)
 
-            val potionType = org.bukkit.potion.PotionEffectType.getByName(typeStr ?: "")
+            val potionType = PotionEffectType.getByName(typeStr ?: "")
                 ?: return@Runnable callback(OperationResult.Error("配置错误：无效的效果类型 $typeStr"))
 
             // 4. 检查经济
@@ -1154,27 +1176,34 @@ class GuildService(private val plugin: KaGuilds) {
     }
 
     /**
-     * 转让公会所有权
+     * 转让公会所有权 (经过逻辑清理)
      */
     fun adminTransferGuild(guildId: Int, newOwnerName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 获取公会当前数据
             val data = plugin.dbManager.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error("未找到公会"))
 
             val oldOwnerUuid = UUID.fromString(data.ownerUuid)
             val newOwnerUuid = plugin.dbManager.getPlayerUuidByName(newOwnerName)
                 ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-not-in-guild", "player" to newOwnerName)))
 
+            // 1. 执行数据库更新 (事务处理)
             if (plugin.dbManager.transferGuildOwnership(guildId, oldOwnerUuid, newOwnerUuid, newOwnerName)) {
 
-                // 1. 更新缓存
-                plugin.server.onlinePlayers.forEach { onlinePlayer ->
-                    if (plugin.playerGuildCache[onlinePlayer.uniqueId] == guildId) {
-                        plugin.playerGuildCache.remove(onlinePlayer.uniqueId)
-                    }
-                }
-                plugin.playerGuildCache.remove(oldOwnerUuid)
-                plugin.playerGuildCache.remove(newOwnerUuid)
+                // 2. 刷新本地所有成员缓存
+                // 这个方法内部已经包含了遍历在线玩家并纠正 ID 的逻辑，不需要再手动循环 remove
+                refreshLocalMembersCache(guildId)
 
+                // 3. 处理跨服同步
+                if (plugin.config.getBoolean("proxy")) {
+                    // 发送全服成员刷新指令 (强制其他服执行 refreshLocalMembersCache)
+                    sendForceRefreshPacket(guildId)
+
+                    // 发送会长变更通知 (用于显示聊天信息和称号)
+                    sendTransferSyncPacket(guildId, newOwnerUuid, newOwnerName)
+                }
+
+                // 4. 返回成功回调
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     callback(OperationResult.Success)
                 })
@@ -1182,6 +1211,50 @@ class GuildService(private val plugin: KaGuilds) {
                 callback(OperationResult.Error(plugin.langManager.get("error-database")))
             }
         })
+    }
+    /**
+     * 强制刷新本地服务器中属于该公会的所有成员缓存
+     */
+    fun refreshLocalMembersCache(guildId: Int) {
+        plugin.server.onlinePlayers.forEach { player ->
+            // 方案 A：直接暴力清理，让玩家下次说话时触发你写的 sendGuildChat 里的查库逻辑
+            // plugin.playerGuildCache.remove(player.uniqueId)
+
+            // 方案 B：主动异步读取并纠正（更推荐，体验更好）
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                val realId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+                if (realId == guildId) {
+                    plugin.playerGuildCache[player.uniqueId] = guildId
+                } else {
+                    // 如果发现该玩家其实不属于这个公会了，清理掉旧缓存
+                    if (plugin.playerGuildCache[player.uniqueId] == guildId) {
+                        plugin.playerGuildCache.remove(player.uniqueId)
+                    }
+                }
+            })
+        }
+    }
+    /**
+     * 发送强制刷新包
+     */
+    private fun sendForceRefreshPacket(guildId: Int) {
+        val out = com.google.common.io.ByteStreams.newDataOutput()
+        out.writeUTF("ForceRefreshMembers")
+        out.writeInt(guildId)
+        plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+    }
+    /**
+     * 发送会长转让的跨服封包
+     */
+    private fun sendTransferSyncPacket(guildId: Int, newOwnerUuid: UUID, newOwnerName: String) {
+        val out = com.google.common.io.ByteStreams.newDataOutput()
+        out.writeUTF("GuildTransfer") // 子频道名称
+        out.writeInt(guildId)         // 哪个公会
+        out.writeUTF(newOwnerUuid.toString()) // 新会长UUID
+        out.writeUTF(newOwnerName)    // 新会长名字
+
+        // 找一个在线玩家作为发信人
+        plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
     }
 
     /**
@@ -1234,5 +1307,224 @@ class GuildService(private val plugin: KaGuilds) {
                 callback(OperationResult.Error(lang.get("error-database")))
             }
         })
+    }
+
+    /**
+     * 玩家尝试开启仓库
+     */
+    fun openVault(player: Player, vaultIndex: Int) {
+        val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId) ?: return
+
+        // 检查等级限制 (需在 config.yml 的 level 下增加 vaults 字段)
+        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        val maxVaults = plugin.config.getInt("level.${guildData.level}.vaults", 1)
+        if (vaultIndex !in 1..maxVaults) {
+            player.sendMessage("§c你所在的公会目前只能使用 $maxVaults 个仓库。")
+            return
+        }
+
+        // 检查锁定（独占模式）
+        if (!tryLockVault(guildId, vaultIndex, player)) return
+
+        // 异步加载数据
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
+
+            // 回到主线程打开界面
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                // 创建带 Holder 的界面
+                val holder = VaultHolder(guildId, vaultIndex)
+                val inv = plugin.server.createInventory(holder, 54, "公会仓库 #$vaultIndex")
+                holder.setInventory(inv)
+
+                // 如果数据库里有数据，填进去
+                if (rawData != null && rawData.isNotEmpty()) {
+                    val items = SerializationUtil.itemStackArrayFromBase64(rawData)
+                    inv.contents = items
+                }
+
+                player.openInventory(inv)
+            })
+        })
+    }
+    /**
+     * 尝试锁定仓库
+     * @return 如果锁定成功返回 true，如果已被占用返回 false
+     */
+    fun tryLockVault(guildId: Int, vaultIndex: Int, player: Player, isFromNetwork: Boolean = false): Boolean {
+        val lockKey = Pair(guildId, vaultIndex)
+
+        // 1. 检查本地内存锁
+        if (vaultLocks.containsKey(lockKey)) {
+            val occupantUuid = vaultLocks[lockKey]
+            if (occupantUuid != player.uniqueId) {
+                player.sendMessage("§c[公会] 仓库 #$vaultIndex 正被其他成员使用中 (跨服锁定)")
+                return false
+            }
+            return true
+        }
+
+        // 2. 写入本地锁
+        vaultLocks[lockKey] = player.uniqueId
+
+        // 3. 跨服同步：如果不是从网络收到的，就发给其他服
+        if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
+            sendVaultSyncPacket(guildId, vaultIndex, player.uniqueId, "Lock")
+        }
+        return true
+    }
+
+    /**
+     * 玩家退出时，清理其持有的所有锁并同步到跨服
+     */
+    fun clearAllLocksByPlayer(playerUuid: UUID) {
+        // 找出所有由该玩家持有的仓库锁
+        val locksToRelease = vaultLocks.filterValues { it == playerUuid }.keys.toList()
+
+        for (lockKey in locksToRelease) {
+            val guildId = lockKey.first
+            val index = lockKey.second
+
+            // 1. 本地移除
+            vaultLocks.remove(lockKey)
+
+            // 2. 跨服通知解锁 (必须发送同步包)
+            if (plugin.config.getBoolean("proxy")) {
+                sendVaultSyncPacket(guildId, index, playerUuid, "Unlock")
+            }
+
+            plugin.logger.info("[云库存] 玩家掉线，已释放公会 #$guildId 的仓库 #$index 锁。")
+        }
+    }
+
+    /**
+     * 强制重置所有锁
+     */
+    fun forceResetAllLocks() {
+        vaultLocks.clear() // 清空本地
+        if (plugin.config.getBoolean("proxy")) {
+            // 发送一个特殊的全局解锁包
+            sendVaultSyncPacket(0, 0, UUID.randomUUID(), "ForceUnlockAll")
+        }
+    }
+
+    /**
+     * 释放仓库锁
+     */
+    fun releaseVaultLock(guildId: Int, vaultIndex: Int, isFromNetwork: Boolean = false) {
+        val lockKey = Pair(guildId, vaultIndex)
+        if (vaultLocks.containsKey(lockKey)) {
+            vaultLocks.remove(lockKey)
+
+            // 如果开启了跨服模式且不是来自网络的指令，则广播解锁
+            if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
+                sendVaultSyncPacket(guildId, vaultIndex, UUID.randomUUID(), "Unlock")
+            }
+        }
+    }
+    /**
+     * 同步远程仓库锁
+     */
+    fun syncRemoteLock(guildId: Int, index: Int, uuid: UUID) {
+        vaultLocks[Pair(guildId, index)] = uuid
+    }
+    /**
+     * 发送跨服同步封包
+     */
+    private fun sendVaultSyncPacket(guildId: Int, index: Int, uuid: UUID, type: String) {
+        // 只有在 proxy 模式下才发送
+        if (!plugin.config.getBoolean("proxy")) return
+
+        val out = com.google.common.io.ByteStreams.newDataOutput()
+        try {
+            out.writeUTF("VaultSync") // 子频道名称
+            out.writeUTF(type)        // "Lock" 或 "Unlock"
+            out.writeInt(guildId)     // 公会 ID
+            out.writeInt(index)       // 仓库编号
+            out.writeUTF(uuid.toString()) // 操作者 UUID
+
+            // 获取一个在线玩家作为传输管道发送消息
+            val messenger = plugin.server.onlinePlayers.firstOrNull()
+            messenger?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        } catch (e: Exception) {
+            plugin.logger.warning("发送云库存同步封包失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 管理员强制开启指定公会的仓库
+     */
+    fun adminOpenVault(admin: Player, guildId: Int, vaultIndex: Int) {
+        if (vaultIndex !in 1..9) {
+            admin.sendMessage("§c[管理] 仓库编号无效 (1-9)")
+            return
+        }
+
+        // 1. 内存锁 (保持不变)
+        if (!tryLockVault(guildId, vaultIndex, admin)) return
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // --- 新增：强制抢占数据库锁 ---
+            // 既然是 admin，我们可以写一个 forceGrabLock 或者直接复用 tryGrabLock
+            // 建议：管理员也应该遵守物理锁规则，或者强制覆盖
+            val success = plugin.dbManager.tryGrabLock(guildId, vaultIndex, admin.uniqueId)
+            // 如果你想让管理员拥有绝对抢占权，可以忽略 success 返回值，但必须执行这一步写入！
+
+            // 广播锁状态
+            plugin.guildService.syncRemoteLock(guildId, vaultIndex, admin.uniqueId)
+            if (plugin.config.getBoolean("proxy")) {
+                sendVaultSyncPacket(guildId, vaultIndex, admin.uniqueId, "Lock")
+            }
+
+            val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
+
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                val holder = VaultHolder(guildId, vaultIndex)
+                val inv = plugin.server.createInventory(holder, 54, "§4[管理] §0公会 #$guildId 仓库 #$vaultIndex")
+                holder.setInventory(inv)
+
+                if (rawData != null && rawData.isNotEmpty()) {
+                    val items = SerializationUtil.itemStackArrayFromBase64(rawData)
+                    inv.contents = items
+                }
+
+                admin.openInventory(inv)
+
+                // --- 新增：管理员也需要续租，否则30秒后玩家就能打开了 ---
+                val task = startVaultLeaseTask(admin, guildId, vaultIndex)
+                holder.leaseTask = task
+            })
+        })
+    }
+    /**
+     * 开启续租任务
+     * @return 返回 BukkitTask 对象以便后续手动取消
+     */
+    fun startVaultLeaseTask(player: Player, guildId: Int, index: Int): BukkitTask { // <--- 必须加上这个返回类型声明
+        val task = plugin.server.scheduler.runTaskTimerAsynchronously(plugin, Runnable {
+            // ... 你的逻辑保持不变 ...
+            val currentTopInv = player.openInventory.topInventory
+            val holder = currentTopInv.holder
+
+            if (!player.isOnline || holder !is VaultHolder ||
+                holder.guildId != guildId || holder.vaultIndex != index) {
+                // 注意：这里的 return@Runnable 仅仅是结束当前这一次循环执行
+                return@Runnable
+            }
+
+            // 续租 SQL 逻辑...
+            val newExpire = System.currentTimeMillis() + 30000
+            val sql = "UPDATE guild_vaults SET lock_expire = ? WHERE guild_id = ? AND vault_index = ?"
+            plugin.dbManager.dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setLong(1, newExpire)
+                    ps.setInt(2, guildId)
+                    ps.setInt(3, index)
+                    ps.executeUpdate()
+                }
+            }
+        }, 200L, 200L)
+
+        return task // 这里的 task 类型是 BukkitTask，与函数头声明匹配了
     }
 }

@@ -4,6 +4,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.util.UUID
 import net.milkbowl.vault.economy.Economy
 import org.bukkit.plugin.RegisteredServiceProvider
+import org.katacr.kaguilds.listener.VaultListener
 import org.katacr.kaguilds.service.GuildService
 
 class KaGuilds : JavaPlugin() {
@@ -32,6 +33,8 @@ class KaGuilds : JavaPlugin() {
         guildService = GuildService(this)
         // 4. 注册指令
         getCommand("guilds")?.setExecutor(GuildCommand(this))
+        // 5. 注册事件监听器
+        server.pluginManager.registerEvents(VaultListener(this), this)
 
         logger.info("KaGuilds 已启用！")
         val cmd = getCommand("kaguilds")

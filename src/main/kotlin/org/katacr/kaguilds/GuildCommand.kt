@@ -13,7 +13,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
         val lang = plugin.langManager
-        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm")
+        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no")
         val subCommand = args[0].lowercase()
 
         // 1. 帮助与控制台基础检查
@@ -78,6 +78,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "confirm" -> handleConfirm(sender)
             "admin" -> handleAdmin(sender, args)
             "transfer" -> handleTransfer(sender, args)
+            "vault" -> handleVault(sender, args)
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -1005,8 +1006,61 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
 
+            "vault" -> {
+                // 格式: /kg admin vault #ID [编号]
+                if (args.size < 3) {
+                    sender.sendMessage("§c用法: /kg admin vault #ID [编号]")
+                    return
+                }
+
+                val guildId = args[2].replace("#", "").toIntOrNull()
+                    ?: return sender.sendMessage("§c无效的公会 ID")
+
+                val index = if (args.size > 3) args[3].toIntOrNull() ?: 1 else 1
+
+                // 调用 Service 层专门给 admin 用的方法
+                plugin.guildService.adminOpenVault(sender as Player, guildId, index)
+            }
+
+            "unlockall" -> {
+                // 用法: /kg admin unlockall
+                // 效果：清空全服务器（及跨服）的所有仓库锁
+                plugin.guildService.forceResetAllLocks()
+                sender.sendMessage("§a[管理] 已强制重置所有云库存锁，并广播至全服。")
+            }
+
             else -> sender.sendMessage(lang.get("admin-usage"))
         }
+    }
+
+    /*
+     * 处理 /kg vault <index>
+     */
+    private fun handleVault(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 1. 获取玩家公会 ID (从缓存获取最快)
+        val guildId = plugin.playerGuildCache[player.uniqueId]
+        if (guildId == null) {
+            player.sendMessage(lang.get("error-no-guild"))
+            return
+        }
+
+        // 2. 解析仓库页码 (args[0] 是 "vault"，args[1] 是编号)
+        // 如果玩家只输入 /kg vault，则默认打开第 1 页
+        val index = if (args.size > 1) {
+            val input = args[1].toIntOrNull()
+            if (input == null || input < 1 || input > 9) {
+                player.sendMessage("§c请输入正确的仓库编号 (1-9)")
+                return
+            }
+            input
+        } else {
+            1
+        }
+
+        // 3. 调用 Service 层执行逻辑 (检查等级、锁定仓库、读取数据、打开 GUI)
+        plugin.guildService.openVault(player, index)
     }
 
     /*
@@ -1021,7 +1075,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = mutableListOf(
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
-                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer"
+                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault"
                 )
 
                 // 权限指令判断
@@ -1045,7 +1099,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "admin" -> {
                         if (!sender.hasPermission("kaguilds.admin")) return emptyList()
 
-                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join")
+                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault")
                             .filter { it.startsWith(args[1], ignoreCase = true) }
                     }
 
@@ -1066,7 +1120,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         val section = plugin.config.getConfigurationSection("guild.buffs")
                         section?.getKeys(false)?.filter { it.startsWith(args[1], ignoreCase = true) }?.toList() ?: emptyList()
                     }
-
+                    "vault" -> {
+                        // 获取玩家公会 ID
+                        val guildId = plugin.playerGuildCache[sender.uniqueId]
+                        if (guildId != null) {
+                            // 异步获取不方便，这里我们可以直接从 config 读取该公会等级允许的最大页数
+                            // 或者简单点直接返回 1..9
+                            return (1..9).map { it.toString() }.filter { it.startsWith(args[1]) }
+                        }
+                        emptyList()
+                    }
                     "kick", "promote", "demote", "invite", "join", "accept" -> null
                     else -> emptyList()
                 }
@@ -1076,6 +1139,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 if (args[0].equals("admin", ignoreCase = true)) {
                     // 提示 # 引导输入 ID，或者如果是 reload 等不需要 ID 的子指令则不返回
                     return listOf("#").filter { it.startsWith(args[2]) }
+                }
+                if (args[0].equals("admin", ignoreCase = true) && args[1].equals("vault", ignoreCase = true)) {
+                    // 这里可以返回 "#" 提示管理员输入 ID
+                    return listOf("#")
                 }
                 emptyList()
             }
@@ -1097,6 +1164,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         "rename" -> {
                             // /kg admin rename #1 <TAB> -> 提示输入名称
                             return listOf("<name>")
+                        }
+                        "vault" -> {
+                            return (1..9).map { it.toString() }
                         }
                     }
                 }
