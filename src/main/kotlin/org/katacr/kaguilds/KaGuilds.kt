@@ -4,8 +4,10 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.util.UUID
 import net.milkbowl.vault.economy.Economy
 import org.bukkit.plugin.RegisteredServiceProvider
+import org.katacr.kaguilds.listener.MenuListener
 import org.katacr.kaguilds.listener.VaultListener
 import org.katacr.kaguilds.service.GuildService
+import java.io.File
 
 class KaGuilds : JavaPlugin() {
 
@@ -16,6 +18,7 @@ class KaGuilds : JavaPlugin() {
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
+    lateinit var menuManager: MenuManager
 
     /**
      * 启用插件
@@ -26,15 +29,21 @@ class KaGuilds : JavaPlugin() {
         // 1. 初始化语言管理器
         langManager = LanguageManager(this)
         langManager.load()
-        // 2. 初始化数据库管理器
+
+        // 2. 初始化菜单管理器
+        setupGuiFolder()
+        menuManager = MenuManager(this)
+
+        // 3. 初始化数据库管理器
         dbManager = DatabaseManager(this)
         dbManager.setup()
-        // 3. 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
+        // 4. 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
         guildService = GuildService(this)
-        // 4. 注册指令
+        // 5. 注册指令
         getCommand("guilds")?.setExecutor(GuildCommand(this))
-        // 5. 注册事件监听器
+        // 6. 注册事件监听器
         server.pluginManager.registerEvents(VaultListener(this), this)
+        server.pluginManager.registerEvents(MenuListener(this), this) // 菜单监听器
 
         logger.info("KaGuilds 已启用！")
         val cmd = getCommand("kaguilds")
@@ -91,5 +100,22 @@ class KaGuilds : JavaPlugin() {
         val rsp: RegisteredServiceProvider<Economy> = server.servicesManager.getRegistration(Economy::class.java) ?: return false
         economy = rsp.provider
         return true
+    }
+
+    /**
+     * 释放 GUI 文件夹
+     */
+    private fun setupGuiFolder() {
+        val guiFolder = File(dataFolder, "gui")
+        if (!guiFolder.exists() || guiFolder.listFiles()?.isEmpty() == true) {
+            guiFolder.mkdirs()
+            val defaultMenus = listOf("main_menu.yml", "guilds_list.yml")
+            defaultMenus.forEach { fileName ->
+                val destFile = File(guiFolder, fileName)
+                if (!destFile.exists()) {
+                    saveResource("gui/$fileName", false)
+                }
+            }
+        }
     }
 }

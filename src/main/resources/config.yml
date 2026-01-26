@@ -76,6 +76,8 @@ guild:
     max-length: 16
     # 正则表达式：允许英文字母、数字、下划线、汉字
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
+  motd: "欢迎来到 %name% 公会"
+  icon: "SHIELD"
 
 database:
   # 数据库类型: MySQL 或 SQLite
@@ -90,6 +92,9 @@ database:
 balance:
   create: 10000.0  # 创建公会所需金币
   rename: 3000.0  # 公会改名所需金币
+  settp: 1000.0  # 设置传送点所需金币
+  seticon: 1000.0  # 设置公会图标所需金币
+  motd: 100.0  # 设置公会公告所需金币
 
 
 level: # 公会等级设置

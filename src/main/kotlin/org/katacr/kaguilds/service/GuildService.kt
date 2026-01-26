@@ -46,7 +46,7 @@ class GuildService(private val plugin: KaGuilds) {
             // 2. 获取公会基础数据
             val data = plugin.dbManager.getGuildData(guildId)
             if (data == null) {
-                callback(OperationResult.Error("无法加载公会数据"), null)
+                callback(OperationResult.Error(plugin.langManager.get("error-database")), null)
                 return@Runnable
             }
 
@@ -639,36 +639,66 @@ class GuildService(private val plugin: KaGuilds) {
     }
 
     /**
-     * 设置公会传送点
+     * 设置公会传送点 (消耗公会资金版)
      */
     fun setGuildTP(player: Player, callback: (OperationResult) -> Unit) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
+        // 1. 权限检查 (会长或副会长)
         val role = plugin.dbManager.getPlayerRole(player.uniqueId)
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
-        // 检查世界是否被禁用
+
+        // 2. 环境检查：检查世界是否被禁用
         val worldName = player.world.name
         val disabledWorlds = plugin.config.getStringList("guild.teleport.disabled-worlds")
         if (disabledWorlds.contains(worldName)) {
             return callback(OperationResult.Error(plugin.langManager.get("tp-world-disabled")))
         }
-        // 格式修改为: serverName:worldName,x,y,z,yaw,pitch
-        // plugin.config 中应该有一个标识当前服务器名字的配置，比如 "server-name: lobby1"
-        val serverName = plugin.config.getString("server-id", "unknown")
-        val loc = player.location
-        val locStr = "$serverName:${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
 
+        // 3. 异步处理经济与数据库更新
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 4. 获取公会数据并检查公会银行余额
+            val guild = plugin.dbManager.getGuildById(guildId)
+            val cost = plugin.config.getDouble("balance.settp", 1000.0)
+
+            if (guild == null || guild.balance < cost) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(
+                        plugin.langManager.get(
+                            "error-balance-not-enough",
+                            "cost" to cost.toString(),
+                            "balance" to (guild?.balance ?: 0.0).toString()
+                        )
+                    ))
+                })
+                return@Runnable
+            }
+
+            // 5. 准备坐标字符串 (格式: serverName:worldName,x,y,z,yaw,pitch)
+            val serverName = plugin.config.getString("server-id", "unknown")
+            val loc = player.location
+            val locStr = "$serverName:${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
+
+            // 6. 执行数据库更新
             if (plugin.dbManager.setGuildLocation(guildId, locStr)) {
-                callback(OperationResult.Success)
+
+                // --- 核心扣费与细化日志记录 ---
+                plugin.dbManager.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_TP", cost)
+
+                // 7. 回到主线程执行成功回调
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Success)
+                })
             } else {
-                callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
             }
         })
     }
-
     /**
      * 传送到公会点
      */
@@ -760,7 +790,7 @@ class GuildService(private val plugin: KaGuilds) {
             player.teleport(destination)
             player.playSound(player.location, org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
         } catch (e: Exception) {
-            player.sendMessage("§c传送点数据解析失败，请联系管理员重新设置。")
+            player.sendMessage(plugin.langManager.get("tp-data-error"))
             e.printStackTrace()
         }
     }
@@ -768,13 +798,13 @@ class GuildService(private val plugin: KaGuilds) {
     /**
      * 检查玩家是否正在传送
      */
-    fun isTeleporting(uuid: java.util.UUID): Boolean {
+    fun isTeleporting(uuid: UUID): Boolean {
         return teleportTasks.containsKey(uuid)
     }
     /**
      * 取消玩家的传送任务
      */
-    fun cancelTeleport(uuid: java.util.UUID) {
+    fun cancelTeleport(uuid: UUID) {
         teleportTasks.remove(uuid)?.cancel()
     }
     /**
@@ -795,49 +825,60 @@ class GuildService(private val plugin: KaGuilds) {
         }
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 3. 检查名字是否已存在 (注意这里的逻辑已经修正为判断 -1)
+            // 3. 检查名字是否已存在
             val existingId = plugin.dbManager.getGuildIdByName(newName)
             if (existingId != -1 && existingId != guildId) {
-                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
-            }
-
-            // 4. 检查经济
-            val cost = plugin.config.getDouble("balance.rename", 5000.0)
-            if (plugin.economy?.has(player, cost) == false) {
-                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-insufficient")))
-            }
-
-            // 5. 执行扣费
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                plugin.economy?.withdrawPlayer(player, cost)
-
-                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                    // 执行数据库改名
-                    if (plugin.dbManager.renameGuild(guildId, newName)) {
-
-                        // --- 核心复刻功能：本地广播给全公会成员 ---
-                        plugin.server.scheduler.runTask(plugin, Runnable {
-                            val renameMsg = plugin.langManager.get("rename-success-notify", "name" to newName)
-                            plugin.server.onlinePlayers.forEach { onlinePlayer ->
-                                // 检查在线玩家是否属于该公会 (利用缓存提升效率)
-                                if (plugin.playerGuildCache[onlinePlayer.uniqueId] == guildId) {
-                                    onlinePlayer.sendMessage(renameMsg)
-                                }
-                            }
-                        })
-
-                        // 6. 跨服同步 (如果开启了代理模式)
-                        syncRenameProxy(guildId, newName)
-
-                        callback(OperationResult.Success)
-                    } else {
-                        callback(OperationResult.Error(plugin.langManager.get("error-database")))
-                    }
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
                 })
-            })
+                return@Runnable
+            }
+
+            // 4. 获取公会数据并检查公会银行经济
+            val guild = plugin.dbManager.getGuildById(guildId)
+            val cost = plugin.config.getDouble("balance.rename", 5000.0)
+
+            if (guild == null || guild.balance < cost) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(
+                        plugin.langManager.get(
+                            "error-balance-not-enough",
+                            "cost" to cost.toString(),
+                            "balance" to (guild?.balance ?: 0.0).toString()
+                        )
+                    ))
+                })
+                return@Runnable
+            }
+
+            // 5. 执行数据库改名与扣费 (在异步线程执行)
+            if (plugin.dbManager.renameGuild(guildId, newName)) {
+
+                // --- 核心修改：扣除公会余额并记录细化日志 ---
+                plugin.dbManager.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.logBankTransaction(guildId, player.name, "RENAME", cost)
+
+                // 6. 跨服同步 (如果开启了代理模式)
+                syncRenameProxy(guildId, newName)
+
+                // 回到主线程处理通知和回调
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    // 本地广播给全公会成员
+                    val renameMsg = plugin.langManager.get("rename-success-notify", "name" to newName)
+                    plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                        if (plugin.playerGuildCache[onlinePlayer.uniqueId] == guildId) {
+                            onlinePlayer.sendMessage(renameMsg)
+                        }
+                    }
+                    callback(OperationResult.Success)
+                })
+            } else {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
+            }
         })
     }
-
     /**
      * 跨服同步改名通知
      */
@@ -940,7 +981,7 @@ class GuildService(private val plugin: KaGuilds) {
     /**
      * 存入待确认动作，30秒后自动过期
      */
-    fun setPendingAction(uuid: java.util.UUID, action: PendingAction) {
+    fun setPendingAction(uuid: UUID, action: PendingAction) {
         pendingConfirmations[uuid] = action
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             // 只有当当前的 action 还是我们要删除的那个时才移除（防止覆盖后被误删）
@@ -953,18 +994,18 @@ class GuildService(private val plugin: KaGuilds) {
     /**
      * 检查玩家是否有待确认的动作 (不消耗它)
      */
-    fun hasPendingAction(uuid: java.util.UUID): Boolean {
+    fun hasPendingAction(uuid: UUID): Boolean {
         return pendingConfirmations.containsKey(uuid)
     }
     /**
      * 获取并消耗待确认动作
      */
-    fun consumePendingAction(uuid: java.util.UUID): PendingAction? {
+    fun consumePendingAction(uuid: UUID): PendingAction? {
         return pendingConfirmations.remove(uuid)
     }
 
     /**
-     * 管理员强行改名公会
+     * 改名公会
      */
     fun adminRenameGuild(guildId: Int, newName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
@@ -1102,13 +1143,7 @@ class GuildService(private val plugin: KaGuilds) {
                 else -> 0.0
             }
 
-            // 3. 拦截非法扣费：如果是取钱，且余额不足
-            if (action.lowercase() == "remove" && guildData.balance < amount) {
-                // 强制把扣除量改为当前余额，防止变成负数 (或者直接报错)
-                // delta = -guildData.balance
-            }
-
-            // 4. 调用你提供的增量更新方法
+            // 3. 调用你提供的增量更新方法
             if (plugin.dbManager.updateGuildBalance(guildId, delta)) {
                 // 记录日志 (记录的是变动金额 amount)
                 plugin.dbManager.logBankTransaction(guildId, "ADMIN", action.uppercase(), amount)
@@ -1181,7 +1216,7 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminTransferGuild(guildId: Int, newOwnerName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 获取公会当前数据
-            val data = plugin.dbManager.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error("未找到公会"))
+            val data = plugin.dbManager.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found", "id" to guildId.toString())))
 
             val oldOwnerUuid = UUID.fromString(data.ownerUuid)
             val newOwnerUuid = plugin.dbManager.getPlayerUuidByName(newOwnerName)
@@ -1319,7 +1354,7 @@ class GuildService(private val plugin: KaGuilds) {
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
         val maxVaults = plugin.config.getInt("level.${guildData.level}.vaults", 1)
         if (vaultIndex !in 1..maxVaults) {
-            player.sendMessage("§c你所在的公会目前只能使用 $maxVaults 个仓库。")
+            player.sendMessage(plugin.langManager.get("vault-max-vaults","max" to maxVaults.toString()))
             return
         }
 
@@ -1334,7 +1369,7 @@ class GuildService(private val plugin: KaGuilds) {
             plugin.server.scheduler.runTask(plugin, Runnable {
                 // 创建带 Holder 的界面
                 val holder = VaultHolder(guildId, vaultIndex)
-                val inv = plugin.server.createInventory(holder, 54, "公会仓库 #$vaultIndex")
+                val inv = plugin.server.createInventory(holder, 54, plugin.langManager.get("vault-title", "index" to vaultIndex.toString()))
                 holder.setInventory(inv)
 
                 // 如果数据库里有数据，填进去
@@ -1358,7 +1393,7 @@ class GuildService(private val plugin: KaGuilds) {
         if (vaultLocks.containsKey(lockKey)) {
             val occupantUuid = vaultLocks[lockKey]
             if (occupantUuid != player.uniqueId) {
-                player.sendMessage("§c[公会] 仓库 # $ vaultIndex 正被其他成员使用中 (跨服锁定)")
+                player.sendMessage(plugin.langManager.get("vault-locked", "index" to vaultIndex.toString()))
                 return false
             }
             return true
@@ -1368,7 +1403,7 @@ class GuildService(private val plugin: KaGuilds) {
         if (plugin.config.getBoolean("proxy", false) && !isFromNetwork) {
             val isLocked = plugin.dbManager.isVaultLocked(guildId, vaultIndex)
             if (isLocked) {
-                player.sendMessage("§c[公会] 仓库 # $ vaultIndex 正被其他成员使用中 (跨服锁定)")
+                player.sendMessage(plugin.langManager.get("vault-locked", "index" to vaultIndex.toString()))
                 return false
             }
         }
@@ -1403,7 +1438,8 @@ class GuildService(private val plugin: KaGuilds) {
                 sendVaultSyncPacket(guildId, index, playerUuid, "Unlock")
             }
 
-            plugin.logger.info("[云库存] 玩家掉线，已释放公会 #$guildId 的仓库 #$index 锁。")
+            plugin.logger.info(plugin.langManager.get("vault-unlocked", "id" to guildId.toString(), "index" to index.toString()))
+
         }
     }
 
@@ -1457,7 +1493,7 @@ class GuildService(private val plugin: KaGuilds) {
             val messenger = plugin.server.onlinePlayers.firstOrNull()
             messenger?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
         } catch (e: Exception) {
-            plugin.logger.warning("发送云库存同步封包失败: ${e.message}")
+            plugin.logger.warning(plugin.langManager.get("error-send-packet", "error" to e.message.toString()))
         }
     }
 
@@ -1466,7 +1502,7 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun adminOpenVault(admin: Player, guildId: Int, vaultIndex: Int) {
         if (vaultIndex !in 1..9) {
-            admin.sendMessage("§c[管理] 仓库编号无效 (1-9)")
+            admin.sendMessage(plugin.langManager.get("error-invalid-vault-index"))
             return
         }
 
@@ -1490,7 +1526,14 @@ class GuildService(private val plugin: KaGuilds) {
 
             plugin.server.scheduler.runTask(plugin, Runnable {
                 val holder = VaultHolder(guildId, vaultIndex)
-                val inv = plugin.server.createInventory(holder, 54, "§4[管理] §0公会 #$guildId 仓库 #$vaultIndex")
+                val inv = plugin.server.createInventory(
+                    holder,
+                    54,
+                    plugin.langManager.get(
+                        "admin-vault-title",
+                        "index" to vaultIndex.toString(),
+                        "id" to guildId.toString()
+                    ))
                 holder.setInventory(inv)
 
                 if (rawData != null && rawData.isNotEmpty()) {
@@ -1500,7 +1543,6 @@ class GuildService(private val plugin: KaGuilds) {
 
                 admin.openInventory(inv)
 
-                // --- 新增：管理员也需要续租，否则30秒后玩家就能打开了 ---
                 val task = startVaultLeaseTask(admin, guildId, vaultIndex)
                 holder.leaseTask = task
             })
@@ -1536,5 +1578,103 @@ class GuildService(private val plugin: KaGuilds) {
         }, 200L, 200L)
 
         return task // 这里的 task 类型是 BukkitTask，与函数头声明匹配了
+    }
+
+    /**
+     * 设置公会图标 (消耗公会资金版)
+     */
+    fun setGuildIcon(player: Player, materialName: String, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        // 1. 权限检查 (会长或副会长)
+        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        if (role != "OWNER" && role != "ADMIN") {
+            return callback(OperationResult.NoPermission)
+        }
+
+        // 2. 异步处理
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 3. 获取费用并检查公会银行
+            val cost = plugin.config.getDouble("balance.seticon", 1000.0)
+            val guild = plugin.dbManager.getGuildById(guildId)
+
+            if (guild == null || guild.balance < cost) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(
+                        plugin.langManager.get(
+                            "error-balance-not-enough",
+                            "cost" to cost.toString(),
+                            "balance" to (guild?.balance ?: 0.0).toString()
+                        )
+                    ))
+                })
+                return@Runnable
+            }
+
+            // 4. 执行数据库更新
+            if (plugin.dbManager.updateGuildIcon(guildId, materialName)) {
+
+                // --- 核心扣费与记录细化日志 ---
+                plugin.dbManager.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_ICON", cost)
+
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Success)
+                })
+            } else {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
+            }
+        })
+    }
+
+    /**
+     * 修改公会公告 (消耗公会资金版)
+     */
+    fun setGuildMotd(player: Player, content: String, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        // 1. 权限检查 (会长或副会长)
+        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        if (role != "OWNER" && role != "ADMIN") {
+            return callback(OperationResult.NoPermission)
+        }
+
+        // 2. 异步处理
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 3. 获取费用并检查公会银行
+            val cost = plugin.config.getDouble("balance.motd", 100.0)
+            val guild = plugin.dbManager.getGuildById(guildId)
+
+            if (guild == null || guild.balance < cost) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(
+                        plugin.langManager.get(
+                            "error-balance-not-enough",
+                            "cost" to cost.toString(),
+                            "balance" to (guild?.balance ?: 0.0).toString()
+                        )
+                    ))
+                })
+                return@Runnable
+            }
+
+            // 4. 执行数据库更新
+            if (plugin.dbManager.updateGuildAnnouncement(guildId, content)) {
+
+                // --- 核心扣费与记录细化日志 ---
+                plugin.dbManager.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_MOTD", cost)
+
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Success)
+                })
+            } else {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
+            }
+        })
     }
 }

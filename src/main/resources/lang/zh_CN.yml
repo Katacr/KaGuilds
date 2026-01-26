@@ -163,6 +163,25 @@ bank-text-add: "§a存入"
 bank-text-remove: "§c移除"
 bank-text-set: "§c重置为"
 bank-text-get: "§b取出"
+bank-text-seticon: "§6修改图标"
+bank-text-setmotd: "§6修改公告"
+bank-text-rename: "§6公会改名"
+bank-log-next-page: "§7使用 §f/kg bank log %page% §7查看下一页"
+
+# 公会图标相关
+seticon-success: "§a已成功花费 %cost% 金币设置 %material% 为公会图标。"
+
+# 公会公告相关
+motd-usage: "§c用法: /kg motd <公告内容>"
+motd-too-long: "§c公告内容太长了！(最多64个字)"
+motd-forbidden-char: "§c公告包含非法字符，请勿使用特殊符号或颜色代码。"
+motd-success: "§a已成功花费 %cost% 金币设置公告内容。"
+
+# 公会云存储相关
+vault-unlocked: "[云库存] 玩家掉线，已释放公会 %id% 的仓库 %index% 锁。"
+vault-locked: "[云库存] 仓库 %index% 正在被其他公会玩家使用中。"
+vault-title: "§b公会仓库 #%index%"
+vault-max-vaults: "§c你所在的公会目前只能使用 %max% 个仓库。"
 
 # 公会传送相关
 tp-not-set: "§c公会尚未设置传送点。"
@@ -175,6 +194,8 @@ tp-world-disabled: "§c该世界禁止设置公会传送点。"
 tp-starting: "§a请不要移动，%time% 秒后传送到公会大本营。"
 tp-cancelled-move: "§c传送已取消，你移动了位置。"
 tp-cancelled-damage: "§c传送已取消，你受到了伤害。"
+tp-set-cost: "§a已从公会银行花费 §6%cost% §a金币用于设置传送点。"
+tp-data-error: "§c传送点数据解析失败，请联系管理员重新设置。"
 
 # 公会聊天相关
 chat-usage: "§c用法: /guilds chat [消息]"
@@ -223,6 +244,10 @@ admin-kick-member-success: "§a[管理] 已成功将玩家 §e%player% §c移出
 admin-kick-member-notify: "§6[公会公告] §e管理员已将玩家 §b%player% §e移出公会。"
 admin-join-member-success: "§a[管理] 已成功将玩家 §e%player% §b加入 §6 #%id% §a公会。"
 admin-join-member-notify: "§6[公会公告] §e管理员已将玩家 §b%player% §e加入公会。"
+admin-bank-log-footer: "§8§o(输入 /kg admin bank #%id% log %page% 查看下一页)"
+admin-vault-usage: "§c用法: /kg admin vault #ID [编号]"
+admin-unlockall-success: "§a[管理] 已强制重置所有云库存锁，并广播至全服。"
+admin-vault-title: "§4[管理] §0公会 %id% 仓库 #%index%"
 
 # 成员状态通知
 member-join-notify: "§8[§a+§8] §7热烈欢迎 §f%player% §7加入公会！"
@@ -251,6 +276,12 @@ error-not-has-player: "§c没有找到玩家 %player% 的相关信息。"
 error-not-in-guild: "§c玩家 %player% 不是当前公会的成员。"
 error-database: "§c数据库操作失败，请联系管理员。"
 error-vault: "§cVault 插件未安装或未启用，请联系管理员。"
+error-invalid-vault-index: "§c请输入正确的仓库编号 (1-9)"
+error-no-item: "§c请手持一个物品作为公会图标！"
+error-balance-not-enough: "§c公会资金不足！需要 %cost%金币， 当前公会余额: %balance%金币。"
+error-send-packet: "发送云库存同步封包失败: %error%"
+error-save-vault: "保存公会 %id% 的仓库 %index% 时出错: %message%"
+error-load-vault: "读取公会 %id% 的仓库 %index% 时出错: %message%"
 
 # PlaceholderAPI相关
 papi-no-guild: "无公会"

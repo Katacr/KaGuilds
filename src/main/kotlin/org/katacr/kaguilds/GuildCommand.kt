@@ -13,7 +13,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
         val lang = plugin.langManager
-        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no")
+        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no", "menu")
         val subCommand = args[0].lowercase()
 
         // 1. 帮助与控制台基础检查
@@ -30,6 +30,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             }
             plugin.reloadConfig()
             plugin.langManager.load()
+            plugin.menuManager.reload()
             sender.sendMessage(lang.get("reload-success"))
             return true
         }
@@ -79,6 +80,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "admin" -> handleAdmin(sender, args)
             "transfer" -> handleTransfer(sender, args)
             "vault" -> handleVault(sender, args)
+            "seticon" -> handleSetIcon(sender)
+            "motd" -> handleMotd(sender, args)
+            "menu" -> {
+                // 默认打开 main_menu.yml
+                plugin.menuManager.openMenu(sender, "main_menu")
+                return true
+            }
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -157,7 +165,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 val totalPages = plugin.dbManager.getBankLogTotalPages(guildId)
-                if (page > totalPages && totalPages > 0) {
+                if (totalPages in 1..<page) {
                     player.sendMessage(lang.get("bank-log-invalid-page"))
                     return@Runnable
                 }
@@ -170,7 +178,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 } else {
                     logs.forEach { player.sendMessage(it) }
                     if (page < totalPages) {
-                        player.sendMessage("§7使用 §f/kg bank log ${page + 1} §7查看下一页")
+                        player.sendMessage(lang.get("bank-log-next-page", "page" to page.toString() + 1 ))
                     }
                 }
             })
@@ -357,7 +365,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     player.sendMessage(lang.get("info-footer"))
                 }
                 is OperationResult.NotInGuild -> player.sendMessage(plugin.langManager.get("not-in-guild"))
-                else -> player.sendMessage("§cError: ${result.toString()}")
+                else -> player.sendMessage("§cError: $result")
             }
         }
     }
@@ -617,9 +625,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     private fun handleSetTp(player: Player) {
         plugin.guildService.setGuildTP(player) { result ->
             when (result) {
-                is OperationResult.Success -> player.sendMessage(plugin.langManager.get("tp-set-success"))
+                is OperationResult.Success -> {
+                    val cost = plugin.config.getDouble("balance.settp", 1000.0)
+                    player.sendMessage(plugin.langManager.get("tp-set-success"))
+                    player.sendMessage(plugin.langManager.get("tp-set-cost", "cost" to cost.toString()))
+                }
                 is OperationResult.NoPermission -> player.sendMessage(plugin.langManager.get("not-staff"))
-                else -> player.sendMessage((result as OperationResult.Error).message)
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
             }
         }
     }
@@ -653,8 +666,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         plugin.guildService.renameGuild(player, newName) { result ->
             when (result) {
                 is OperationResult.Success -> {
-                    // 如果需要显示扣费金额，可以从 config 读取
-                    val price = plugin.config.getDouble("balance.rename", 5000.0).toString()
+                    val price = plugin.config.getDouble("balance.rename", 3000.0).toString()
                     player.sendMessage(plugin.langManager.get("rename-success",
                         "name" to newName,
                         "price" to price
@@ -775,7 +787,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             // 检查是否是会长 (对比 UUID)
             if (guildData?.ownerUuid != player.uniqueId.toString()) {
-                player.sendMessage(lang.get("no-guild-admin")) // 确保语言文件有这个节点
+                player.sendMessage(lang.get("no-guild-admin"))
                 return@Runnable
             }
 
@@ -935,7 +947,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                             } else {
                                 logs.forEach { sender.sendMessage(it) }
                                 // 提示翻页
-                                sender.sendMessage("§8§o(输入 /kg admin bank #$guildId log ${page + 1} 查看下一页)")
+                                sender.sendMessage(lang.get("admin-bank-log-footer", "page" to page.toString() + 1, "id" to guildId.toString()))
                             }
                         }
                     }
@@ -1009,12 +1021,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "vault" -> {
                 // 格式: /kg admin vault #ID [编号]
                 if (args.size < 3) {
-                    sender.sendMessage("§c用法: /kg admin vault #ID [编号]")
+                    sender.sendMessage(lang.get("admin-vault-usage"))
                     return
                 }
 
                 val guildId = args[2].replace("#", "").toIntOrNull()
-                    ?: return sender.sendMessage("§c无效的公会 ID")
+                    ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
                 val index = if (args.size > 3) args[3].toIntOrNull() ?: 1 else 1
 
@@ -1026,7 +1038,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 // 用法: /kg admin unlockall
                 // 效果：清空全服务器（及跨服）的所有仓库锁
                 plugin.guildService.forceResetAllLocks()
-                sender.sendMessage("§a[管理] 已强制重置所有云库存锁，并广播至全服。")
+                sender.sendMessage(lang.get("admin-unlockall-success"))
             }
 
             else -> sender.sendMessage(lang.get("admin-usage"))
@@ -1051,7 +1063,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         val index = if (args.size > 1) {
             val input = args[1].toIntOrNull()
             if (input == null || input < 1 || input > 9) {
-                player.sendMessage("§c请输入正确的仓库编号 (1-9)")
+                player.sendMessage(lang.get("error-invalid-vault-index"))
                 return
             }
             input
@@ -1061,6 +1073,75 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         // 3. 调用 Service 层执行逻辑 (检查等级、锁定仓库、读取数据、打开 GUI)
         plugin.guildService.openVault(player, index)
+    }
+
+    /*
+     * 处理 /kg seticon 命令
+     */
+    private fun handleSetIcon(player: Player) {
+        val item = player.inventory.itemInMainHand
+        if (item.type == org.bukkit.Material.AIR) {
+            player.sendMessage(plugin.langManager.get("error-no-item"))
+            return
+        }
+
+        val materialName = item.type.name
+
+        plugin.guildService.setGuildIcon(player, materialName) { result ->
+            when (result) {
+                is OperationResult.Success -> {
+                    val cost = plugin.config.getDouble("balance.seticon", 1000.0)
+                    player.sendMessage(plugin.langManager.get("seticon-success", "cost" to cost.toString(), "material" to materialName))
+                }
+                is OperationResult.NoPermission -> {
+                    player.sendMessage(plugin.langManager.get("not-staff"))
+                }
+                is OperationResult.Error -> {
+                    player.sendMessage(result.message)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    /*
+     * 处理 /kg motd  命令
+     */
+    private fun handleMotd(player: Player, args: Array<out String>) {
+        if (args.size < 2) {
+            player.sendMessage(plugin.langManager.get("motd-usage"))
+            return
+        }
+
+        // 1. 合并参数为完整字符串
+        val content = args.slice(1 until args.size).joinToString(" ")
+
+        // 2. 长度校验 (64字符)
+        if (content.length > 64) {
+            player.sendMessage(plugin.langManager.get("motd-too-long"))
+            return
+        }
+
+        // 3. 安全过滤 (禁止引号、分号、括号、彩色符号等)
+        val forbiddenPattern = Regex("""['";\\<>{}\[\]§&]""")
+        if (forbiddenPattern.containsMatchIn(content)) {
+            player.sendMessage(plugin.langManager.get("motd-forbidden-char"))
+            return
+        }
+
+        // 4. 调用 Service 执行扣费修改
+        plugin.guildService.setGuildMotd(player, content) { result ->
+            when (result) {
+                is OperationResult.Success -> {
+                    val cost = plugin.config.getDouble("balance.motd", 100.0)
+                    player.sendMessage(plugin.langManager.get("motd-success", "cost" to cost.toString()))
+
+                }
+                is OperationResult.NoPermission -> player.sendMessage(plugin.langManager.get("not-staff"))
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
     }
 
     /*
@@ -1075,7 +1156,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = mutableListOf(
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
-                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault"
+                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault" , "menu" , "seticon" , "motd"
                 )
 
                 // 权限指令判断
@@ -1130,7 +1211,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         }
                         emptyList()
                     }
-                    "kick", "promote", "demote", "invite", "join", "accept" -> null
+                    "kick", "promote", "demote", "invite", "join", "accept", "deny", "no" , "menu" -> null
                     else -> emptyList()
                 }
             }

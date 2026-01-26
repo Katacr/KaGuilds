@@ -1,0 +1,44 @@
+title: "公会菜单"  # 标题
+
+Layout:   # 虚拟布局
+  - '#########'
+  - '         '
+  - '  1234   '
+  - '         '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: '边框板'
+  "1":
+    display:
+      material: PAPER
+      name: '&a基础指令'
+    actions:
+      left:
+        - 'command: kg info'  # 直接执行，无需条件
+        - 'tell: &e正在为你查询公会信息...' # 直接执行
+        - 'close'
+  "2":
+    display:
+      material: PAPER
+      name: '&a公会列表'
+    actions:
+      left:
+        - 'open: guilds_list'
+  "3":
+    display:
+      material: IRON_BOOTS
+      name: '&a购买公会BUFF'
+    actions:
+      left:
+        - condition: 'has_money: 2000' # 复杂逻辑：有条件判定
+          actions:
+            - 'command: kg buff Speed'
+            - 'tell: &a购买成功'
+            - 'close'
+          deny:
+            - 'tell: &c你没钱！'
+            - 'close'

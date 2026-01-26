@@ -1,0 +1,55 @@
+title: "公会列表"  # 标题
+
+Layout:   # 虚拟布局
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: '边框板'
+  "1":
+    type: 'GUILDS_LIST'
+    display:
+      material: '%guilds_icon%'
+      name: '&a%guilds_name% [ID: #%guilds_id%]'
+      lore:
+        - '&7公会等级: Lv.%guilds_level%'
+        - '&7公会人数: %guilds_members% / %guilds_max_members%'
+        - '&7公会创建时间: %guilds_create_time%'
+        - '&7公会公告: %guilds_announcement%'
+        - '&e[左键] &6申请加入该公会'
+    actions:
+      left:
+        - 'command: kg join #%guilds_id%'  # 直接执行，无需条件
+        - 'close'
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c关闭'
+    actions:
+      left:
+        - 'close'
+  "<":
+    display:
+      material: PAPER
+      name: '&a上一页'
+      lore:
+        - '&7当前页: %page%/%total_pages%'
+    actions:
+      left:
+        - 'PAGE_PREV'
+  ">":
+    display:
+      material: PAPER
+      name: '&a下一页'
+      lore:
+        - '&7当前页: %page%/%total_pages%'
+    actions:
+      left:
+        - 'PAGE_NEXT'

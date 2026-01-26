@@ -378,7 +378,7 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 获取公会当前详细数据（完整版，包含传送点）
+     * 获取公会当前详细数据
      */
     fun getGuildData(guildId: Int): GuildData? {
         return try {
@@ -434,7 +434,10 @@ class DatabaseManager(val plugin: KaGuilds) {
                         val typeStr = when(typeRaw) {
                             "ADD" -> plugin.langManager.get("bank-text-add")  //"§a存入"
                             "REMOVE" -> plugin.langManager.get("bank-text-remove") //"§c强行扣除"
-                            "SET" -> plugin.langManager.get("bank-text-set") //"§b强行重置"
+                            "SET" -> plugin.langManager.get("bank-text-set") //"§b强行重置""SET_TP" -> "§6设置传送点"
+                            "SET_ICON" -> plugin.langManager.get("bank-text-seticon") //"§6修改图标"
+                            "SET_MOTD" -> plugin.langManager.get("bank-text-setmotd") //"§6修改公告"
+                            "RENAME" -> plugin.langManager.get("bank-text-rename") //"§6公会改名"
                             else -> plugin.langManager.get("bank-text-get") //"§c取出"
                         }
                         val time = dateFormat.format(java.util.Date(rs.getLong("time")))
@@ -503,24 +506,41 @@ class DatabaseManager(val plugin: KaGuilds) {
 
     /**
      * 创建公会
+     * @param name 公会名称
+     * @param ownerUuid 会长 UUID
+     * @param ownerName 会长名称
+     * @return 公会ID
      */
     fun createGuild(name: String, ownerUuid: UUID, ownerName: String): Int {
-        val sqlGuild = "INSERT INTO guild_data (name, owner_uuid, owner_name, level, balance, exp) VALUES (?, ?, ?, 1, 0, 0);"
+        // 1. 更新 SQL 语句，包含新增的字段
+        val config = plugin.config
+        val sqlGuild = """
+        INSERT INTO guild_data 
+        (name, owner_uuid, owner_name, level, balance, exp, icon, create_time, announcement, max_members) 
+        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, 50);
+        """.trimIndent()
 
-        connection.use { conn ->
+        return dataSource?.connection?.use { conn ->
             conn.autoCommit = false
             try {
-                // 插入公会数据
+                // 2. 插入公会基础数据
                 val guildId = conn.prepareStatement(sqlGuild, Statement.RETURN_GENERATED_KEYS).use { ps ->
                     ps.setString(1, name)
                     ps.setString(2, ownerUuid.toString())
                     ps.setString(3, ownerName)
+
+                    // --- 新增初始化数据 ---
+                    ps.setString(4, config.get("guild.icon") as String? ?: "SHIELD") // 默认图标 (material)
+                    ps.setLong(5, System.currentTimeMillis()) // 记录当前创建的时间戳
+                    ps.setString(6, config.get("guild.motd", "name" to name) as String? ?: "welcome to guilds") // 初始公告
+
                     ps.executeUpdate()
 
                     val rs = ps.generatedKeys
-                    if (rs.next()) rs.getInt(1) else throw Exception("Failed to get ID")
+                    if (rs.next()) rs.getInt(1) else throw Exception("Failed to get generated guild ID")
                 }
-                // 插入公会成员
+
+                // 3. 插入公会成员 (会长)
                 val sqlMember = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role) VALUES (?, ?, ?, 'OWNER')"
                 conn.prepareStatement(sqlMember).use { ps ->
                     ps.setInt(1, guildId)
@@ -528,17 +548,22 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setString(3, ownerName)
                     ps.executeUpdate()
                 }
-                // 提交事务
+
+                // 4. 提交事务
                 conn.commit()
-                return guildId
+
+                // 更新缓存（如果你的插件有缓存机制）
+                plugin.playerGuildCache[ownerUuid] = guildId
+
+                guildId
             } catch (e: Exception) {
                 conn.rollback()
                 e.printStackTrace()
-                return -1
+                -1
             } finally {
                 conn.autoCommit = true
             }
-        }
+        } ?: -1
     }
     /**
      * 删除申请记录
@@ -586,7 +611,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             ps.setInt(1, guildId)
             ps.setString(2, playerUuid.toString())
             ps.setString(3, playerName)
-            ps.setLong(4, System.currentTimeMillis())
+            ps.setLong(5, System.currentTimeMillis())
             return ps.executeUpdate() > 0
         }
     }
@@ -761,7 +786,14 @@ class DatabaseManager(val plugin: KaGuilds) {
                 return inserted
             }
         } catch (e: Exception) {
-            plugin.logger.severe("保存公会 #$guildId 的仓库 #$index 时出错:  $ {e.message}")
+            plugin.logger.severe(
+                plugin.langManager.get(
+                    "error-save-vault",
+                    "id" to guildId.toString(),
+                    "index" to index.toString(),
+                    "message" to e.message.toString()
+                )
+            )
             e.printStackTrace()
             return false
         }
@@ -787,7 +819,14 @@ class DatabaseManager(val plugin: KaGuilds) {
                 }
             }
         } catch (e: Exception) {
-            plugin.logger.severe("读取公会 #$guildId 的仓库 #$index 时出错: ${e.message}")
+            plugin.logger.severe(
+                plugin.langManager.get(
+                    "error-load-vault",
+                    "id" to guildId.toString(),
+                    "index" to index.toString(),
+                    "message" to e.message.toString()
+                )
+            )
             e.printStackTrace()
             return null
         }
@@ -838,6 +877,74 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         } ?: false
     }
+
+    /**
+     * 获取全服所有公会的简略数据列表
+     */
+    fun getAllGuilds(): List<GuildData> {
+        val guilds = mutableListOf<GuildData>()
+        val sql = "SELECT * FROM guild_data ORDER BY level DESC, id ASC" // 按等级排序
+
+        try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        val guildId = rs.getInt("id")
+                        // 这里我们利用已有的 getMemberCount 来填充人数
+                        guilds.add(
+                            GuildData(
+                                id = rs.getInt("id"),
+                                name = rs.getString("name"),
+                                ownerUuid = rs.getString("owner_uuid"),
+                                ownerName = rs.getString("owner_name"),
+                                level = rs.getInt("level"),
+                                exp = rs.getInt("exp"),
+                                balance = rs.getDouble("balance"),
+                                announcement = rs.getString("announcement") ?: "暂无公告",
+                                maxMembers = rs.getInt("max_members"),
+                                teleportLocation = rs.getString("teleport_location"),
+                                createTime = rs.getLong("create_time"), // 确保这里读取的是 create_time
+                                memberCount = getMemberCount(guildId, conn),
+                                icon = rs.getString("icon") ?: "SHIELD" // 确保这里读取的是 icon
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return guilds
+    }
+
+    /**
+     * 更新公会图标
+     */
+    fun updateGuildIcon(guildId: Int, materialName: String): Boolean {
+        val sql = "UPDATE guild_data SET icon = ? WHERE id = ?"
+        return dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, materialName)
+                ps.setInt(2, guildId)
+                ps.executeUpdate() > 0
+            }
+        } ?: false
+    }
+
+    /**
+     * 更新公会公告 (MOTD)
+     */
+    fun updateGuildAnnouncement(guildId: Int, content: String): Boolean {
+        val sql = "UPDATE guild_data SET announcement = ? WHERE id = ?"
+        return dataSource?.connection?.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setString(1, content)
+                ps.setInt(2, guildId)
+                ps.executeUpdate() > 0
+            }
+        } ?: false
+    }
     // 公会数据模型
     data class GuildData(
         val id: Int,
@@ -850,6 +957,8 @@ class DatabaseManager(val plugin: KaGuilds) {
         val announcement: String?,
         val maxMembers: Int,
         val teleportLocation: String?, // <-- 新增字段
-        val createTime: Long
+        val createTime: Long,
+        val memberCount: Int = 0,
+        val icon: String? = null
     )
 }
