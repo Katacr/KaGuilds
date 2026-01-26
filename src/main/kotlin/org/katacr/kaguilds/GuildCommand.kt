@@ -104,13 +104,19 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             player.sendMessage(lang.get("buff-usage"))
             return
         }
+
         val buffKey = args[1]
         plugin.guildService.buyBuff(player, buffKey) { result ->
-
             when (result) {
-                is OperationResult.Success -> {} // 成功消息由 dispatchBuff 统一发送
-                is OperationResult.InsufficientFunds -> player.sendMessage(lang.get("create-insufficient")) // 复用余额不足
-                is OperationResult.Error -> player.sendMessage(result.message)
+                is OperationResult.Success -> {
+                    // 成功提示已经在 dispatchBuff 中发给全公会了，这里可以不发或者发个简单的确认
+                }
+                is OperationResult.NoPermission -> {
+                    player.sendMessage(lang.get("not-staff"))
+                }
+                is OperationResult.Error -> {
+                    player.sendMessage(result.message)
+                }
                 else -> {}
             }
         }
@@ -178,7 +184,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 } else {
                     logs.forEach { player.sendMessage(it) }
                     if (page < totalPages) {
-                        player.sendMessage(lang.get("bank-log-next-page", "page" to page.toString() + 1 ))
+                        player.sendMessage(lang.get("bank-log-next-page", "page" to (page + 1).toString()))
                     }
                 }
             })
@@ -704,7 +710,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             when (result) {
                 is OperationResult.Success -> player.sendMessage(plugin.langManager.get("create-success", "name" to guildName))
                 is OperationResult.NameAlreadyExists -> player.sendMessage(plugin.langManager.get("create-exists"))
-                is OperationResult.InsufficientFunds -> player.sendMessage(plugin.langManager.get("create-insufficient"))
+                is OperationResult.InsufficientFunds -> player.sendMessage(plugin.langManager.get("create-insufficient-funds"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
@@ -947,7 +953,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                             } else {
                                 logs.forEach { sender.sendMessage(it) }
                                 // 提示翻页
-                                sender.sendMessage(lang.get("admin-bank-log-footer", "page" to page.toString() + 1, "id" to guildId.toString()))
+                                sender.sendMessage(lang.get("admin-bank-log-footer", "page" to (page + 1).toString(), "id" to guildId.toString()))
                             }
                         }
                     }

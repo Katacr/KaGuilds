@@ -76,7 +76,7 @@ guild:
     max-length: 16
     # 正则表达式：允许英文字母、数字、下划线、汉字
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
-  motd: "欢迎来到 %name% 公会"
+  motd: "欢迎加入我的公会"
   icon: "SHIELD"
 
 database:

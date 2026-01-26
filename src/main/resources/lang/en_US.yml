@@ -30,6 +30,7 @@ desc-admin: "Admin management commands"
 
 # General Error Messages
 no-permission: "§cYou don't have permission to execute this command."
+no-guild-admin: "§cYou are not a guild admin, cannot execute this command."
 player-only: "§cThis command can only be executed by players."
 unknown-command: "&cUnknown sub-command."
 help-hint: "&7Please enter &f/kg help &7to view all command usage."
@@ -40,13 +41,13 @@ confirm-no-pending: "§cYou currently have no pending actions, or the action has
 create-usage: "§cUsage: /kg create <guild name>"
 create-name-exists: "§cThis guild name already exists."
 create-repeat-name: "§cGuild name is the same as current one."
-create-insufficient-funds: "§cCreating a guild requires §f%cost% §ccoins, you don't have enough!"
+create-insufficient-funds: "§cYou don't have enough coins to create a guild!"
 create-pay-success: "§aDeducted §f%cost% §acoins from your account to create the guild."
 create-failed-refund: "§cGuild creation failed, coins have been returned to your account."
 create-success: "§aGuild §f%name% §acreated successfully!"
 create-failed: "§cUnknown error occurred while creating guild."
-create-invalid-name: "§cGuild name contains invalid characters or incorrect length!"
-confirm-create: "§eYou are about to create guild §b%name% §e, this will cost §a%cost% §ecoins."
+create-invalid-length: "§cGuild name length must be between %min% and %max% characters!"
+create-invalid-name: "§cGuild name contains invalid characters! Only Chinese, letters and numbers allowed."
 
 # Invitation and Application Related
 invite-usage: "§cUsage: /kg invite <player name>"
@@ -67,6 +68,7 @@ invite-success-proxy: "§aInvitation sent to player %player% via cross-server ga
 join-usage: "§cUsage: /kg join <guild name or #ID>"
 join-guild-not-found: "§cGuild not found, please check name or ID (#123) is correct."
 join-full: "§cThis guild is full (%current%/%max%)."
+join-already: "§cYou are already in a guild."
 join-already-requested: "§cYou have already submitted an application, please wait for guild leader review."
 join-success: "§aApplication to join §b%guild% §asubmitted! Please wait for guild admin approval."
 join-already-in-guild: "§cThis player is already in a guild."
@@ -115,6 +117,9 @@ promote-success: "§aSuccessfully §f%name% %action% §a."
 promote-action-promote: "§apromoted to §bAdmin"
 promote-action-demote: "§ademoted to §fRegular Member"
 role-updated-target: "§eYour guild position has been updated to: §f%role%"
+transfer-usage: "§cUsage: /kg transfer <member name>"
+transfer-confirm-notice: "§eAre you sure you want to transfer the guild to §b%player% §e? This action is irreversible! Enter §f/kg confirm §eto confirm."
+transfer-success: "§a§l[!] §aYou have successfully transferred the guild to §e%player%§a."
 
 kick-usage: "§cUsage: /kg kick [player name]"
 kick-cannot-owner: "§cYou cannot kick the guild leader."
@@ -159,6 +164,26 @@ bank-text-add: "§aDeposit"
 bank-text-remove: "§cRemove"
 bank-text-set: "§cSet to"
 bank-text-get: "§bWithdraw"
+bank-text-seticon: "§6Change Icon"
+bank-text-setmotd: "§6Change Announcement"
+bank-text-rename: "§6Rename Guild"
+bank-text-buybuff: "§6Purchase Buff"
+bank-log-next-page: "§7Use §f/kg bank log %page% §7to view next page"
+
+# Guild Icon Related
+seticon-success: "§aSuccessfully spent %cost% coins to set %material% as guild icon."
+
+# Guild Announcement Related
+motd-usage: "§cUsage: /kg motd <announcement content>"
+motd-too-long: "§cAnnouncement content is too long! (max 64 characters)"
+motd-forbidden-char: "§cAnnouncement contains invalid characters, please don't use special symbols or color codes."
+motd-success: "§aSuccessfully spent %cost% coins to set announcement content."
+
+# Guild Cloud Storage Related
+vault-unlocked: "[Cloud Storage] Player disconnected, released lock for guild %id% vault %index%."
+vault-locked: "[Cloud Storage] Vault %index% is currently being used by another guild player."
+vault-title: "§bGuild Vault #%index%"
+vault-max-vaults: "§cYour guild can currently only use %max% vaults."
 
 # Guild Teleport Related
 tp-not-set: "§cGuild teleport point not set."
@@ -171,6 +196,8 @@ tp-world-disabled: "§cThis world is disabled for guild teleport points."
 tp-starting: "§aPlease don't move, teleporting to guild headquarters in %time% seconds."
 tp-cancelled-move: "§cTeleport cancelled, you moved."
 tp-cancelled-damage: "§cTeleport cancelled, you took damage."
+tp-set-cost: "§aSpent §6%cost% §acoins from guild bank to set teleport point."
+tp-data-error: "§cTeleport point data parsing failed, please contact admin to reset."
 
 # Guild Chat Related
 chat-usage: "§cUsage: /guilds chat [message]"
@@ -184,12 +211,13 @@ buff-received: "§8[§dGuild Aura§8] §f%player% §7purchased §d%buff% §7effe
 buff-level-low: "§cCurrent guild level (%level%) hasn't unlocked this buff, please level up your guild first!"
 
 # Confirmation Actions Related
+confirm-create: "§eYou are about to create guild §b%name% §e, this will cost §a%cost% §ecoins."
 confirm-delete: "§c§lWarning!§e You are attempting to §4§lpermanently disband§e the guild. This action cannot be undone!"
 confirm-leave: "§eAre you sure you want to leave the current guild?"
 confirm-hint: "§eIf confirmed, please enter §6/kg confirm §ewithin 30 seconds to execute."
 
 # Admin Commands Related
-admin-usage: "§cUsage: /kg admin [rename]"
+admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join>"
 admin-rename-notify: "§6[Guild Announcement] §eAdmin has uniformly changed the guild name to §b%name%§e."
 admin-delete-usage: "§cUsage: /kg admin delete #ID"
 admin-delete-notify: "§c§l[Guild Announcement] §eYour guild has been forcibly disbanded by admin."
@@ -209,6 +237,19 @@ admin-bank-see: "§a[Admin] Guild #%id% current balance: §e%balance% §acoins."
 admin-bank-no-log: "§7This guild currently has no bank records."
 admin-bank-success: "§a[Admin] Operation successful! Guild #%id% new balance: §e%balance% §acoins."
 admin-bank-log-header: "§b§l=== Guild #%id% Administrative Audit Log (Page %page%) ==="
+admin-transfer-usage: "§cUsage: /kg admin transfer #ID <player>"
+admin-transfer-success: "§a[Admin] Successfully transferred guild to §e%player%§a."
+admin-transfer-notify: "§6[Guild Announcement] §eAdmin has forcibly changed guild leader to §b%player%§e."
+admin-kick-usage: "§cUsage: /kg admin kick #ID <player name>"
+admin-join-usage: "§cUsage: /kg admin join #ID <player name>"
+admin-kick-member-success: "§a[Admin] Successfully kicked player §e%player% §cfrom §6 #%id% §aguild."
+admin-kick-member-notify: "§6[Guild Announcement] §eAdmin has removed player §b%player% §efrom the guild."
+admin-join-member-success: "§a[Admin] Successfully added player §e%player% §bto §6 #%id% §aguild."
+admin-join-member-notify: "§6[Guild Announcement] §eAdmin has added player §b%player% §eto the guild."
+admin-bank-log-footer: "§8§o(Enter /kg admin bank #%id% log %page% to view next page)"
+admin-vault-usage: "§cUsage: /kg admin vault #ID [number]"
+admin-unlockall-success: "§a[Admin] Forcibly reset all cloud storage locks and broadcasted to entire server."
+admin-vault-title: "§4[Admin] §0Guild %id% Vault #%index%"
 
 # Member Status Notifications
 member-join-notify: "§8[§a+§8] §7Warm welcome to §f%player% §7for joining the guild!"
@@ -225,10 +266,25 @@ target-not-member: "§cPlayer §f%name% §cis not a member of this guild."
 
 # Reload and Error Handling
 reload-success: "§aConfiguration file reloaded!"
+error-not-has-guild: "§cYou haven't joined or created a guild, cannot use this command."
 error-guild-not-found: "§cNo guild found with ID #%id%."
 error-invalid-id: "§cInvalid guild ID, please use format like #1."
 error-invalid-number: "§cPlease enter a valid number amount."
 error-missing-args: "§7Command usage error, please use /kg help for help."
+error-player-not-online: "§cThis player is currently offline."
+error-player-is-yourself: "§cYou cannot perform operations on yourself."
+error-player-is-master: "§cYou cannot perform operations on the guild leader."
+error-not-has-player: "§cNo information found for player %player%."
+error-not-in-guild: "§cPlayer %player% is not a member of the current guild."
+error-database: "§cDatabase operation failed, please contact admin."
+error-vault: "§cVault plugin not installed or enabled, please contact admin."
+error-invalid-vault-index: "§cPlease enter correct vault number (1-9)"
+error-no-item: "§cPlease hold an item to use as guild icon!"
+error-balance-not-enough: "§cGuild funds insufficient! Need %cost% coins, current guild balance: %balance% coins."
+error-send-packet: "Failed to send cloud storage sync packet: %error%"
+error-save-vault: "Error saving guild %id% vault %index%: %message%"
+error-load-vault: "Error loading guild %id% vault %index%: %message%"
+error-not-money: "§cYou don't have enough coins, need %cost% coins, your balance: %balance% coins."
 
 # PlaceholderAPI Related
 papi-no-guild: "No Guild"

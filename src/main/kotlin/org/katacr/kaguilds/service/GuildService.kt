@@ -931,50 +931,66 @@ class GuildService(private val plugin: KaGuilds) {
     fun buyBuff(player: Player, buffKey: String, callback: (OperationResult) -> Unit) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
+        // 1. 权限检查 (建议仅限会长或副会长，防止普通成员耗尽公会资金)
+        // val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        // if (role != "OWNER" && role != "ADMIN") {
+        //     return callback(OperationResult.NoPermission)
+        // }
+
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 1. 获取公会数据以确认等级
-            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+            // 2. 获取公会数据 (包含等级和余额)
+            val guildData = plugin.dbManager.getGuildData(guildId)
+                ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-database")))
+
             val level = guildData.level
+            val balance = guildData.balance
 
-            // 2. 检查当前等级是否允许使用该 Buff
-            // 从 level.X.use-buff 路径读取列表
+            // 3. 等级限制检查
             val allowedBuffs = plugin.config.getStringList("level.$level.use-buff")
-
-            // 这里的 contains 区分大小写，建议确保 config 中的 key 和指令输入一致
-            // 或者使用 val found = allowedBuffs.any { it.equals(buffKey, ignoreCase = true) }
             if (!allowedBuffs.contains(buffKey)) {
                 val errorMsg = plugin.langManager.get("buff-level-low", "level" to level.toString())
                 return@Runnable callback(OperationResult.Error(errorMsg))
             }
 
-            // 3. 读取 Buff 具体配置
+            // 4. 读取 Buff 配置与价格
             val path = "guild.buffs.$buffKey"
             if (!plugin.config.contains(path)) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("buff-not-exist")))
             }
 
-            val typeStr = plugin.config.getString("$path.type")
             val price = plugin.config.getDouble("$path.price")
+            val typeStr = plugin.config.getString("$path.type")
             val amplifier = plugin.config.getInt("$path.amplifier", 0)
-            val buffName = plugin.config.getString("$path.name", buffKey)
+            val buffName = plugin.config.getString("$path.name", buffKey) ?: buffKey
 
             val potionType = PotionEffectType.getByName(typeStr ?: "")
-                ?: return@Runnable callback(OperationResult.Error("配置错误：无效的效果类型 $typeStr"))
+                ?: return@Runnable callback(OperationResult.Error("配置错误：无效效果 $typeStr"))
 
-            // 4. 检查经济
-            if (plugin.economy?.has(player, price) == false) {
-                return@Runnable callback(OperationResult.Error(plugin.langManager.get("create-insufficient")))
+            // 5. 检查公会银行余额
+            if (balance < price) {
+                val errorMsg = plugin.langManager.get("error-balance-not-enough",
+                    "cost" to price.toString(),
+                    "balance" to balance.toString()
+                )
+                return@Runnable callback(OperationResult.Error(errorMsg))
             }
 
-            // 5. 扣费并分发
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                plugin.economy?.withdrawPlayer(player, price)
+            // 6. 执行扣费与记录 (异步更新数据库)
+            if (plugin.dbManager.updateGuildBalance(guildId, -price)) {
+                // 记录银行日志：类型为 BUY_BUFF
+                plugin.dbManager.logBankTransaction(guildId, player.name, "BUY_BUFF", price)
 
-                val durationSeconds = plugin.config.getInt("guild.buff-time", 90)
-                dispatchBuff(guildId, potionType, durationSeconds, amplifier, player.name, buffName!!)
-
-                callback(OperationResult.Success)
-            })
+                // 7. 切回主线程进行分发 (PotionEffect 必须在主线程操作)
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    val durationSeconds = plugin.config.getInt("guild.buff-time", 90)
+                    dispatchBuff(guildId, potionType, durationSeconds, amplifier, player.name, buffName)
+                    callback(OperationResult.Success)
+                })
+            } else {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
+            }
         })
     }
 

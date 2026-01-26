@@ -438,6 +438,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                             "SET_ICON" -> plugin.langManager.get("bank-text-seticon") //"§6修改图标"
                             "SET_MOTD" -> plugin.langManager.get("bank-text-setmotd") //"§6修改公告"
                             "RENAME" -> plugin.langManager.get("bank-text-rename") //"§6公会改名"
+                            "BUY_BUFF" -> plugin.langManager.get("bank-text-buybuff") //"§6购买增益"
                             else -> plugin.langManager.get("bank-text-get") //"§c取出"
                         }
                         val time = dateFormat.format(java.util.Date(rs.getLong("time")))
