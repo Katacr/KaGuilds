@@ -182,7 +182,7 @@ motd-success: "§aSuccessfully spent %cost% coins to set announcement content."
 # Guild Cloud Storage Related
 vault-unlocked: "[Cloud Storage] Player disconnected, released lock for guild %id% vault %index%."
 vault-locked: "[Cloud Storage] Vault %index% is currently being used by another guild player."
-vault-title: "§bGuild Vault #%index%"
+vault-title: "§6Guild Vault #%index%"
 vault-max-vaults: "§cYour guild can currently only use %max% vaults."
 
 # Guild Teleport Related

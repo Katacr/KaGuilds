@@ -1,4 +1,4 @@
-title: "&0公会列表"  # 标题 (支持颜色)
+title: "&0公会成员列表"  # 标题 (支持颜色)
 
 Layout:   # 菜单布局 (6行)
   - '#########'
@@ -15,26 +15,20 @@ button:
       name: ' '
 
   "1":
-    type: 'GUILDS_LIST'
+    type: 'MEMBERS_LIST'
     display:
-      # 代码会自动读取公会的图标，若公会无图标则默认使用 PAPER
-      material: PAPER
-      name: '&a{name} &8[ID: #{id}]'
+      material: {members_head} # 成员头颅
+      name: '&a{members_name} ' # 成员名称
       lore:
         - '&7--------------------------'
-        - '&b公会会长：&f{owner}'
-        - '&b公会等级: &eLv.{level}'
-        - '&b公会人数: &f{members} &8/ &7{max_members}'
-        - '&b公会资金: &6{balance}'
-        - '&b创建时间: &f{create_time}'
-        - ' '
-        - '&b公会公告:'
-        - '&f{announcement}'
+        - '&b公会职位: &f{members_role}'  # 成员职位
+        - '&b加入时间: &f{members_join_time}'  # 成员加入时间
         - '&7--------------------------'
-        - '&e[左键] &6申请加入该公会'
+        - ''
+        - '&e[左键] &6传送到该玩家'
     actions:
       left:
-        - 'command: kg join {id}'
+        - 'command: teleport {members_name}'
         - 'sound: entity.experience_orb.pickup' # 示例：支持播放声音
         - 'close'
 

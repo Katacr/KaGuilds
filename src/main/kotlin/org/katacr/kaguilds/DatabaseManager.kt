@@ -346,13 +346,14 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 添加公会成员 (增加 playerName 参数)
      */
     fun addMember(guildId: Int, playerUuid: UUID, playerName: String, role: String): Boolean {
-        val sql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role) VALUES (?, ?, ?, ?)"
+        val sql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time) VALUES (?, ?, ?, ?, ?)"
         connection.use { conn ->
             val ps = conn.prepareStatement(sql)
             ps.setInt(1, guildId)
             ps.setString(2, playerUuid.toString())
             ps.setString(3, playerName)
             ps.setString(4, role)
+            ps.setLong(5, System.currentTimeMillis())
             return ps.executeUpdate() > 0
         }
     }
@@ -532,7 +533,7 @@ class DatabaseManager(val plugin: KaGuilds) {
 
                     // --- 新增初始化数据 ---
                     ps.setString(4, config.get("guild.icon") as String? ?: "SHIELD") // 默认图标 (material)
-                    ps.setLong(5, System.currentTimeMillis()) // 记录当前创建的时间戳
+                    ps.setLong(5, System.currentTimeMillis())
                     ps.setString(6, config.get("guild.motd", "name" to name) as String? ?: "welcome to guilds") // 初始公告
 
                     ps.executeUpdate()
@@ -542,11 +543,12 @@ class DatabaseManager(val plugin: KaGuilds) {
                 }
 
                 // 3. 插入公会成员 (会长)
-                val sqlMember = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role) VALUES (?, ?, ?, 'OWNER')"
+                val sqlMember = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time) VALUES (?, ?, ?, 'OWNER', ?)"
                 conn.prepareStatement(sqlMember).use { ps ->
                     ps.setInt(1, guildId)
                     ps.setString(2, ownerUuid.toString())
                     ps.setString(3, ownerName)
+                    ps.setLong(4, System.currentTimeMillis())
                     ps.executeUpdate()
                 }
 
@@ -880,46 +882,6 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 获取全服所有公会的简略数据列表
-     */
-    fun getAllGuilds(): List<GuildData> {
-        val guilds = mutableListOf<GuildData>()
-        val sql = "SELECT * FROM guild_data ORDER BY level DESC, id ASC" // 按等级排序
-
-        try {
-            dataSource?.connection?.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    val rs = ps.executeQuery()
-                    while (rs.next()) {
-                        val guildId = rs.getInt("id")
-                        // 这里我们利用已有的 getMemberCount 来填充人数
-                        guilds.add(
-                            GuildData(
-                                id = rs.getInt("id"),
-                                name = rs.getString("name"),
-                                ownerUuid = rs.getString("owner_uuid"),
-                                ownerName = rs.getString("owner_name"),
-                                level = rs.getInt("level"),
-                                exp = rs.getInt("exp"),
-                                balance = rs.getDouble("balance"),
-                                announcement = rs.getString("announcement") ?: "暂无公告",
-                                maxMembers = rs.getInt("max_members"),
-                                teleportLocation = rs.getString("teleport_location"),
-                                createTime = rs.getLong("create_time"), // 确保这里读取的是 create_time
-                                memberCount = getMemberCount(guildId, conn),
-                                icon = rs.getString("icon") ?: "SHIELD" // 确保这里读取的是 icon
-                            )
-                        )
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return guilds
-    }
-
-    /**
      * 更新公会图标
      */
     fun updateGuildIcon(guildId: Int, materialName: String): Boolean {
@@ -946,6 +908,103 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         } ?: false
     }
+
+    /**
+     * 获取公会总数
+     */
+    fun getGuildCount(): Int {
+        val sql = "SELECT COUNT(*) FROM guild_data" // 确保表名是 guild_data
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    val rs = ps.executeQuery()
+                    if (rs.next()) rs.getInt(1) else 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0
+        }
+    }
+
+    /**
+     * 分页获取公会数据列表
+     * @param page 当前页码 (从 0 开始)
+     * @param size 每页显示数量
+     */
+    fun getGuildsByPage(page: Int, size: Int): List<GuildData> {
+        val guilds = mutableListOf<GuildData>()
+        // 保持与 getAllGuilds 一致的排序逻辑：按等级倒序，ID 正序
+        val sql = "SELECT * FROM guild_data ORDER BY level DESC, id ASC LIMIT ? OFFSET ?"
+        val offset = page * size
+
+        try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, size)
+                    ps.setInt(2, offset)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        // 调用下方的私有映射方法
+                        guilds.add(mapGuildData(rs, conn))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return guilds
+    }
+    /**
+     * 内部辅助方法：将 ResultSet 的当前行转换为 GuildData 对象
+     * 修复：通过传入 conn 确保在循环调用中复用连接，提高性能
+     */
+    private fun mapGuildData(rs: java.sql.ResultSet, conn: Connection): GuildData {
+        val guildId = rs.getInt("id")
+        return GuildData(
+            id = guildId,
+            name = rs.getString("name") ?: "Unknown",
+            ownerUuid = rs.getString("owner_uuid") ?: "",
+            ownerName = rs.getString("owner_name"),
+            level = rs.getInt("level"),
+            exp = rs.getInt("exp"),
+            balance = rs.getDouble("balance"),
+            announcement = rs.getString("announcement"),
+            maxMembers = rs.getInt("max_members"),
+            teleportLocation = rs.getString("teleport_location"),
+            createTime = rs.getLong("create_time"),
+            // 复用传入的连接来查询成员数量
+            memberCount = getMemberCount(guildId, conn),
+            icon = rs.getString("icon") ?: "SHIELD"
+        )
+    }
+
+    /**
+     * 获取公会所有成员的详细数据
+     */
+    fun getGuildMembers(guildId: Int): List<MemberData> {
+        val members = mutableListOf<MemberData>()
+        val sql = "SELECT * FROM guild_members WHERE guild_id = ?"
+        try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        members.add(MemberData(
+                            uuid = UUID.fromString(rs.getString("player_uuid")),
+                            name = rs.getString("player_name"),
+                            role = rs.getString("role") ?: "MEMBER",
+                            joinTime = rs.getLong("join_time")
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return members
+    }
     // 公会数据模型
     data class GuildData(
         val id: Int,
@@ -961,5 +1020,13 @@ class DatabaseManager(val plugin: KaGuilds) {
         val createTime: Long,
         val memberCount: Int = 0,
         val icon: String? = null
+    )
+
+    // 成员数据模型
+    data class MemberData(
+        val uuid: UUID,
+        val name: String?,
+        val role: String,
+        val joinTime: Long
     )
 }

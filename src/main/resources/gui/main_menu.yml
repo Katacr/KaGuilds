@@ -31,14 +31,8 @@ button:
   "3":
     display:
       material: IRON_BOOTS
-      name: '&a购买公会BUFF'
+      name: '&a公会成员列表'
     actions:
       left:
-        - condition: 'has_money: 2000' # 复杂逻辑：有条件判定
-          actions:
-            - 'command: kg buff Speed'
-            - 'tell: &a购买成功'
-            - 'close'
-          deny:
-            - 'tell: &c你没钱！'
-            - 'close'
+        - condition: 'is_guild_member'
+        - 'open: members_list'

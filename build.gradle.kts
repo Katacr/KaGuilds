@@ -9,6 +9,15 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    // SkinsRestorer 仓库
+    maven("https://mvnrepository.com/artifact/com.mojang/authlib/") {
+        name = "authlib"
+    }
+    maven("https://repo.codemc.org/repository/maven-public/") {
+        name = "codemc"
+    }
+    maven("https://repo.papermc.io/repository/maven-offline/")
+
     maven("https://repo.papermc.io/repository/maven-public/") {
         name = "papermc-repo"
     }
@@ -21,11 +30,12 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly(fileTree("libs") { include("*.jar") })
+    compileOnly("com.destroystokyo.paper:paper-api:1.16.1-R0.1-SNAPSHOT")
+    // compileOnly("net.skinsrestorer:skinsrestorer-api:15.9.3")
+    compileOnly("com.mojang:authlib:1.5.25")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
-    // 数据库连接池
     implementation("com.zaxxer:HikariCP:5.0.1")
-    // SQLite 驱动 (MySQL 驱动通常服务端自带)
     implementation("org.xerial:sqlite-jdbc:3.42.0.0")
     compileOnly("me.clip:placeholderapi:2.11.7")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
@@ -39,15 +49,17 @@ tasks {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
-        minecraftVersion("1.21")
+        minecraftVersion("1.16")
     }
 }
 
-val targetJavaVersion = 21
+val targetJavaVersion = 12
 kotlin {
     jvmToolchain(targetJavaVersion)
 }
-
+tasks.withType<JavaCompile> {
+    options.release.set(targetJavaVersion)
+}
 tasks {
     // 让默认的 build 任务执行 shadowJar
     build {

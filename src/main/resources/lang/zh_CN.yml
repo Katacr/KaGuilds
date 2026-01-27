@@ -32,6 +32,7 @@ desc-admin: "管理员管理指令"
 no-permission: "§c你没有权限执行此指令。"
 no-guild-admin: "§c你不是公会管理员，无法执行此指令。"
 player-only: "§c该指令只能由玩家执行。"
+player-not-online: "§c该玩家目前不在线。"
 unknown-command: "&c未知的子指令。"
 help-hint: "&7请输入 &f/kg help &7查看所有指令用法。"
 econ-not-ready: "§c插件经济系统未就绪，请联系管理员。"
@@ -182,7 +183,7 @@ motd-success: "§a已成功花费 %cost% 金币设置公告内容。"
 # 公会云存储相关
 vault-unlocked: "[云库存] 玩家掉线，已释放公会 %id% 的仓库 %index% 锁。"
 vault-locked: "[云库存] 仓库 %index% 正在被其他公会玩家使用中。"
-vault-title: "§b公会仓库 #%index%"
+vault-title: "§6公会仓库 #%index%"
 vault-max-vaults: "§c你所在的公会目前只能使用 %max% 个仓库。"
 
 # 公会传送相关
