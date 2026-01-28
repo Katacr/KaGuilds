@@ -13,11 +13,21 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
         val lang = plugin.langManager
+        if (args.isEmpty()) {
+            if (sender is Player) {
+                // 默认打开主菜单
+                plugin.menuManager.openMenu(sender, "main_menu")
+            } else {
+                sender.sendMessage(lang.get("help-hint"))
+            }
+            return true
+        }
+
         val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no", "menu")
         val subCommand = args[0].lowercase()
 
         // 1. 帮助与控制台基础检查
-        if (args.isEmpty() || args[0].equals("help", ignoreCase = true)) {
+        if (subCommand == "help") {
             if (sender is Player) sendHelp(sender) else sender.sendMessage(lang.get("console-help"))
             return true
         }

@@ -5,47 +5,68 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.inventory.InventoryCloseEvent
+import org.bukkit.event.inventory.InventoryDragEvent
 import org.katacr.kaguilds.KaGuilds
 import java.util.UUID
 
 class MenuListener(private val plugin: KaGuilds) : Listener {
 
     @EventHandler
-
     fun onClick(event: InventoryClickEvent) {
+        // 1. 核心拦截：识别是否为本插件菜单。如果 Holder 绑定失败，这里会直接返回，导致物品可以被取走
+        val holder = event.inventory.holder as? GuildMenuHolder ?: return
+        event.isCancelled = true // 只要是本插件菜单，默认禁止一切点击取物行为
+
         val player = event.whoClicked as? Player ?: return
         val slot = event.rawSlot
-        if (slot < 0) return
 
-        val holder = event.inventory.holder as? GuildMenuHolder ?: return
-        if (slot >= event.inventory.size) return
+        // 基础边界检查
+        if (slot < 0 || slot >= event.inventory.size) return
+        val clickedItem = event.currentItem ?: return
+        if (clickedItem.type == org.bukkit.Material.AIR) return
 
-        event.isCancelled = true
-
-        // 定义 clickedItem
-        val clickedItem = event.currentItem
-        if (clickedItem == null || clickedItem.type == org.bukkit.Material.AIR) return
-
+        // 2. 获取按钮配置
         val iconChar = holder.getIconChar(slot) ?: return
         val button = holder.buttons?.getConfigurationSection(iconChar) ?: return
         val actionsSection = button.getConfigurationSection("actions") ?: return
 
-        // 获取点击类型
+        // 3. 检查金库解锁状态 (参考 Buff 的已锁定判断)
+        val unlockedKey = org.bukkit.NamespacedKey(plugin, "vault_unlocked")
+        val unlockedStatus = clickedItem.itemMeta?.persistentDataContainer?.get(unlockedKey, org.bukkit.persistence.PersistentDataType.INTEGER)
+
+        // 如果该物品带有 vault_unlocked 标记且值为 0，说明是未解锁图标，直接拦截并提示
+        if (unlockedStatus != null && unlockedStatus == 0) {
+            player.sendMessage("§c§l! §7该公会金库尚未解锁，请先提升公会等级。")
+            player.playSound(player.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f)
+            return
+        }
+
+        // 4. 识别点击类型并获取对应的 action 列表
         val clickTypeKey = if (event.click.isLeftClick) "left" else if (event.click.isRightClick) "right" else return
         val clickConfig = actionsSection.getList(clickTypeKey) ?: return
 
-        // 获取上下文 ID (公会 ID 或 成员 UUID)
+        // 5. 提取上下文变量 (PDC)
+        val buffKeyNameKey = org.bukkit.NamespacedKey(plugin, "buff_keyname")
         val guildIdKey = org.bukkit.NamespacedKey(plugin, "guild_id")
         val memberUuidKey = org.bukkit.NamespacedKey(plugin, "member_uuid")
+        val vaultNumKey = org.bukkit.NamespacedKey(plugin, "vault_num")
 
         val clickedGuildId = clickedItem.itemMeta?.persistentDataContainer?.get(guildIdKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedMemberUuid = clickedItem.itemMeta?.persistentDataContainer?.get(memberUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
+        val clickedBuffKey = clickedItem.itemMeta?.persistentDataContainer?.get(buffKeyNameKey, org.bukkit.persistence.PersistentDataType.STRING)
+        val clickedVaultNum = clickedItem.itemMeta?.persistentDataContainer?.get(vaultNumKey, org.bukkit.persistence.PersistentDataType.INTEGER)
 
-        // 遍历执行动作
+        // 6. 遍历并执行动作
         for (item in clickConfig) {
             when (item) {
                 is String -> {
-                    processAndExecute(player, item, clickedGuildId, clickedMemberUuid)
+                    // 关键修复：在提交执行前，手动替换金库特有的变量 {vault_num}
+                    var finalLine = item
+                    if (clickedVaultNum != null) {
+                        finalLine = finalLine.replace("{vault_num}", clickedVaultNum.toString())
+                    }
+                    processAndExecute(player, finalLine, clickedGuildId, clickedMemberUuid, clickedBuffKey)
                 }
                 is Map<*, *> -> {
                     @Suppress("UNCHECKED_CAST")
@@ -54,10 +75,19 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     val successActions = group["actions"] as? List<String> ?: emptyList()
                     val denyActions = group["deny"] as? List<String> ?: emptyList()
 
+                    // 执行带条件的判断
                     if (checkCondition(player, conditionStr)) {
-                        successActions.forEach { processAndExecute(player, it, clickedGuildId, clickedMemberUuid) }
+                        successActions.forEach { action ->
+                            var finalAction = action
+                            if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
+                            processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
+                        }
                     } else {
-                        denyActions.forEach { processAndExecute(player, it, clickedGuildId, clickedMemberUuid) }
+                        denyActions.forEach { action ->
+                            var finalAction = action
+                            if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
+                            processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
+                        }
                     }
                 }
             }
@@ -67,27 +97,42 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     /**
      * 内部处理：替换变量并提交执行
      */
-    private fun processAndExecute(player: Player, line: String, guildId: Int?, memberUuid: String?) {
+    private fun processAndExecute(player: Player, line: String, guildId: Int?, memberUuid: String?, buffKey: String?) {
         var finalLine = line
 
-        // 1. 替换内置公会变量 {id}
+        // 1. 处理公会相关内部变量 {id}, {name}, {balance} 等
         if (guildId != null) {
-            finalLine = finalLine.replace("{id}", guildId.toString())
+            val guildData = plugin.dbManager.getGuildData(guildId)
+            if (guildData != null) {
+                // 调用 MenuManager 的方法获取所有变量 Map
+                val placeholders = plugin.menuManager.getGuildPlaceholders(guildData, player)
+                placeholders.forEach { (key, value) ->
+                    finalLine = finalLine.replace("{$key}", value)
+                }
+            } else {
+                // 如果拿不到详细数据，至少把 ID 替换了
+                finalLine = finalLine.replace("{id}", guildId.toString())
+            }
         }
 
-        // 2. 替换内置成员变量 {members_name}
+        // 2. 处理成员相关内部变量 {members_name}
         if (memberUuid != null) {
-            // 通过 UUID 获取离线玩家名
             val targetPlayer = Bukkit.getOfflinePlayer(UUID.fromString(memberUuid))
             val memberName = targetPlayer.name ?: "Unknown"
             finalLine = finalLine.replace("{members_name}", memberName)
         }
 
-        // 3. 替换 PAPI 变量
+        // 3. 处理 Buff 相关内部变量 {buff_keyname}
+        if (buffKey != null) {
+            finalLine = finalLine.replace("{buff_keyname}", buffKey)
+        }
+
+        // 4. 替换 PAPI 变量 (%% 格式)
         if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
             finalLine = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, finalLine)
         }
 
+        // 5. 执行最终动作
         executeActionLine(player, finalLine)
     }
     /**
@@ -123,15 +168,44 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             else -> false
         }
     }
+
+    /**
+     * 执行动作行
+     */
     private fun executeActionLine(player: Player, line: String) {
         if (line.isBlank()) return
-
-        // 特殊逻辑：翻页
         if (line == "PAGE_NEXT" || line == "PAGE_PREV") {
             val holder = player.openInventory.topInventory.holder as? GuildMenuHolder ?: return
+
+            // 1. 获取当前菜单的总数量 (根据不同菜单类型动态计算)
+            val totalCount = when {
+                holder.menuName.contains("member", ignoreCase = true) -> {
+                    val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
+                    plugin.dbManager.getGuildMembers(guildId).size
+                }
+                holder.menuName.contains("buff", ignoreCase = true) -> {
+                    plugin.config.getConfigurationSection("guild.buffs")?.getKeys(false)?.size ?: 0
+                }
+                holder.menuName.contains("list", ignoreCase = true) -> {
+                    plugin.dbManager.getGuildCount()
+                }
+                else -> 0
+            }
+
+            // 2. 计算每页槽位数量 (通过布局中的特定标识符统计)
+            val itemsPerPage = holder.layout.joinToString("").count { char ->
+                val type = holder.buttons?.getConfigurationSection(char.toString())?.getString("type")
+                type == "MEMBERS_LIST" || type == "GUILDS_LIST" || type == "BUFF_LIST"
+            }.coerceAtLeast(1)
+
+            val maxPages = kotlin.math.ceil(totalCount.toDouble() / itemsPerPage).toInt().coerceAtLeast(1)
+
+            // 3. 执行带边界检查的翻页
             val newPage = if (line == "PAGE_NEXT") holder.currentPage + 1 else holder.currentPage - 1
-            if (newPage >= 0) {
-                plugin.menuManager.openGuildListMenu(player, "guild_list", newPage)
+
+            // 确保 0 <= newPage < maxPages
+            if (newPage in 0 until maxPages) {
+                plugin.menuManager.openMenu(player, holder.menuName, newPage)
             }
             return
         }
@@ -166,8 +240,21 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
     private fun String.toDoubleDefault(default: Double): Double = this.toDoubleOrNull() ?: default
 
-    private fun isRoleEnough(current: String, required: String): Boolean {
-        val rolePower = mapOf("OWNER" to 3, "ADMIN" to 2, "MEMBER" to 1)
-        return (rolePower[current.uppercase()] ?: 0) >= (rolePower[required.uppercase()] ?: 1)
+    @EventHandler
+    fun onClose(event: InventoryCloseEvent) {
+        val holder = event.inventory.holder as? GuildMenuHolder ?: return
+        holder.stopUpdate() // 停止该玩家的刷新任务
     }
+
+    /**
+     * 禁止拖拽
+     */
+    @EventHandler
+    fun onDrag(event: InventoryDragEvent) {
+        // 如果是我们的菜单，直接禁止拖拽任何东西
+        if (event.inventory.holder is GuildMenuHolder) {
+            event.isCancelled = true
+        }
+    }
+
 }

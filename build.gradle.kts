@@ -10,11 +10,11 @@ version = "1.0-SNAPSHOT"
 repositories {
     mavenCentral()
     // SkinsRestorer 仓库
-    maven("https://mvnrepository.com/artifact/com.mojang/authlib/") {
-        name = "authlib"
-    }
     maven("https://repo.codemc.org/repository/maven-public/") {
         name = "codemc"
+    }
+    maven("https://mvnrepository.com/artifact/com.mojang/authlib/") {
+        name = "authlib"
     }
     maven("https://repo.papermc.io/repository/maven-offline/")
 
@@ -32,7 +32,6 @@ repositories {
 dependencies {
     compileOnly(fileTree("libs") { include("*.jar") })
     compileOnly("com.destroystokyo.paper:paper-api:1.16.1-R0.1-SNAPSHOT")
-    // compileOnly("net.skinsrestorer:skinsrestorer-api:15.9.3")
     compileOnly("com.mojang:authlib:1.5.25")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("com.zaxxer:HikariCP:5.0.1")

@@ -7,10 +7,11 @@ class GuildMenuHolder(
     val title: String,
     val layout: List<String>,
     val buttons: ConfigurationSection?,
-    var currentPage: Int = 0
+    var currentPage: Int = 0,
+    val menuName: String
 ) : InventoryHolder {
     private var inventory: Inventory? = null
-
+    var updateTask: org.bukkit.scheduler.BukkitTask? = null
     override fun getInventory(): Inventory = inventory!!
     fun setInventory(inv: Inventory) { this.inventory = inv }
 
@@ -21,5 +22,10 @@ class GuildMenuHolder(
         if (row >= layout.size) return null
         val char = layout[row].getOrNull(col)?.toString()
         return if (char == null || char == " ") null else char
+    }
+    // 关闭菜单时清理任务
+    fun stopUpdate() {
+        updateTask?.cancel()
+        updateTask = null
     }
 }

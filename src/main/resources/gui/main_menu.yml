@@ -3,7 +3,8 @@ title: "公会菜单"  # 标题
 Layout:   # 虚拟布局
   - '#########'
   - '         '
-  - '  1234   '
+  - '  12345  '
+  - '  67890  '
   - '         '
   - 'B########'
 
@@ -14,8 +15,8 @@ button:
       name: '边框板'
   "1":
     display:
-      material: PAPER
-      name: '&a基础指令'
+      material: BOOK
+      name: '&a查询公会详情'
     actions:
       left:
         - 'command: kg info'  # 直接执行，无需条件
@@ -34,5 +35,18 @@ button:
       name: '&a公会成员列表'
     actions:
       left:
-        - condition: 'is_guild_member'
         - 'open: members_list'
+  "4":
+    display:
+      material: HONEY_BOTTLE
+      name: '&a公会BUFF商店'
+    actions:
+      left:
+        - 'open: buffs_shop'
+  "5":
+    display:
+      material: CHEST
+      name: '&a公会金库'
+    actions:
+      left:
+        - 'open: guild_vaults'

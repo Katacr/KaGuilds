@@ -41,10 +41,10 @@ button:
   "B":
     display:
       material: RED_STAINED_GLASS_PANE
-      name: '&c关闭菜单'
+      name: '&c返回主菜单'
     actions:
       left:
-        - 'close'
+        - 'open: main_menu'
 
   "<":
     display:

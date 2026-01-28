@@ -1,5 +1,4 @@
-title: "&0公会成员列表"  # 标题 (支持颜色)
-update: 20 # 每20tick刷新一次
+title: "&0公会BUFF商店"  # 标题 (支持颜色)
 
 Layout:   # 菜单布局 (6行)
   - '#########'
@@ -16,20 +15,21 @@ button:
       name: ' '
 
   "1":
-    type: 'MEMBERS_LIST'
+    type: 'BUFF_LIST'
     display:
-      material: {members_head} # 成员头颅
-      name: '&a{members_name} ' # 成员名称
+      material: {buff_item}  # 蜂蜜瓶/玻璃瓶
+      name: '&a{buff_name} ' # buff名称
       lore:
         - '&7--------------------------'
-        - '&b公会职位: &f{members_role}'  # 成员职位
-        - '&b加入时间: &f{members_join_time}'  # 成员加入时间
+        - '&b价格: {buff_price}'  # 价格
+        - '&b持续时间: {buff_time}秒'  # 持续时间
         - '&7--------------------------'
         - ''
-        - '&e[左键] &6传送到该玩家'
+        - '&b状态: {buff_status}' # 解锁状态  可购买/已锁定
+        - '&e[左键] &6购买'
     actions:
       left:
-        - 'command: teleport {members_name}'
+        - 'command: kg buff {buff_keyname}' # 购买buff指令
         - 'sound: entity.experience_orb.pickup' # 示例：支持播放声音
         - 'close'
 

@@ -34,7 +34,7 @@ no-guild-admin: "§c你不是公会管理员，无法执行此指令。"
 player-only: "§c该指令只能由玩家执行。"
 player-not-online: "§c该玩家目前不在线。"
 unknown-command: "&c未知的子指令。"
-help-hint: "&7请输入 &f/kg help &7查看所有指令用法。"
+help-hint: "&7未知指令，请输入 &f/kg help &7查看指令用法。"
 econ-not-ready: "§c插件经济系统未就绪，请联系管理员。"
 confirm-no-pending: "§c您当前没有需要确认的操作，或操作已超时。"
 
