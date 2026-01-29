@@ -149,7 +149,7 @@ rename-success-notify: "§8[§b公会事务§8] §7公会已正式更名为: §f
 # 公会金库相关
 balance-name: "金币"
 bank-usage: "§c用法: /kg bank <add/get/log> [金额/页码]"
-bank-invalid-amount: "§c请输入有效的正数金额。"
+bank-invalid-amount: "§c请输入有效的正整数金额。"
 bank-insufficient-player: "§c你账户里的金币不足！"
 bank-insufficient-guild: "§c公会金库里的金币不足！"
 bank-full: "§c公会金库已满，无法再存入更多金币（上限: %max%）。"

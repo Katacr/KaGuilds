@@ -100,13 +100,14 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
-            // --- 新增：5. 公会仓库表 ---
-            // 我们使用 (guild_id, vault_index) 作为复合主键，确保同一个公会不会有两个相同的仓库编号
+            // 5. 公会仓库表
             statement.execute("""
             CREATE TABLE IF NOT EXISTS guild_vaults (
                 guild_id INT NOT NULL,
                 vault_index INT NOT NULL,
                 items_data TEXT,
+                last_editor VARCHAR(36) DEFAULT NULL,  
+                lock_expire BIGINT DEFAULT 0,          
                 PRIMARY KEY (guild_id, vault_index)
             )
         """)
@@ -836,33 +837,63 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 尝试通过数据库抢占锁 (带过期检查)
-     * @return true 代表抢锁成功
+     * 尝试抢占仓库锁 (支持跨服)
+     * @return true 代表抢占成功，false 代表已被他人锁定
      */
     fun tryGrabLock(guildId: Int, index: Int, playerUuid: UUID): Boolean {
         val now = System.currentTimeMillis()
-        val expireAt = now + 30000
+        val expireAt = now + 30000 // 30秒租约
 
-        // 新增 OR last_editor = ?
-        val sql = """
-        UPDATE guild_vaults 
-        SET last_editor = ?, lock_expire = ? 
-        WHERE guild_id = ? AND vault_index = ? 
-        AND (last_editor IS NULL OR last_editor = '' OR last_editor = ? OR lock_expire < ?)
-    """.trimIndent()
+        return try {
+            dataSource?.connection?.use { conn ->
+                // 步骤 1: 确保该仓库在数据库中有记录 (INSERT IGNORE / REPLACE)
+                val initSql = "INSERT OR IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                conn.prepareStatement(initSql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setInt(2, index)
+                    ps.executeUpdate()
+                }
 
-        return dataSource?.connection?.use { conn ->
+                // 步骤 2: 执行原子抢锁
+                // 逻辑：更新 锁定者和时间，条件是 (过期时间 < 当前时间) OR (锁定者是我)
+                val updateSql = """
+                UPDATE guild_vaults 
+                SET last_editor = ?, lock_expire = ? 
+                WHERE guild_id = ? AND vault_index = ? 
+                AND (lock_expire < ? OR last_editor = ?)
+            """.trimIndent()
+
+                conn.prepareStatement(updateSql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    ps.setLong(2, expireAt)
+                    ps.setInt(3, guildId)
+                    ps.setInt(4, index)
+                    ps.setLong(5, now) // 当前时间
+                    ps.setString(6, playerUuid.toString())
+
+                    val affected = ps.executeUpdate()
+                    affected > 0 // 如果更新成功，代表抢锁成功
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 释放锁
+     */
+    fun releaseLock(guildId: Int, index: Int, playerUuid: UUID) {
+        val sql = "UPDATE guild_vaults SET lock_expire = 0 WHERE guild_id = ? AND vault_index = ? AND last_editor = ?"
+        dataSource?.connection?.use { conn ->
             conn.prepareStatement(sql).use { ps ->
-                ps.setString(1, playerUuid.toString())
-                ps.setLong(2, expireAt)
-                ps.setInt(3, guildId)
-                ps.setInt(4, index)
-                // 新增第5个参数：传入自己的 UUID
-                ps.setString(5, playerUuid.toString())
-                ps.setLong(6, now)
-                ps.executeUpdate() > 0
+                ps.setInt(1, guildId)
+                ps.setInt(2, index)
+                ps.setString(3, playerUuid.toString())
+                ps.executeUpdate()
             }
-        } ?: false
+        }
     }
 
     /**

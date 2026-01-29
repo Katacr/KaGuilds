@@ -1,5 +1,6 @@
 package org.katacr.kaguilds.listener
 
+import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryCloseEvent
@@ -11,26 +12,27 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
 
     @EventHandler
     fun onVaultClose(event: InventoryCloseEvent) {
+        val holder = event.inventory.holder as? VaultHolder ?: return
 
-        val holder = event.inventory.holder
-        if (holder is VaultHolder) {
-            holder.leaseTask?.cancel()
-            val guildId = holder.guildId
-            val index = holder.vaultIndex
+        // 1. 取消续租任务
+        holder.leaseTask?.cancel()
 
-            // 1. 序列化当前内容
-            val data = SerializationUtil.itemsToBase64(event.inventory.contents)
+        val guildId = holder.guildId
+        val index = holder.vaultIndex
+        val player = event.player as Player
 
-            // 2. 异步保存并解锁
-            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                if (plugin.dbManager.saveVault(guildId, index, data)) {
-                    plugin.guildService.releaseVaultLock(guildId, index)
-                } else {
-                    // 可选：记录错误日志
-                    plugin.logger.warning("Failed to save vault data for guild  $ guildId, index  $ index")
-                }
-            })
-        }
+        // 2. 序列化并保存
+        val data = SerializationUtil.itemsToBase64(event.inventory.contents)
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 保存数据
+            plugin.dbManager.saveVault(guildId, index, data)
+            // 3. 物理释放锁 (将过期时间设为 0)
+            plugin.dbManager.releaseLock(guildId, index, player.uniqueId)
+
+            // 4. 清理内存锁
+            plugin.guildService.vaultLocks.remove(Pair(guildId, index))
+        })
     }
 
     @EventHandler

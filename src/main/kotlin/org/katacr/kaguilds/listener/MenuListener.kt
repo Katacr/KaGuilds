@@ -61,7 +61,6 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         for (item in clickConfig) {
             when (item) {
                 is String -> {
-                    // 关键修复：在提交执行前，手动替换金库特有的变量 {vault_num}
                     var finalLine = item
                     if (clickedVaultNum != null) {
                         finalLine = finalLine.replace("{vault_num}", clickedVaultNum.toString())

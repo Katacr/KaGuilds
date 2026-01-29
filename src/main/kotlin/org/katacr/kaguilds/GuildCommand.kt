@@ -207,11 +207,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return
         }
 
-        val amount = args[2].toDoubleOrNull()
-        if (amount == null || amount <= 0) {
-            player.sendMessage(lang.get("bank-invalid-amount"))
+        // 核心修改：使用 toLongOrNull() 强制正整数
+        val amountLong = args[2].toLongOrNull()
+        if (amountLong == null || amountLong <= 0) {
+            player.sendMessage(lang.get("bank-invalid-amount")) // 这里可以提示：请输入大于0的正整数
             return
         }
+
+        val amount = amountLong.toDouble()
 
         val econ = plugin.economy ?: return // 经济系统检查
 
@@ -220,7 +223,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
 
             // 从配置文件获取当前等级的金库上限
-            val maxBank = plugin.config.getDouble("level.${guildData.level}.max-money", 50000.0)
+            val maxBank = plugin.config.getLong("level.${guildData.level}.max-money", 50000L).toDouble()
 
             when (action) {
                 "add" -> {
@@ -260,10 +263,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     if (plugin.dbManager.updateGuildBalance(guildId, -amount)) {
                         plugin.dbManager.logBankTransaction(guildId, player.name, "GET", amount)
 
-                        // 3. 发放金币给玩家 (回到同步线程)
                         plugin.server.scheduler.runTask(plugin, Runnable {
                             econ.depositPlayer(player, amount)
-                            player.sendMessage(lang.get("bank-get-success", "amount" to amount.toString()))
+                            // 显示给玩家时去除 .0
+                            player.sendMessage(lang.get("bank-get-success", "amount" to amountLong.toString()))
                             plugin.guildService.dispatchBankNotification(guildId, player.name, "withdraw", amount)
                         })
                     }

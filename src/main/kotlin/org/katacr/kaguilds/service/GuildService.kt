@@ -1364,37 +1364,43 @@ class GuildService(private val plugin: KaGuilds) {
      * 玩家尝试开启仓库
      */
     fun openVault(player: Player, vaultIndex: Int) {
+        val lang = plugin.langManager
         val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId) ?: return
 
-        // 检查等级限制 (需在 config.yml 的 level 下增加 vaults 字段)
+        // 1. 等级检查
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
         val maxVaults = plugin.config.getInt("level.${guildData.level}.vaults", 1)
-        if (vaultIndex !in 1..maxVaults) {
-            player.sendMessage(plugin.langManager.get("vault-max-vaults","max" to maxVaults.toString()))
+        if (vaultIndex > maxVaults) {
+            player.sendMessage(lang.get("vault-max-vaults", "max" to maxVaults.toString()))
             return
         }
 
-        // 检查锁定（独占模式）
-        if (!tryLockVault(guildId, vaultIndex, player)) return
-
-        // 异步加载数据
+        // 2. 异步抢锁
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val success = plugin.dbManager.tryGrabLock(guildId, vaultIndex, player.uniqueId)
+
+            if (!success) {
+                // 抢锁失败，提示玩家
+                player.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
+                return@Runnable
+            }
+
+            // 3. 抢锁成功，读取数据
             val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
 
-            // 回到主线程打开界面
+            // 4. 回到主线程渲染
             plugin.server.scheduler.runTask(plugin, Runnable {
-                // 创建带 Holder 的界面
                 val holder = VaultHolder(guildId, vaultIndex)
-                val inv = plugin.server.createInventory(holder, 54, plugin.langManager.get("vault-title", "index" to vaultIndex.toString()))
+                val inv = plugin.server.createInventory(holder, 54, lang.get("vault-title", "index" to vaultIndex.toString()))
                 holder.setInventory(inv)
 
-                // 如果数据库里有数据，填进去
-                if (rawData != null && rawData.isNotEmpty()) {
-                    val items = SerializationUtil.itemStackArrayFromBase64(rawData)
-                    inv.contents = items
+                if (!rawData.isNullOrEmpty()) {
+                    inv.contents = SerializationUtil.itemStackArrayFromBase64(rawData)
                 }
 
                 player.openInventory(inv)
+                // 5. 启动续租 (每 10 秒刷新一次数据库)
+                holder.leaseTask = startVaultLeaseTask(player, guildId, vaultIndex)
             })
         })
     }
@@ -1513,31 +1519,32 @@ class GuildService(private val plugin: KaGuilds) {
         }
     }
 
-    /**
-     * 管理员强制开启指定公会的仓库
-     */
     fun adminOpenVault(admin: Player, guildId: Int, vaultIndex: Int) {
+        val lang = plugin.langManager
         if (vaultIndex !in 1..9) {
             admin.sendMessage(plugin.langManager.get("error-invalid-vault-index"))
             return
         }
 
-        // 1. 内存锁 (保持不变)
+        // 1. 内存锁初步检查 (本服独占)
         if (!tryLockVault(guildId, vaultIndex, admin)) return
 
+        // 2. 异步执行跨服抢锁
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // --- 新增：强制抢占数据库锁 ---
-            // 既然是 admin，我们可以写一个 forceGrabLock 或者直接复用 tryGrabLock
-            // 建议：管理员也应该遵守物理锁规则，或者强制覆盖
+            // 使用 tryGrabLock 尝试在数据库层面锁定
+            // 如果物理锁未过期且 last_editor 不是自己，会返回 false
             val success = plugin.dbManager.tryGrabLock(guildId, vaultIndex, admin.uniqueId)
-            // 如果你想让管理员拥有绝对抢占权，可以忽略 success 返回值，但必须执行这一步写入！
 
-            // 广播锁状态
-            plugin.guildService.syncRemoteLock(guildId, vaultIndex, admin.uniqueId)
-            if (plugin.config.getBoolean("proxy")) {
-                sendVaultSyncPacket(guildId, vaultIndex, admin.uniqueId, "Lock")
+            if (!success) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    // 抢锁失败，立即释放内存锁
+                    vaultLocks.remove(Pair(guildId, vaultIndex))
+                    admin.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
+                })
+                return@Runnable
             }
 
+            // 3. 抢锁成功后，读取最新的数据副本
             val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
 
             plugin.server.scheduler.runTask(plugin, Runnable {
@@ -1545,22 +1552,20 @@ class GuildService(private val plugin: KaGuilds) {
                 val inv = plugin.server.createInventory(
                     holder,
                     54,
-                    plugin.langManager.get(
-                        "admin-vault-title",
+                    plugin.langManager.get("admin-vault-title",
                         "index" to vaultIndex.toString(),
-                        "id" to guildId.toString()
-                    ))
+                        "id" to guildId.toString())
+                )
                 holder.setInventory(inv)
 
-                if (rawData != null && rawData.isNotEmpty()) {
-                    val items = SerializationUtil.itemStackArrayFromBase64(rawData)
-                    inv.contents = items
+                if (!rawData.isNullOrEmpty()) {
+                    inv.contents = SerializationUtil.itemStackArrayFromBase64(rawData)
                 }
 
                 admin.openInventory(inv)
 
-                val task = startVaultLeaseTask(admin, guildId, vaultIndex)
-                holder.leaseTask = task
+                // 4. 开启续租任务，确保在关闭前锁不会过期
+                holder.leaseTask = startVaultLeaseTask(admin, guildId, vaultIndex)
             })
         })
     }
@@ -1568,32 +1573,29 @@ class GuildService(private val plugin: KaGuilds) {
      * 开启续租任务
      * @return 返回 BukkitTask 对象以便后续手动取消
      */
-    fun startVaultLeaseTask(player: Player, guildId: Int, index: Int): BukkitTask { // <--- 必须加上这个返回类型声明
-        val task = plugin.server.scheduler.runTaskTimerAsynchronously(plugin, Runnable {
-            // ... 你的逻辑保持不变 ...
-            val currentTopInv = player.openInventory.topInventory
-            val holder = currentTopInv.holder
+    fun startVaultLeaseTask(player: Player, guildId: Int, index: Int): BukkitTask {
+        return plugin.server.scheduler.runTaskTimer(plugin, Runnable {
+            // 检查玩家是否还在看这个 GUI
+            val topInv = player.openInventory.topInventory
+            val holder = topInv.holder as? VaultHolder ?: return@Runnable
 
-            if (!player.isOnline || holder !is VaultHolder ||
-                holder.guildId != guildId || holder.vaultIndex != index) {
-                // 注意：这里的 return@Runnable 仅仅是结束当前这一次循环执行
-                return@Runnable
-            }
+            if (holder.guildId != guildId || holder.vaultIndex != index) return@Runnable
 
-            // 续租 SQL 逻辑...
-            val newExpire = System.currentTimeMillis() + 30000
-            val sql = "UPDATE guild_vaults SET lock_expire = ? WHERE guild_id = ? AND vault_index = ?"
-            plugin.dbManager.dataSource?.connection?.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    ps.setLong(1, newExpire)
-                    ps.setInt(2, guildId)
-                    ps.setInt(3, index)
-                    ps.executeUpdate()
+            // 异步更新数据库过期时间，维持“我是锁定者”的状态
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                val nextExpire = System.currentTimeMillis() + 30000
+                val sql = "UPDATE guild_vaults SET lock_expire = ? WHERE guild_id = ? AND vault_index = ? AND last_editor = ?"
+                plugin.dbManager.dataSource?.connection?.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        ps.setLong(1, nextExpire)
+                        ps.setInt(2, guildId)
+                        ps.setInt(3, index)
+                        ps.setString(4, player.uniqueId.toString())
+                        ps.executeUpdate()
+                    }
                 }
-            }
-        }, 200L, 200L)
-
-        return task // 这里的 task 类型是 BukkitTask，与函数头声明匹配了
+            })
+        }, 100L, 100L) // 每 5 秒续租一次
     }
 
     /**

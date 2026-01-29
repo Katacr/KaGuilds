@@ -15,7 +15,7 @@ class GuildMenuHolder(
     override fun getInventory(): Inventory = inventory!!
     fun setInventory(inv: Inventory) { this.inventory = inv }
 
-    // 获取点击位置对应的字符标识 (例如第 19 格对应 '1')
+    // 获取点击位置对应的字符标识
     fun getIconChar(slot: Int): String? {
         val row = slot / 9
         val col = slot % 9
