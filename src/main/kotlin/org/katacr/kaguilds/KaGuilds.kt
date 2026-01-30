@@ -5,6 +5,7 @@ import java.util.UUID
 import net.milkbowl.vault.economy.Economy
 import org.bukkit.plugin.RegisteredServiceProvider
 import org.katacr.kaguilds.listener.MenuListener
+import org.katacr.kaguilds.listener.NotifyListener
 import org.katacr.kaguilds.listener.VaultListener
 import org.katacr.kaguilds.service.GuildService
 import java.io.File
@@ -42,8 +43,9 @@ class KaGuilds : JavaPlugin() {
         // 5. 注册指令
         getCommand("guilds")?.setExecutor(GuildCommand(this))
         // 6. 注册事件监听器
-        server.pluginManager.registerEvents(VaultListener(this), this)
+        server.pluginManager.registerEvents(VaultListener(this), this) // 经济监听器
         server.pluginManager.registerEvents(MenuListener(this), this) // 菜单监听器
+        server.pluginManager.registerEvents(NotifyListener(this), this) // 通知监听器
 
         logger.info("KaGuilds 已启用！")
         val cmd = getCommand("kaguilds")
@@ -62,7 +64,7 @@ class KaGuilds : JavaPlugin() {
         this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
         // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
         mutableMapOf<UUID, Int>()
-        server.pluginManager.registerEvents(GuildListener(this), this)
+        server.pluginManager.registerEvents(GuildListener(this), this) // 公会监听器
     }
 
     /**

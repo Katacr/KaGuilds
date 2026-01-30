@@ -1519,6 +1519,9 @@ class GuildService(private val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 管理员打开仓库
+     */
     fun adminOpenVault(admin: Player, guildId: Int, vaultIndex: Int) {
         val lang = plugin.langManager
         if (vaultIndex !in 1..9) {
@@ -1693,6 +1696,33 @@ class GuildService(private val plugin: KaGuilds) {
                     callback(OperationResult.Error(plugin.langManager.get("error-database")))
                 })
             }
+        })
+    }
+
+    fun checkAndNotifyRequests(player: Player) {
+        // 从缓存获取玩家公会 ID
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 使用你现有的 isStaff 方法检查权限
+            if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) return@Runnable
+
+            // 2. 获取该公会的详细申请列表
+            val requests = plugin.dbManager.getDetailedRequests(guildId)
+            if (requests.isEmpty()) return@Runnable
+
+            // 3. 获取公会数据（用于显示公会名）
+            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+
+            // 4. 回到主线程发送消息
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                requests.forEach { (playerName, _, _) ->
+                    val msg = plugin.langManager.get("notify-new-request")
+                        .replace("%player%", playerName)
+                        .replace("%guild%", guildData.name)
+                    player.sendMessage(msg)
+                }
+            })
         })
     }
 }

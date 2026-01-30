@@ -240,7 +240,32 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return list
     }
+    /**
+     * 获取某个公会的所有申请者 详细信息 (姓名, 申请时间)
+     */
+    fun getDetailedRequests(guildId: Int): List<Triple<String, UUID, Long>> {
+        val list = mutableListOf<Triple<String, UUID, Long>>()
+        val sql = "SELECT player_name, player_uuid, request_time FROM guild_requests WHERE guild_id = ?"
 
+        try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        list.add(Triple(
+                            rs.getString("player_name"),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getLong("request_time")
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
     /**
      * 检查玩家在特定公会中是否拥有管理权限 (ADMIN 或 OWNER)
      */
