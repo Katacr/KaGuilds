@@ -749,57 +749,27 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
-    /**
-     * 保存仓库内容到数据库
-     * @param guildId 公会ID
-     * @param index 仓库编号 (1-9)
-     * @param data 序列化后的 Base64 字符串
-     * @return 是否成功保存
-     */
     fun saveVault(guildId: Int, index: Int, data: String): Boolean {
-        val updateSql = "UPDATE guild_vaults SET items_data = ? WHERE guild_id = ? AND vault_index = ?"
-        val insertSql = "INSERT INTO guild_vaults (guild_id, vault_index, items_data) VALUES (?, ?, ?)"
+        // REPLACE INTO 是 MySQL 和 SQLite 通用的原子操作：有则覆盖，无则插入
+        // 显式将 lock_expire 设为 0，确保保存后锁是释放状态（或者保持为0）
+        val sql = "REPLACE INTO guild_vaults (guild_id, vault_index, items_data, lock_expire) VALUES (?, ?, ?, 0)"
 
-        // 确保 dataSource 不为 null，否则返回 false
-        if (dataSource == null) {
-            plugin.logger.severe("Database connection is not initialized for guild  $ guildId, vault  $ index")
-            return false
-        }
+        if (dataSource == null) return false
 
-        try {
+        return try {
             dataSource!!.connection.use { conn ->
-                // 尝试更新
-                val updated = conn.prepareStatement(updateSql).use { ps ->
-                    ps.setString(1, data)
-                    ps.setInt(2, guildId)
-                    ps.setInt(3, index)
-                    ps.executeUpdate() > 0
-                }
-
-                if (updated) {
-                    return true // 更新成功
-                }
-
-                // 尝试插入
-                val inserted = conn.prepareStatement(insertSql).use { ps ->
+                conn.prepareStatement(sql).use { ps ->
                     ps.setInt(1, guildId)
                     ps.setInt(2, index)
                     ps.setString(3, data)
+                    // 执行成功会返回 1 (插入) 或 2 (MySQL 替换)
                     ps.executeUpdate() > 0
                 }
-                return inserted
             }
         } catch (e: Exception) {
-            plugin.logger.severe(
-                plugin.langManager.get(
-                    "error-save-vault",
-                    "id" to guildId.toString(),
-                    "index" to index.toString(),
-                    "message" to e.message.toString()
-                )
-            )
+            plugin.logger.severe("无法保存公会 $guildId 的仓库 $index: ${e.message}")
             e.printStackTrace()
-            return false
+            false
         }
     }
     /**
@@ -846,16 +816,23 @@ class DatabaseManager(val plugin: KaGuilds) {
 
         return try {
             dataSource?.connection?.use { conn ->
-                // 步骤 1: 确保该仓库在数据库中有记录 (INSERT IGNORE / REPLACE)
-                val initSql = "INSERT OR IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                // 判断当前是 MySQL 还是 SQLite
+                val isMySQL = dataSource?.jdbcUrl?.contains("mysql", ignoreCase = true) == true
+
+                // SQLite 使用 "INSERT OR IGNORE"，MySQL 使用 "INSERT IGNORE"
+                val initSql = if (isMySQL) {
+                    "INSERT IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                } else {
+                    "INSERT OR IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                }
+
                 conn.prepareStatement(initSql).use { ps ->
                     ps.setInt(1, guildId)
                     ps.setInt(2, index)
                     ps.executeUpdate()
                 }
 
-                // 步骤 2: 执行原子抢锁
-                // 逻辑：更新 锁定者和时间，条件是 (过期时间 < 当前时间) OR (锁定者是我)
+                // 步骤 2: 执行原子抢锁 (这部分 SQL 是通用的)
                 val updateSql = """
                 UPDATE guild_vaults 
                 SET last_editor = ?, lock_expire = ? 
@@ -885,17 +862,29 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 释放锁
      */
     fun releaseLock(guildId: Int, index: Int, playerUuid: UUID) {
+        // 增加 WHERE 条件：只有当当前锁定者确实是该玩家时，才允许释放
+        // 这防止了“锁已过期并被他人接管”的情况下，原持有者误删新持有者的锁
         val sql = "UPDATE guild_vaults SET lock_expire = 0 WHERE guild_id = ? AND vault_index = ? AND last_editor = ?"
-        dataSource?.connection?.use { conn ->
-            conn.prepareStatement(sql).use { ps ->
-                ps.setInt(1, guildId)
-                ps.setInt(2, index)
-                ps.setString(3, playerUuid.toString())
-                ps.executeUpdate()
+
+        try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setInt(2, index)
+                    ps.setString(3, playerUuid.toString())
+
+                    val affected = ps.executeUpdate()
+                    if (affected == 0) {
+                        // 说明锁可能已经过期并被别人抢走了，或者已经释放了
+                        // 这种情况通常不需要报错，但也证明了 WHERE 检查的必要性
+                    }
+                }
             }
+        } catch (e: Exception) {
+            plugin.logger.severe("释放仓库锁时发生数据库异常: ${e.message}")
+            e.printStackTrace()
         }
     }
-
     /**
      * 检查仓库是否被锁定
      * @return true 代表仓库被锁定
