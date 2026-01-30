@@ -1,0 +1,90 @@
+title: "&0公会银行"  # 标题 (支持颜色)
+
+Layout:   # 菜单布局 (5行)
+  - '#########'
+  - '  1   4  '
+  - ' 2  G  5 '
+  - '  3   6  '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "G":
+    display:
+      material: "EMERALD"
+      name: '&7[ &a公会银行 &7] '
+      lore:
+        - '&7--------------------------'
+        - '&b余额: {balance}'  # 余额
+        - '&7--------------------------'
+  "1":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &a存入 &7[ &b1,000 金币 &7]'
+      amount: 1  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+      custom_model_data: 1234567890
+    actions:
+      left:
+        - 'command: kg bank add 1000'
+        - 'close'
+  "2":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &a存入 &7[ &b10,000 金币 &7]'
+      amount: 10  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+    actions:
+      left:
+        - 'command: kg bank add 10000'
+        - 'close'
+  "3":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &a存入 &7[ &b自定义数量 &7]'
+      amount: 64  # 添加新的display支持：物品堆叠数量
+    actions:
+      left:
+        - 'tell: 请打开聊天框输入要存入的金额。'
+        - 'catcher: bank_add' # 输入捕获器(玩家输入后：代执行指令/kg bank add [玩家输入的值]，同时取消chat动作，避免发送聊天消息)
+        - 'close'
+
+  "4":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &e取出 &7[ &b1,000 金币 &7]'
+      amount: 1  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+    actions:
+      left:
+        - 'command: kg bank get 1000'
+        - 'close'
+  "5":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &e取出 &7[ &b10,000 金币 &7]'
+      amount: 10  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+    actions:
+      left:
+        - 'command: kg bank get 10000'
+        - 'close'
+  "6":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &e取出 &7[ &b自定义数量 &7]'
+      amount: 64  # 添加新的display支持：物品堆叠数量
+    actions:
+      left:
+        - 'tell: 请打开聊天框输入要存入的金额。'
+        - 'catcher: bank_get' # 输入捕获器(玩家输入后：代执行指令/kg bank get [玩家输入的值]，同时取消chat动作，避免发送聊天消息)
+        - 'close'
+
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c返回主菜单'
+    actions:
+      left:
+        - 'open: main_menu'

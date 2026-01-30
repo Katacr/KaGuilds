@@ -109,7 +109,7 @@ class KaGuilds : JavaPlugin() {
         val guiFolder = File(dataFolder, "gui")
         if (!guiFolder.exists() || guiFolder.listFiles()?.isEmpty() == true) {
             guiFolder.mkdirs()
-            val defaultMenus = listOf("main_menu.yml", "guilds_list.yml", "members_list.yml", "buffs_shop.yml", "guild_vaults.yml")
+            val defaultMenus = listOf("main_menu.yml", "guilds_list.yml", "guild_members.yml", "guild_buffs.yml", "guild_vaults.yml", "guild_bank.yml")
             defaultMenus.forEach { fileName ->
                 val destFile = File(guiFolder, fileName)
                 if (!destFile.exists()) {

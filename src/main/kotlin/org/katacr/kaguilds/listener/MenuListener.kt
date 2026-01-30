@@ -3,10 +3,13 @@ package org.katacr.kaguilds.listener
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
+import org.bukkit.event.player.AsyncPlayerChatEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.katacr.kaguilds.KaGuilds
 import java.util.UUID
 
@@ -234,6 +237,12 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                 })
             }
             "close" -> player.closeInventory()
+            "catcher" -> {
+                chatCatchers[player.uniqueId] = rawArgs.lowercase()
+                // 捕获器触发后通常会自动执行 close 逻辑，
+                // 但为了保险，可以在这里直接调用 closeInventory()
+                player.closeInventory()
+            }
         }
     }
 
@@ -256,4 +265,59 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         }
     }
 
+    companion object {
+        private val chatCatchers = mutableMapOf<UUID, String>()
+
+        /**
+         * 提供给外部（如 MenuManager 或其他类）清理数据的公开方法
+         */
+        fun clearCatcher(uuid: UUID) {
+            chatCatchers.remove(uuid)
+        }
+    }
+
+    /**
+     * 处理聊天捕获逻辑
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    fun onChat(event: AsyncPlayerChatEvent) {
+        val player = event.player
+        // 尝试从缓存中获取当前玩家的捕获任务
+        val type = chatCatchers[player.uniqueId] ?: return
+
+        // 1. 拦截消息
+        event.isCancelled = true
+        chatCatchers.remove(player.uniqueId)
+
+        val message = event.message.trim()
+
+        // 允许玩家取消
+        if (message.equals("cancel", ignoreCase = true)) {
+            player.sendMessage("§e[!] 已取消输入。")
+            return
+        }
+
+        // 2. 验证是否为数字 (bank_add/get 专用)
+        val amount = message.toLongOrNull()
+        if (amount == null || amount <= 0) {
+            player.sendMessage("§c[!] 错误：请输入有效的正整数金额。")
+            return
+        }
+
+        // 3. 回到同步主线程执行指令
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            when (type) {
+                "bank_add" -> player.performCommand("kg bank add $amount")
+                "bank_get" -> player.performCommand("kg bank get $amount")
+            }
+        })
+    }
+
+    /**
+     * 玩家退出时清理缓存，防止内存泄漏
+     */
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        chatCatchers.remove(event.player.uniqueId)
+    }
 }

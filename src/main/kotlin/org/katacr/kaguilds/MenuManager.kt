@@ -172,16 +172,18 @@ class MenuManager(private val plugin: KaGuilds) {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
         val material = Material.getMaterial((guild.icon ?: "PAPER").uppercase()) ?: Material.PAPER
 
-        val item = ItemStack(material)
+        val amount = display.getInt("amount", 1).coerceIn(1, 64)
+        val item = ItemStack(material, amount)
         val meta = item.itemMeta ?: return item
 
-        // 写入 PDC 供点击监听器使用
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
+
         val key = NamespacedKey(plugin, "guild_id")
         meta.persistentDataContainer.set(key, PersistentDataType.INTEGER, guild.id)
 
-        // 直接调用通用变量方法
         val placeholders = getGuildPlaceholders(guild, player)
-
         meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, player))
         meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, player) }
 
@@ -294,8 +296,15 @@ class MenuManager(private val plugin: KaGuilds) {
     private fun buildNormalItem(section: ConfigurationSection, holder: GuildMenuHolder, maxPages: Int = 1, player: Player): ItemStack {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.STONE)
         val materialName = display.getString("material", "STONE")!!.uppercase()
-        val item = ItemStack(Material.getMaterial(materialName) ?: Material.STONE)
+
+        // 读取数量和自定义材质数据
+        val amount = display.getInt("amount", 1).coerceIn(1, 64)
+        val item = ItemStack(Material.getMaterial(materialName) ?: Material.STONE, amount)
         val meta = item.itemMeta ?: return item
+
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
 
         // 基础变量
         val placeholders = mutableMapOf(
@@ -304,7 +313,6 @@ class MenuManager(private val plugin: KaGuilds) {
             "player" to player.name
         )
 
-        // --- 关键增强：注入玩家所属公会的变量 ---
         val guildId = plugin.playerGuildCache[player.uniqueId]
         if (guildId != null) {
             val myGuildData = plugin.dbManager.getGuildData(guildId)
@@ -319,7 +327,6 @@ class MenuManager(private val plugin: KaGuilds) {
         item.itemMeta = meta
         return item
     }
-
     /**
      * 统一变量替换核心方法
      */
@@ -481,6 +488,9 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.GLASS_BOTTLE)
         val meta = item.itemMeta ?: return item
 
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
         // 准备变量替换
         val placeholders = mapOf(
             "buff_keyname" to buffKey,
@@ -561,6 +571,9 @@ class MenuManager(private val plugin: KaGuilds) {
         val meta = item.itemMeta ?: return item
         val display = section.getConfigurationSection("display")!!
 
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
         val placeholders = mapOf(
             "vault_num" to vaultNum.toString(),
             "vault_status" to status

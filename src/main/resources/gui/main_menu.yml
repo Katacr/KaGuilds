@@ -35,14 +35,14 @@ button:
       name: '&a公会成员列表'
     actions:
       left:
-        - 'open: members_list'
+        - 'open: guild_members'
   "4":
     display:
       material: HONEY_BOTTLE
       name: '&a公会BUFF商店'
     actions:
       left:
-        - 'open: buffs_shop'
+        - 'open: guild_buffs'
   "5":
     display:
       material: CHEST
@@ -50,3 +50,10 @@ button:
     actions:
       left:
         - 'open: guild_vaults'
+  "6":
+    display:
+      material: EMERALD
+      name: '&a公会银行'
+    actions:
+      left:
+        - 'open: guild_bank'
