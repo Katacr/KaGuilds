@@ -520,7 +520,7 @@ class DatabaseManager(val plugin: KaGuilds) {
         val sqlGuild = """
         INSERT INTO guild_data 
         (name, owner_uuid, owner_name, level, balance, exp, icon, create_time, announcement, max_members) 
-        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, 50);
+        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, ?);
         """.trimIndent()
 
         return dataSource?.connection?.use { conn ->
@@ -536,6 +536,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setString(4, config.get("guild.icon") as String? ?: "SHIELD") // 默认图标 (material)
                     ps.setLong(5, System.currentTimeMillis())
                     ps.setString(6, config.get("guild.motd", "name" to name) as String? ?: "welcome to guilds") // 初始公告
+                    ps.setInt(7, config.get("level.1.max-members", 10) as Int? ?: 10)
 
                     ps.executeUpdate()
 
@@ -615,7 +616,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             ps.setInt(1, guildId)
             ps.setString(2, playerUuid.toString())
             ps.setString(3, playerName)
-            ps.setLong(5, System.currentTimeMillis())
+            ps.setLong(4, System.currentTimeMillis())
             return ps.executeUpdate() > 0
         }
     }
