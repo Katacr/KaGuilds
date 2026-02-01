@@ -775,6 +775,10 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 保存仓库内容
+     * @return 是否保存成功
+     */
     fun saveVault(guildId: Int, index: Int, data: String): Boolean {
         // REPLACE INTO 是 MySQL 和 SQLite 通用的原子操作：有则覆盖，无则插入
         // 显式将 lock_expire 设为 0，确保保存后锁是释放状态（或者保持为0）
@@ -1051,6 +1055,56 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return members
     }
+
+    /**
+     * 更新公会等级
+     */
+    fun updateGuildLevel(guildId: Int, newLevel: Int, newMaxMembers: Int): Boolean {
+        val sql = "UPDATE guild_data SET level = ?, max_members = ? WHERE id = ?"
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, newLevel)
+                    ps.setInt(2, newMaxMembers)
+                    ps.setInt(3, guildId)
+                    ps.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 更改公会经验值
+     * @param guildId 公会ID
+     * @param amount 数量 (正数为加, 负数为减)
+     * @param isSet 是否为直接设定值 (true 则直接覆盖原有值)
+     */
+    fun updateGuildExp(guildId: Int, amount: Int, isSet: Boolean = false): Boolean {
+        val sql = if (isSet) {
+            "UPDATE guild_data SET exp = ? WHERE id = ?"
+        } else {
+            "UPDATE guild_data SET exp = exp + ? WHERE id = ?"
+        }
+
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, amount)
+                    ps.setInt(2, guildId)
+                    ps.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+
+
     // 公会数据模型
     data class GuildData(
         val id: Int,

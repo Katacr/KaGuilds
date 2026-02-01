@@ -92,6 +92,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "vault" -> handleVault(sender, args)
             "seticon" -> handleSetIcon(sender)
             "motd" -> handleMotd(sender, args)
+            "upgrade" -> handleUpgrade(sender)
             "menu" -> {
                 // 默认打开 main_menu.yml
                 plugin.menuManager.openMenu(sender, "main_menu")
@@ -118,9 +119,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         val buffKey = args[1]
         plugin.guildService.buyBuff(player, buffKey) { result ->
             when (result) {
-                is OperationResult.Success -> {
-                    // 成功提示已经在 dispatchBuff 中发给全公会了，这里可以不发或者发个简单的确认
-                }
                 is OperationResult.NoPermission -> {
                     player.sendMessage(lang.get("not-staff"))
                 }
@@ -207,10 +205,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return
         }
 
-        // 核心修改：使用 toLongOrNull() 强制正整数
+        // 使用 toLongOrNull() 强制正整数
         val amountLong = args[2].toLongOrNull()
         if (amountLong == null || amountLong <= 0) {
-            player.sendMessage(lang.get("bank-invalid-amount")) // 这里可以提示：请输入大于0的正整数
+            player.sendMessage(lang.get("bank-invalid-amount")) // 提示：请输入大于0的正整数
             return
         }
 
@@ -1060,6 +1058,35 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 sender.sendMessage(lang.get("admin-unlockall-success"))
             }
 
+            "setlevel"-> {
+                val targetId = args[2].replace("#", "").toIntOrNull() ?: return
+                val newLevel = args[3].toIntOrNull() ?: return
+
+                // 获取对应等级的配置信息
+                val levelSection = plugin.config.getConfigurationSection("level.$newLevel")
+                if (levelSection == null) {
+                    sender.sendMessage("§c配置中不存在等级 $newLevel")
+                    return
+                }
+
+                val maxMembers = levelSection.getInt("max-members")
+                if (plugin.dbManager.updateGuildLevel(targetId, newLevel, maxMembers)) {
+                    sender.sendMessage("§a成功将公会 #$targetId 的等级设置为 $newLevel")
+                }
+            }
+            "exp" -> {
+                // /kg admin exp #1 add 100
+                if (args.size < 5) {
+                    sender.sendMessage("§c用法: /kg admin exp <#ID> <add|take|set> <数量>")
+                    return
+                }
+                val guildId = args[2].replace("#", "").toIntOrNull() ?: return
+                val action = args[3].lowercase()
+                val amount = args[4].toIntOrNull() ?: return
+
+                plugin.guildService.adminModifyExp(sender, guildId, action, amount)
+            }
+
             else -> sender.sendMessage(lang.get("admin-usage"))
         }
     }
@@ -1164,6 +1191,15 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     }
 
     /*
+     * 处理 /kg upgrade 命令
+     */
+    private fun handleUpgrade(player: Player) {
+        plugin.guildService.upgradeGuild(player) { result ->
+            if (result is OperationResult.Error) player.sendMessage(result.message)
+            else player.sendMessage("§a恭喜！公会升级成功。")
+        }
+    }
+    /*
      * 处理指令自动补全
      */
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
@@ -1175,7 +1211,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = mutableListOf(
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
-                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault" , "menu" , "seticon" , "motd"
+                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault" , "menu" , "seticon" , "motd", "upgrade"
                 )
 
                 // 权限指令判断
@@ -1199,7 +1235,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "admin" -> {
                         if (!sender.hasPermission("kaguilds.admin")) return emptyList()
 
-                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault")
+                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault", "setlevel", "exp")
                             .filter { it.startsWith(args[1], ignoreCase = true) }
                     }
 
@@ -1259,11 +1295,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         }
                         "kick", "join", "transfer" -> {
                             // /kg admin transfer #1 <TAB> -> 补全在线玩家
-                            return null // 返回 null 代表由 Bukkit 默认补全在线玩家名
+                            return null
                         }
                         "rename" -> {
                             // /kg admin rename #1 <TAB> -> 提示输入名称
                             return listOf("<name>")
+                        }
+                        "upgrade" -> {
+                            // /kg admin upgrade #1 <TAB> -> 提示输入名称
+                            return listOf("<level>")
+                        }
+                        "exp" -> {
+                            // /kg admin exp #1 <TAB>
+                            return listOf("add", "take", "set").filter { it.startsWith(args[3], ignoreCase = true)
+                            }
                         }
                         "vault" -> {
                             return (1..9).map { it.toString() }

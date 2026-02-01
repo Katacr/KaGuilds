@@ -1,5 +1,6 @@
 package org.katacr.kaguilds.service
 
+import org.bukkit.command.CommandSender
 import org.katacr.kaguilds.KaGuilds
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.DatabaseManager
@@ -1699,12 +1700,16 @@ class GuildService(private val plugin: KaGuilds) {
         })
     }
 
+    /**
+     * 检查是否有新的申请，如果有则通知玩家
+     * @param player 玩家对象
+     */
     fun checkAndNotifyRequests(player: Player) {
         // 从缓存获取玩家公会 ID
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 1. 使用你现有的 isStaff 方法检查权限
+            // 1. 使用 isStaff 方法检查权限
             if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) return@Runnable
 
             // 2. 获取该公会的详细申请列表
@@ -1724,5 +1729,87 @@ class GuildService(private val plugin: KaGuilds) {
                 }
             })
         })
+    }
+
+    /**
+     * 升级公会
+     * @param player 玩家对象
+     * @param callback 回调函数，用于处理结果
+     */
+    fun upgradeGuild(player: Player, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.Error(plugin.langManager.get("error-no-guild")))
+
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 1. 权限检查
+            if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
+                return@Runnable syncCallback(callback, OperationResult.Error(plugin.langManager.get("error-no-permission")))
+            }
+
+            val guildData = plugin.dbManager.getGuildById(guildId) ?: return@Runnable
+            val nextLevel = guildData.level + 1
+
+            // 2. 检查配置中是否存在下一级
+            val levelSection =
+                plugin.config.getConfigurationSection("level.$nextLevel") ?: return@Runnable syncCallback(
+                    callback,
+                    OperationResult.Error("§c公会已达到最高等级！")
+                )
+
+            // 3. 检查经验值
+            val needExp = levelSection.getInt("need-exp")
+            if (guildData.exp < needExp) {
+                return@Runnable syncCallback(callback, OperationResult.Error("§c经验值不足！升级需要 $needExp 经验（当前: ${guildData.exp}）"))
+            }
+
+            // 4. 获取新等级的属性
+            val maxMembers = levelSection.getInt("max-members")
+
+            // 5. 执行更新
+            if (plugin.dbManager.updateGuildLevel(guildId, nextLevel, maxMembers)) {
+                syncCallback(callback, OperationResult.Success)
+                // 全服广播或公会消息
+                plugin.server.broadcastMessage("§8[§b公会§8] §f${guildData.name} §7成功升级到了等级 §f$nextLevel§7！")
+            } else {
+                syncCallback(callback, OperationResult.Error(plugin.langManager.get("error-database")))
+            }
+        })
+    }
+
+    /**
+     * 修改公会经验值
+     * @param sender 命令发送者
+     * @param guildId 公会 ID
+     * @param type 类型（add/take/set）
+     * @param amount 数量
+     */
+    fun adminModifyExp(sender: CommandSender, guildId: Int, type: String, amount: Int) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val guild = plugin.dbManager.getGuildById(guildId)
+            if (guild == null) {
+                sender.sendMessage("§c未找到 ID 为 #$guildId 的公会")
+                return@Runnable
+            }
+
+            val success = when (type.lowercase()) {
+                "add" -> plugin.dbManager.updateGuildExp(guildId, amount, false)
+                "take" -> plugin.dbManager.updateGuildExp(guildId, -amount, false)
+                "set" -> plugin.dbManager.updateGuildExp(guildId, amount, true)
+                else -> false
+            }
+
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (success) {
+                    val newExp = if (type == "set") amount else (guild.exp + if (type == "add") amount else -amount)
+                    sender.sendMessage("§a成功将公会 §f${guild.name} §a的经验值修改为 §f$newExp")
+                } else {
+                    sender.sendMessage("§c数据库操作失败，请检查后台。")
+                }
+            })
+        })
+    }
+
+    // 辅助方法：确保回调在主线程执行
+    private fun syncCallback(callback: (OperationResult) -> Unit, result: OperationResult) {
+        plugin.server.scheduler.runTask(plugin, Runnable { callback(result) })
     }
 }
