@@ -1,0 +1,37 @@
+title: "&0公会升级"
+
+layout:
+  - '#########'
+  - '  11111  '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+  "1":
+    type: 'GUILD_UPGRADE'
+    display:
+      name: '&6&l等级 Lv.{upgrade_level}'
+      lore:
+        - '&7拥有以下属性: '
+        - '&e人数上限: &6{upgrade_max_members}人'
+        - '&e金库上限: &6{upgrade_max_money}金币'
+        - '&e仓库上限: &6{upgrade_max_vaults}个'
+        - '&e传送费用: &6{upgrade_tp_money}金币/次'
+        - '&e可用BUFF: &6{upgrade_use_buff}个'
+        - ''
+        - '&a所需经验: &a{upgrade_current_exp} &7/ &2{upgrade_need_exp}'
+        - '&f状态: {upgrade_status}' # 状态有3种，已经到达该等级，点击升级到该等级，需要先升级上一等级
+    actions:
+      left:
+        - 'command: kg upgrade'
+        - 'close'
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c返回主菜单'
+    actions:
+      left:
+        - 'open: main_menu'

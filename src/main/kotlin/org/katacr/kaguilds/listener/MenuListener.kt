@@ -17,9 +17,9 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
     @EventHandler
     fun onClick(event: InventoryClickEvent) {
-        // 1. 核心拦截：识别是否为本插件菜单。如果 Holder 绑定失败，这里会直接返回，导致物品可以被取走
+        // 1. 识别是否为本插件菜单
         val holder = event.inventory.holder as? GuildMenuHolder ?: return
-        event.isCancelled = true // 只要是本插件菜单，默认禁止一切点击取物行为
+        event.isCancelled = true
 
         val player = event.whoClicked as? Player ?: return
         val slot = event.rawSlot
@@ -34,15 +34,32 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val button = holder.buttons?.getConfigurationSection(iconChar) ?: return
         val actionsSection = button.getConfigurationSection("actions") ?: return
 
-        // 3. 检查金库解锁状态 (参考 Buff 的已锁定判断)
-        val unlockedKey = org.bukkit.NamespacedKey(plugin, "vault_unlocked")
-        val unlockedStatus = clickedItem.itemMeta?.persistentDataContainer?.get(unlockedKey, org.bukkit.persistence.PersistentDataType.INTEGER)
+        // 3. 状态拦截：检查金库解锁和升级解锁
+        val vaultUnlockedKey = org.bukkit.NamespacedKey(plugin, "vault_unlocked")
+        val upgradeStatusKey = org.bukkit.NamespacedKey(plugin, "upgrade_status_type")
 
-        // 如果该物品带有 vault_unlocked 标记且值为 0，说明是未解锁图标，直接拦截并提示
-        if (unlockedStatus != null && unlockedStatus == 0) {
+        val vStatus = clickedItem.itemMeta?.persistentDataContainer?.get(vaultUnlockedKey, org.bukkit.persistence.PersistentDataType.INTEGER)
+        val uStatus = clickedItem.itemMeta?.persistentDataContainer?.get(upgradeStatusKey, org.bukkit.persistence.PersistentDataType.INTEGER)
+
+        // 如果金库未解锁 (0)
+        if (vStatus != null && vStatus == 0) {
             player.sendMessage("§c§l! §7该公会金库尚未解锁，请先提升公会等级。")
             player.playSound(player.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f)
             return
+        }
+
+        // 如果升级等级处于 锁定(0) 或 经验不足(2) 状态
+        if (uStatus != null) {
+            if (uStatus == 0) {
+                player.sendMessage("§c§l! §7请按顺序升级公会等级。")
+                return
+            } else if (uStatus == 2) {
+                player.sendMessage("§c§l! §7公会经验不足，无法升级。")
+                return
+            } else if (uStatus == 3) {
+                player.sendMessage("§a§l! §7公会已达到该等级。")
+                return
+            }
         }
 
         // 4. 识别点击类型并获取对应的 action 列表
@@ -54,20 +71,23 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val guildIdKey = org.bukkit.NamespacedKey(plugin, "guild_id")
         val memberUuidKey = org.bukkit.NamespacedKey(plugin, "member_uuid")
         val vaultNumKey = org.bukkit.NamespacedKey(plugin, "vault_num")
+        val upgradeLevelKey = org.bukkit.NamespacedKey(plugin, "upgrade_level_num")
 
         val clickedGuildId = clickedItem.itemMeta?.persistentDataContainer?.get(guildIdKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedMemberUuid = clickedItem.itemMeta?.persistentDataContainer?.get(memberUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedBuffKey = clickedItem.itemMeta?.persistentDataContainer?.get(buffKeyNameKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedVaultNum = clickedItem.itemMeta?.persistentDataContainer?.get(vaultNumKey, org.bukkit.persistence.PersistentDataType.INTEGER)
+        val clickedUpgradeLevel = clickedItem.itemMeta?.persistentDataContainer?.get(upgradeLevelKey, org.bukkit.persistence.PersistentDataType.INTEGER)
 
         // 6. 遍历并执行动作
         for (item in clickConfig) {
             when (item) {
                 is String -> {
                     var finalLine = item
-                    if (clickedVaultNum != null) {
-                        finalLine = finalLine.replace("{vault_num}", clickedVaultNum.toString())
-                    }
+                    // 变量替换
+                    if (clickedVaultNum != null) finalLine = finalLine.replace("{vault_num}", clickedVaultNum.toString())
+                    if (clickedUpgradeLevel != null) finalLine = finalLine.replace("{upgrade_level}", clickedUpgradeLevel.toString())
+
                     processAndExecute(player, finalLine, clickedGuildId, clickedMemberUuid, clickedBuffKey)
                 }
                 is Map<*, *> -> {
@@ -77,17 +97,18 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     val successActions = group["actions"] as? List<String> ?: emptyList()
                     val denyActions = group["deny"] as? List<String> ?: emptyList()
 
-                    // 执行带条件的判断
                     if (checkCondition(player, conditionStr)) {
                         successActions.forEach { action ->
                             var finalAction = action
                             if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
+                            if (clickedUpgradeLevel != null) finalAction = finalAction.replace("{upgrade_level}", clickedUpgradeLevel.toString())
                             processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
                         }
                     } else {
                         denyActions.forEach { action ->
                             var finalAction = action
                             if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
+                            if (clickedUpgradeLevel != null) finalAction = finalAction.replace("{upgrade_level}", clickedUpgradeLevel.toString())
                             processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
                         }
                     }

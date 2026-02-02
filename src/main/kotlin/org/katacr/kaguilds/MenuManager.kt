@@ -38,7 +38,8 @@ class MenuManager(private val plugin: KaGuilds) {
         var isGuildList = false
         var isMemberList = false
         var isBuffList = false
-        var isVaultList = false // 新增
+        var isVaultList = false
+        var isUpgradeList = false
 
         for (key in buttons.getKeys(false)) {
             val type = buttons.getConfigurationSection(key)?.getString("type")
@@ -46,7 +47,8 @@ class MenuManager(private val plugin: KaGuilds) {
                 "GUILDS_LIST" -> isGuildList = true
                 "MEMBERS_LIST" -> isMemberList = true
                 "BUFF_LIST" -> isBuffList = true
-                "GUILD_VAULTS" -> isVaultList = true // 新增
+                "GUILD_VAULTS" -> isVaultList = true
+                "GUILD_UPGRADE" -> isUpgradeList = true
             }
         }
 
@@ -54,7 +56,8 @@ class MenuManager(private val plugin: KaGuilds) {
             isMemberList -> openMemberListMenu(player, menuName, page)
             isGuildList -> openGuildListMenu(player, menuName, page)
             isBuffList -> openBuffShopMenu(player, menuName, page)
-            isVaultList -> openVaultMenu(player, menuName) // 新增金库渲染入口
+            isVaultList -> openVaultMenu(player, menuName)
+            isUpgradeList -> openUpgradeMenu(player, menuName, page)
             else -> renderStandardMenu(player, config, menuName)
         }
     }
@@ -587,6 +590,135 @@ class MenuManager(private val plugin: KaGuilds) {
         val unlockedKey = NamespacedKey(plugin, "vault_unlocked")
         meta.persistentDataContainer.set(vaultNumKey, PersistentDataType.INTEGER, vaultNum)
         meta.persistentDataContainer.set(unlockedKey, PersistentDataType.INTEGER, if (isUnlocked) 1 else 0)
+
+        item.itemMeta = meta
+        return item
+    }
+
+    /**
+     * 打开公会升级菜单
+     */
+    fun openUpgradeMenu(player: Player, menuName: String, page: Int = 0) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
+        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        val currentLevel = guildData.level
+
+        // 1. 获取所有配置好的等级列表 (从 config.yml 的 level 节点获取)
+        val levelsSection = plugin.config.getConfigurationSection("level") ?: return
+        val allLevelKeys = levelsSection.getKeys(false).toList().mapNotNull { it.toIntOrNull() }.sorted()
+
+        // 2. 加载菜单布局
+        val file = File(plugin.dataFolder, "gui/$menuName.yml")
+        if (!file.exists()) return
+        val menuConfig = YamlConfiguration.loadConfiguration(file)
+        val layout = menuConfig.getStringList("layout")
+        val buttons = menuConfig.getConfigurationSection("button") ?: return
+
+        // 3. 计算分页槽位
+        val upgradeSlots = mutableListOf<Int>()
+        for (r in layout.indices) {
+            for (c in layout[r].indices) {
+                val char = layout[r][c].toString()
+                if (buttons.getConfigurationSection(char)?.getString("type") == "GUILD_UPGRADE") {
+                    upgradeSlots.add(r * 9 + c)
+                }
+            }
+        }
+
+        val itemsPerPage = upgradeSlots.size
+        val maxPages = ceil(allLevelKeys.size.toDouble() / itemsPerPage.coerceAtLeast(1)).toInt().coerceAtLeast(1)
+        val currentPageLevels = allLevelKeys.drop(page * itemsPerPage).take(itemsPerPage)
+
+        val title = ChatColor.translateAlternateColorCodes('&', menuConfig.getString("title", "Guild Upgrade")!!)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName)
+        val inv = Bukkit.createInventory(holder, layout.size * 9, title)
+        holder.setInventory(inv)
+
+        // 4. 渲染循环
+        for (r in layout.indices) {
+            for (c in layout[r].indices) {
+                val slot = r * 9 + c
+                val char = layout[r][c].toString()
+                val btnSection = buttons.getConfigurationSection(char) ?: continue
+                val type = btnSection.getString("type")
+
+                if (type == "GUILD_UPGRADE") {
+                    val relativeIdx = upgradeSlots.indexOf(slot)
+                    if (relativeIdx != -1 && relativeIdx < currentPageLevels.size) {
+                        val targetLevel = currentPageLevels[relativeIdx]
+                        // 传入当前公会等级进行状态判断
+                        inv.setItem(slot, buildUpgradeItem(btnSection, targetLevel, guildData, player))
+                    }
+                } else {
+                    inv.setItem(slot, buildNormalItem(btnSection, holder, maxPages, player))
+                }
+            }
+        }
+        player.openInventory(inv)
+    }
+
+    /**
+     * 构建公会等级升级物品
+     */
+    private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: DatabaseManager.GuildData, viewer: Player): ItemStack {
+        val levelConfig = plugin.config.getConfigurationSection("levels.$targetLevel") ?: return ItemStack(Material.BARRIER)
+        val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
+
+        // 1. 状态逻辑判断
+        // 0: 锁定 (需按顺序), 1: 可升级 (经验够), 2: 经验不足, 3: 已达成
+        var statusCode = 0
+        val status = when {
+            guildData.level >= targetLevel -> {
+                statusCode = 3
+                "§a● 已达成"
+            }
+            guildData.level == targetLevel - 1 -> {
+                val needExp = levelConfig.getInt("need-exp")
+                if (guildData.exp >= needExp) {
+                    statusCode = 1
+                    "§e⚡ 点击升级"
+                } else {
+                    statusCode = 2
+                    "§6○ 经验不足"
+                }
+            }
+            else -> {
+                statusCode = 0
+                "§c🔒 需按顺序升级"
+            }
+        }
+
+        // 2. 动态材质 (已达成的用附魔书，未达成的用普通书)
+        val materialName = if (guildData.level >= targetLevel) "ENCHANTED_BOOK" else "BOOK"
+        val item = ItemStack(Material.matchMaterial(materialName) ?: Material.BOOK)
+        val meta = item.itemMeta ?: return item
+
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
+
+        // 3. 准备占位符变量
+        val placeholders = mapOf(
+            "upgrade_level" to targetLevel.toString(),
+            "upgrade_max_members" to levelConfig.getInt("max-members").toString(),
+            "upgrade_max_money" to levelConfig.getInt("max-money").toString(),
+            "upgrade_max_vaults" to levelConfig.getInt("vaults").toString(),
+            "upgrade_tp_money" to levelConfig.getInt("tp-money").toString(),
+            "upgrade_use_buff" to (levelConfig.getStringList("use-buff").size).toString(),
+            "upgrade_current_exp" to guildData.exp.toString(),
+            "upgrade_need_exp" to levelConfig.getInt("need-exp").toString(),
+            "upgrade_status" to status
+        )
+
+        meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
+        meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, viewer) }
+
+        // 4. 关键：存入 PDC 供监听器检查
+        val upgradeLevelKey = NamespacedKey(plugin, "upgrade_level_num")
+        val upgradeStatusKey = NamespacedKey(plugin, "upgrade_status_type")
+
+        meta.persistentDataContainer.set(upgradeLevelKey, PersistentDataType.INTEGER, targetLevel)
+        meta.persistentDataContainer.set(upgradeStatusKey, PersistentDataType.INTEGER, statusCode)
 
         item.itemMeta = meta
         return item
