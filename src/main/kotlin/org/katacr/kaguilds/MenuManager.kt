@@ -23,6 +23,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 菜单统一入口
+     * @param player 玩家
+     * @param menuName 菜单名称
+     * @param page 页码
      */
     fun openMenu(player: Player, menuName: String, page: Int = 0) {
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
@@ -64,6 +67,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 标准菜单渲染
+     * @param player 玩家
+     * @param config 菜单配置
+     * @param menuName 菜单名称
      */
     private fun renderStandardMenu(player: Player, config: YamlConfiguration, menuName: String) {
         val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "Menu")!!)
@@ -99,7 +105,10 @@ class MenuManager(private val plugin: KaGuilds) {
         player.openInventory(inv)
     }
     /**
-     * 公会列表菜单渲染 (优化分页查询版)
+     * 公会列表菜单渲染
+     * @param player 玩家
+     * @param menuName 菜单名称
+     * @param page 页码
      */
     fun openGuildListMenu(player: Player, menuName: String, page: Int = 0) {
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
@@ -126,7 +135,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val totalGuilds = plugin.dbManager.getGuildCount() // 从数据库实时获取总数
 
         val maxPages = if (guildsPerPage > 0) {
-            kotlin.math.ceil(totalGuilds.toDouble() / guildsPerPage).toInt().coerceAtLeast(1)
+            ceil(totalGuilds.toDouble() / guildsPerPage).toInt().coerceAtLeast(1)
         } else 1
 
         // 确保请求页码不越界
@@ -169,7 +178,11 @@ class MenuManager(private val plugin: KaGuilds) {
         player.openInventory(inv)
     }
     /**
-     * 构建公会项，应用 {变量} 逻辑
+     * 构建公会项
+     * @param section 按钮配置
+     * @param guild 公会数据
+     * @param player 玩家
+     * @return 公会项
      */
     private fun buildGuildItem(section: ConfigurationSection, guild: DatabaseManager.GuildData, player: Player): ItemStack {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
@@ -196,6 +209,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 成员列表菜单渲染
+     * @param player 玩家
+     * @param menuName 菜单名称
+     * @param page 页码
      */
     fun openMemberListMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
@@ -258,6 +274,10 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 构建成员项
+     * @param section 按钮配置
+     * @param member 成员数据
+     * @param viewer 玩家
+     * @return 成员项
      */
     private fun buildMemberItem(section: ConfigurationSection, member: DatabaseManager.MemberData, viewer: Player): ItemStack {
         // 1. 创建头颅 ItemStack，此时它是空白/默认皮肤
@@ -294,7 +314,12 @@ class MenuManager(private val plugin: KaGuilds) {
     }
 
     /**
-     * 构建普通项（翻页、装饰等）
+     * 构建普通项
+     * @param section 按钮配置
+     * @param holder 菜单持有者
+     * @param maxPages 最大页数
+     * @param player 玩家
+     * @return 普通项
      */
     private fun buildNormalItem(section: ConfigurationSection, holder: GuildMenuHolder, maxPages: Int = 1, player: Player): ItemStack {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.STONE)
@@ -332,6 +357,10 @@ class MenuManager(private val plugin: KaGuilds) {
     }
     /**
      * 统一变量替换核心方法
+     * @param text 原始文本
+     * @param placeholders 变量映射表
+     * @param viewer 玩家
+     * @return 替换后的文本
      */
     private fun applyPlaceholders(text: String, placeholders: Map<String, String>, viewer: Player): String {
         var result = text
@@ -352,6 +381,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 获取指定公会数据的变量映射表
+     * @param guild 公会数据
+     * @param player 玩家
+     * @return 变量映射表
      */
     fun getGuildPlaceholders(guild: DatabaseManager.GuildData, player: Player): Map<String, String> {
         val onlineCount = plugin.playerGuildCache.values.count { it == guild.id }
@@ -382,6 +414,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 异步加载皮肤
+     * @param item 物品
+     * @param playerName 玩家名
+     * @param viewer 玩家
      */
     private fun loadSkinAsync(item: ItemStack, playerName: String?, viewer: Player) {
         if (playerName.isNullOrBlank()) return
@@ -393,6 +428,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 局部刷新菜单内容 (供 update 任务调用)
+     * @param player 玩家
+     * @param inv 菜单
+     * @param holder 菜单持有者
      */
     fun refreshMenuContent(player: Player, inv: Inventory, holder: GuildMenuHolder) {
         val layout = holder.layout
@@ -416,6 +454,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 打开 Buff 商店菜单
+     * @param player 玩家
+     * @param menuName 菜单名
+     * @param page 页数
      */
     fun openBuffShopMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
@@ -426,7 +467,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val allowedBuffs = plugin.config.getStringList("level.$currentLevel.use-buff")
 
         // 2. 获取所有的 Buff 配置 (从 config.yml)
-        val buffsSection = plugin.config.getConfigurationSection("guild.buffs") ?: return
+        val buffsSection = plugin.config.getConfigurationSection("buffs") ?: return
         val allBuffKeys = buffsSection.getKeys(false).toList() // 获取 NightVision, Speed 等
 
         // 3. 加载菜单布局
@@ -479,9 +520,13 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 构建 Buff 物品
+     * @param section 按钮配置
+     * @param buffKey Buff 键
+     * @param isUnlocked 是否解锁
+     * @param viewer 玩家
      */
     private fun buildBuffItem(section: ConfigurationSection, buffKey: String, isUnlocked: Boolean, viewer: Player): ItemStack {
-        val buffConfig = plugin.config.getConfigurationSection("guild.buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
+        val buffConfig = plugin.config.getConfigurationSection("buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.GLASS_BOTTLE)
 
         // 判断材质和状态
@@ -515,6 +560,8 @@ class MenuManager(private val plugin: KaGuilds) {
     }
     /**
      * 渲染金库菜单
+     * @param player 玩家
+     * @param menuName 菜单名
      */
     private fun openVaultMenu(player: Player, menuName: String) {
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
@@ -564,6 +611,10 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 构建单个金库图标
+     * @param viewer 玩家
+     * @param vaultNum 金库编号
+     * @param unlockedCount 已解锁金库数量
+     * @param section 按钮配置
      */
     private fun buildVaultItem(viewer: Player, vaultNum: Int, unlockedCount: Int, section: ConfigurationSection): ItemStack {
         val isUnlocked = vaultNum <= unlockedCount
@@ -597,6 +648,9 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 打开公会升级菜单
+     * @param player 玩家
+     * @param menuName 菜单名
+     * @param page 当前页
      */
     fun openUpgradeMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
@@ -611,7 +665,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
         if (!file.exists()) return
         val menuConfig = YamlConfiguration.loadConfiguration(file)
-        val layout = menuConfig.getStringList("layout")
+        val layout = menuConfig.getStringList("Layout")
         val buttons = menuConfig.getConfigurationSection("button") ?: return
 
         // 3. 计算分页槽位
@@ -661,7 +715,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 构建公会等级升级物品
      */
     private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: DatabaseManager.GuildData, viewer: Player): ItemStack {
-        val levelConfig = plugin.config.getConfigurationSection("levels.$targetLevel") ?: return ItemStack(Material.BARRIER)
+        val levelConfig = plugin.config.getConfigurationSection("level.$targetLevel") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
 
         // 1. 状态逻辑判断

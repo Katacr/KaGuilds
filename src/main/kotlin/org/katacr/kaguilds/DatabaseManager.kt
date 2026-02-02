@@ -61,7 +61,11 @@ class DatabaseManager(val plugin: KaGuilds) {
                 icon VARCHAR(32) DEFAULT 'SHIELD',
                 max_members INT DEFAULT 20,
                 teleport_location TEXT DEFAULT NULL,
-                create_time BIGINT
+                create_time BIGINT,
+                pvp_wins INT DEFAULT 0,
+                pvp_losses INT DEFAULT 0,
+                pvp_draws INT DEFAULT 0,
+                pvp_total INT DEFAULT 0
             )
         """)
 
@@ -111,6 +115,21 @@ class DatabaseManager(val plugin: KaGuilds) {
                 PRIMARY KEY (guild_id, vault_index)
             )
         """)
+
+            // 6. 公会对战历史表
+            statement.execute("""
+            CREATE TABLE IF NOT EXISTS guild_pvp_history (
+                id INTEGER PRIMARY KEY $autoIncrement,
+                red_guild_id INT NOT NULL,
+                blue_guild_id INT NOT NULL,
+                winner_guild_id INT, 
+                red_score INT DEFAULT 0,
+                blue_score INT DEFAULT 0,
+                start_time BIGINT,
+                end_time BIGINT
+            )
+        """)
+
         }
     }
 
@@ -267,20 +286,27 @@ class DatabaseManager(val plugin: KaGuilds) {
         return list
     }
     /**
-     * 检查玩家在特定公会中是否拥有管理权限 (ADMIN 或 OWNER)
+     * 检查玩家是否为公会管理人员 (OWNER 或 ADMIN)
      */
     fun isStaff(playerUuid: UUID, guildId: Int): Boolean {
-        connection.use { conn ->
-            val ps = conn.prepareStatement("SELECT role FROM guild_members WHERE player_uuid = ? AND guild_id = ?")
-            ps.setString(1, playerUuid.toString())
-            ps.setInt(2, guildId)
-            val rs = ps.executeQuery()
-            if (rs.next()) {
-                val role = rs.getString("role")
-                return role == "OWNER" || role == "ADMIN"
+        val sql = "SELECT role FROM guild_members WHERE player_uuid = ? AND guild_id = ?"
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    ps.setInt(2, guildId)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        val role = rs.getString("role") ?: "MEMBER"
+                        return role == "OWNER" || role == "ADMIN"
+                    }
+                }
             }
+            false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
-        return false
     }
 
     /**
@@ -1103,6 +1129,81 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 检查并添加 PVP 统计相关字段
+     */
+    fun updatePvpSchema() {
+        val columns = mapOf(
+            "pvp_wins" to "INT DEFAULT 0",
+            "pvp_losses" to "INT DEFAULT 0",
+            "pvp_draws" to "INT DEFAULT 0",
+            "pvp_total" to "INT DEFAULT 0"
+        )
+
+        columns.forEach { (col, type) ->
+            if (!isColumnExists("guild_data", col)) {
+                val sql = "ALTER TABLE guild_data ADD COLUMN $col $type"
+                try {
+                    dataSource?.connection?.use { conn ->
+                        conn.createStatement().use { it.execute(sql) }
+                    }
+                    plugin.logger.info("已成功为 guild_data 添加字段: $col")
+                } catch (e: Exception) {
+                    plugin.logger.severe("添加字段 $col 失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * 检查表中是否存在某列
+     */
+    private fun isColumnExists(tableName: String, columnName: String): Boolean {
+        return try {
+            dataSource?.connection?.use { conn ->
+                val metaData = conn.metaData
+                val rs = metaData.getColumns(null, null, tableName, columnName)
+                rs.next()
+            } ?: false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 根据公会名称获取公会数据
+     */
+    fun getGuildByName(name: String): GuildData? {
+        val sql = "SELECT * FROM guild_data WHERE name = ?"
+        return try {
+            dataSource?.connection?.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, name)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        // 调用你代码中已有的解析逻辑（或者直接手动构建）
+                        return GuildData(
+                            id = rs.getInt("id"),
+                            name = rs.getString("name"),
+                            ownerUuid = rs.getString("owner_uuid"),
+                            ownerName = rs.getString("owner_name"),
+                            level = rs.getInt("level"),
+                            exp = rs.getInt("exp"),
+                            balance = rs.getDouble("balance"),
+                            announcement = rs.getString("announcement"),
+                            maxMembers = rs.getInt("max_members"),
+                            teleportLocation = rs.getString("teleport_location"),
+                            createTime = rs.getLong("create_time")
+                        )
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
 
     // 公会数据模型
@@ -1119,7 +1220,11 @@ class DatabaseManager(val plugin: KaGuilds) {
         val teleportLocation: String?, // <-- 新增字段
         val createTime: Long,
         val memberCount: Int = 0,
-        val icon: String? = null
+        val icon: String? = null,
+        val pvpWins: Int = 0,
+        val pvpLosses: Int = 0,
+        val pvpDraws: Int = 0,
+        val pvpTotal: Int = 0
     )
 
     // 成员数据模型

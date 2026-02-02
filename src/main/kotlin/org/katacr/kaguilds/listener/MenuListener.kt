@@ -207,7 +207,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     plugin.dbManager.getGuildMembers(guildId).size
                 }
                 holder.menuName.contains("buff", ignoreCase = true) -> {
-                    plugin.config.getConfigurationSection("guild.buffs")?.getKeys(false)?.size ?: 0
+                    plugin.config.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
                 }
                 holder.menuName.contains("list", ignoreCase = true) -> {
                     plugin.dbManager.getGuildCount()

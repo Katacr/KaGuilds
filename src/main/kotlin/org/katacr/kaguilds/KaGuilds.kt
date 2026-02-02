@@ -4,8 +4,11 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.util.UUID
 import net.milkbowl.vault.economy.Economy
 import org.bukkit.plugin.RegisteredServiceProvider
+import org.katacr.kaguilds.arena.ArenaManager
+import org.katacr.kaguilds.arena.PvPManager
 import org.katacr.kaguilds.listener.MenuListener
 import org.katacr.kaguilds.listener.NotifyListener
+import org.katacr.kaguilds.listener.PvPListener
 import org.katacr.kaguilds.listener.VaultListener
 import org.katacr.kaguilds.service.GuildService
 import java.io.File
@@ -20,32 +23,37 @@ class KaGuilds : JavaPlugin() {
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
     lateinit var menuManager: MenuManager
+    lateinit var arenaManager: ArenaManager
+    lateinit var pvpManager: PvPManager
 
     /**
      * 启用插件
      */
     override fun onEnable() {
-        // 0. 释放并加载配置文件
+        //  释放并加载配置文件
         saveDefaultConfig()
-        // 1. 初始化语言管理器
+        //  初始化语言管理器
         langManager = LanguageManager(this)
         langManager.load()
 
-        // 2. 初始化菜单管理器
+        // 初始化菜单管理器
         setupGuiFolder()
         menuManager = MenuManager(this)
-
-        // 3. 初始化数据库管理器
+        // 初始化竞技场管理器
+        arenaManager = ArenaManager(this)
+        pvpManager = PvPManager(this)
+        // 初始化数据库管理器
         dbManager = DatabaseManager(this)
         dbManager.setup()
-        // 4. 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
+        // 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
         guildService = GuildService(this)
-        // 5. 注册指令
+        // 注册指令
         getCommand("guilds")?.setExecutor(GuildCommand(this))
-        // 6. 注册事件监听器
+        // 注册事件监听器
         server.pluginManager.registerEvents(VaultListener(this), this) // 经济监听器
         server.pluginManager.registerEvents(MenuListener(this), this) // 菜单监听器
         server.pluginManager.registerEvents(NotifyListener(this), this) // 通知监听器
+        server.pluginManager.registerEvents(PvPListener(this), this) // 公会战监听器
 
         logger.info("KaGuilds 已启用！")
         val cmd = getCommand("kaguilds")

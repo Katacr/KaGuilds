@@ -954,7 +954,7 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 4. 读取 Buff 配置与价格
-            val path = "guild.buffs.$buffKey"
+            val path = "buffs.$buffKey"
             if (!plugin.config.contains(path)) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("buff-not-exist")))
             }

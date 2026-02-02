@@ -1,6 +1,7 @@
 package org.katacr.kaguilds
 
 
+import org.bukkit.GameMode
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -93,11 +94,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "seticon" -> handleSetIcon(sender)
             "motd" -> handleMotd(sender, args)
             "upgrade" -> handleUpgrade(sender)
+            "pvp" -> handlePvP(sender, args)
             "menu" -> {
                 // 默认打开 main_menu.yml
                 plugin.menuManager.openMenu(sender, "main_menu")
                 return true
             }
+
             else -> {
                 sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
@@ -1086,6 +1089,49 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
+            "arena" -> {
+                if (args.size < 3) {
+                    sender.sendMessage("§c用法: /kg admin arena <setpos1|setpos2|setredspawn|setbluespawn|info>")
+                    return
+                }
+                val action = args[2].lowercase()
+                val player = sender as? Player ?: return
+                val loc = player.location
+
+                when (action) {
+                    "setpos1" -> {
+                        plugin.arenaManager.arena.pos1 = loc
+                        player.sendMessage("§a[PVP] 成功设置对角点 1")
+                    }
+                    "setpos2" -> {
+                        plugin.arenaManager.arena.pos2 = loc
+                        player.sendMessage("§a[PVP] 成功设置对角点 2")
+                    }
+                    "setredspawn" -> {
+                        plugin.arenaManager.arena.redSpawn = loc
+                        player.sendMessage("§c[PVP] 成功设置红队出生点")
+                    }
+                    "setbluespawn" -> {
+                        plugin.arenaManager.arena.blueSpawn = loc
+                        player.sendMessage("§b[PVP] 成功设置蓝队出生点")
+                    }
+                    "info" -> {
+                        val a = plugin.arenaManager.arena
+                        player.sendMessage("§e--- 竞技场状态 ---")
+                        player.sendMessage("§7对角 1: §f${a.pos1?.let { "已设置" } ?: "§c未设置"}")
+                        player.sendMessage("§7对角 2: §f${a.pos2?.let { "已设置" } ?: "§c未设置"}")
+                        player.sendMessage("§7红队点: §f${a.redSpawn?.let { "已设置" } ?: "§c未设置"}")
+                        player.sendMessage("§7蓝队点: §f${a.blueSpawn?.let { "已设置" } ?: "§c未设置"}")
+                        return
+                    }
+                    "setkit" -> {
+                        plugin.arenaManager.saveKit(sender)
+                        sender.sendMessage("§a[PVP] 成功！已将你当前的背包（含装备栏）设为公会战预设套装。")
+                    }
+                }
+                // 只要有修改就立即保存
+                plugin.arenaManager.saveArena()
+            }
 
             else -> sender.sendMessage(lang.get("admin-usage"))
         }
@@ -1199,140 +1245,238 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             else player.sendMessage("§a恭喜！公会升级成功。")
         }
     }
+
     /*
-     * 处理指令自动补全
+     * 处理 /kg pvp 命令
+     */
+    private fun handlePvP(player: Player, args: Array<out String>) {
+
+        if (args.size < 2) {
+            player.sendMessage("§6§l[公会战指令帮手]")
+            player.sendMessage(" §7- §f/kg pvp start <名称> §8发起挑战")
+            player.sendMessage(" §7- §f/kg pvp accept §8接受挑战")
+            player.sendMessage(" §7- §f/kg pvp ready §8准备并进入战场")
+            player.sendMessage(" §7- §f/kg pvp exit §8退出对战/准备")
+            return
+        }
+
+        val action = args[1].lowercase()
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: run {
+            player.sendMessage("§c[!] 你必须先加入一个公会。")
+            return
+        }
+
+        when (action) {
+            "start" -> {
+                if (args.size < 3) {
+                    player.sendMessage("§c用法: /kg pvp start <公会名或#ID>")
+                    return
+                }
+
+                // 权限检查
+                if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
+                    player.sendMessage("§c[!] 只有公会管理层可以发起挑战。")
+                    return
+                }
+
+                val targetInput = args[2]
+                val targetGuild = if (targetInput.startsWith("#")) {
+                    plugin.dbManager.getGuildData(targetInput.substring(1).toIntOrNull() ?: -1)
+                } else {
+                    plugin.dbManager.getGuildByName(targetInput)
+                }
+
+                if (targetGuild == null || targetGuild.id == guildId) {
+                    player.sendMessage("§c[!] 指定的目标公会无效。")
+                    return
+                }
+
+                // 检查竞技场是否占用
+                if (plugin.pvpManager.currentMatch != null) {
+                    player.sendMessage("§c[!] 竞技场目前正忙，请稍后再试。")
+                    return
+                }
+
+                // 扣费并发送邀请
+                val fee = plugin.config.getDouble("guild.arena.challenge-fee", 500.0)
+                if (plugin.dbManager.updateGuildBalance(guildId, -fee)) {
+                    plugin.pvpManager.sendChallenge(guildId, targetGuild.id)
+                    player.sendMessage("§a[PVP] 挑战已发出，已从公会金库扣除 §e$fee §a金币。")
+                    // 触发对方公会的消息通知
+                    plugin.pvpManager.notifyTargetGuild(targetGuild.id, plugin.dbManager.getGuildData(guildId)?.name ?: "未知")
+                } else {
+                    player.sendMessage("§c[!] 公会金库余额不足 §e$fee §c金币。")
+                }
+            }
+
+            "accept" -> {
+                if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
+                    player.sendMessage("§c[!] 只有管理层可以接受挑战。")
+                    return
+                }
+
+                val senderId = plugin.pvpManager.acceptChallenge(guildId)
+                if (senderId != null) {
+                    val senderName = plugin.dbManager.getGuildData(senderId)?.name ?: "对方公会"
+                    plugin.server.broadcastMessage("§6§l【公会宣战】 §b${player.name} §f代表公会接受了 §c$senderName §f的挑战！")
+                    plugin.server.broadcastMessage("§e§l>> §f请参赛成员输入 §6/kg pvp ready §f进入竞技场！")
+                } else {
+                    player.sendMessage("§c[!] 邀请已失效或不存在。")
+                }
+            }
+
+            "ready" -> {
+                val match = plugin.pvpManager.currentMatch ?: run {
+                    player.sendMessage("§c[!] 当前没有准备中的公会战。")
+                    return
+                }
+
+                if (match.isStarted) {
+                    player.sendMessage("§c[!] 战斗已开始，无法加入。")
+                    return
+                }
+
+                // 检查人数限制
+                val maxPerTeam = plugin.config.getInt("guild.arena.max-players-per-team", 10)
+                val currentInTeam = match.players.count { plugin.playerGuildCache[it] == guildId }
+                if (currentInTeam >= maxPerTeam && !match.players.contains(player.uniqueId)) {
+                    player.sendMessage("§c[!] 本队出战名额已满。")
+                    return
+                }
+
+                val isRed = guildId == match.redGuildId
+                val spawn = if (isRed) plugin.arenaManager.arena.redSpawn else plugin.arenaManager.arena.blueSpawn
+
+                if (spawn != null && match.players.add(player.uniqueId)) {
+                    player.teleport(spawn)
+                    player.sendMessage("§a[PVP] 你已就绪！")
+                }
+            }
+
+            "exit" -> {
+                val match = plugin.pvpManager.currentMatch
+                if (match == null || !match.players.contains(player.uniqueId)) {
+                    player.sendMessage("§c[!] 你不在对战名单中。")
+                    return
+                }
+
+                // 无论处于什么阶段，统一执行退出清理
+                match.players.remove(player.uniqueId)
+                plugin.pvpManager.restoreSnapshot(player)
+                player.gameMode = GameMode.SURVIVAL
+                player.teleport(player.world.spawnLocation)
+
+                player.sendMessage("§a[PVP] 你已退出公会战。")
+
+                // 如果已经开始，需检查胜负
+                if (match.isStarted) {
+                    match.broadcast("§7[PVP] §e${player.name} §c退出了战斗。")
+                    plugin.pvpManager.checkWinCondition()
+                }
+            }
+
+            else -> player.sendMessage("§c未知操作。")
+        }
+        return
+    }
+
+    /*
+     * 处理 /kg 命令的 tab 补全
      */
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
         if (sender !is Player) return emptyList()
 
         return when (args.size) {
-            // 第一级指令补全: /kg <TAB>
             1 -> {
                 val list = mutableListOf(
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
-                    "yes", "no", "settp", "tp", "rename", "buff", "deny" , "transfer", "vault" , "menu" , "seticon" , "motd", "upgrade"
+                    "settp", "tp", "rename", "buff", "deny", "transfer", "vault",
+                    "menu", "seticon", "motd", "upgrade", "pvp"
                 )
-
-                // 权限指令判断
                 if (sender.hasPermission("kaguilds.admin")) {
-                    list.add("reload")
-                    list.add("admin")
+                    list.addAll(listOf("reload", "admin"))
                 }
-
-                // 动态补全：如果玩家有待确认操作，显示 confirm
                 if (plugin.guildService.hasPendingAction(sender.uniqueId)) {
                     list.add("confirm")
                 }
-
-                list.filter { it.startsWith(args[0], ignoreCase = true) }
+                filterList(list, args[0])
             }
 
-            // 第二级指令补全: /kg sub <TAB>
             2 -> {
-                val subCommand = args[0].lowercase()
-                when (subCommand) {
-                    "admin" -> {
-                        if (!sender.hasPermission("kaguilds.admin")) return emptyList()
-
-                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault", "setlevel", "exp")
-                            .filter { it.startsWith(args[1], ignoreCase = true) }
-                    }
-
-                    "bank" -> {
-                        listOf("add", "get", "log").filter { it.startsWith(args[1], ignoreCase = true) }
-                    }
-
-                    "buff" -> {
-                        val guildId = plugin.playerGuildCache[sender.uniqueId]
-                        if (guildId != null) {
-                            val guildData = plugin.dbManager.getGuildData(guildId)
-                            val level = guildData?.level ?: 1
-                            val allowedBuffs = plugin.config.getStringList("level.$level.use-buff")
-                            if (allowedBuffs.isNotEmpty()) {
-                                return allowedBuffs.filter { it.startsWith(args[1], ignoreCase = true) }
-                            }
-                        }
-                        val section = plugin.config.getConfigurationSection("guild.buffs")
-                        section?.getKeys(false)?.filter { it.startsWith(args[1], ignoreCase = true) }?.toList() ?: emptyList()
-                    }
-                    "vault" -> {
-                        // 获取玩家公会 ID
-                        val guildId = plugin.playerGuildCache[sender.uniqueId]
-                        if (guildId != null) {
-                            // 异步获取不方便，这里我们可以直接从 config 读取该公会等级允许的最大页数
-                            // 或者简单点直接返回 1..9
-                            return (1..9).map { it.toString() }.filter { it.startsWith(args[1]) }
-                        }
-                        emptyList()
-                    }
-                    "kick", "promote", "demote", "invite", "join", "accept", "deny", "no" , "menu" -> null
+                val sub = args[0].lowercase()
+                // 这里的 list 变量类型会自动推导为 List<String>?
+                val list = when (sub) {
+                    "pvp" -> listOf("start", "accept", "ready", "exit")
+                    "admin" -> if (sender.hasPermission("kaguilds.admin")) {
+                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault", "setlevel", "exp", "arena")
+                    } else emptyList()
+                    "bank" -> listOf("add", "get", "log")
+                    "vault" -> (1..9).map { it.toString() }
+                    "buff" -> getBuffTab(sender)
+                    // 对于需要补全玩家的名字的分支，直接返回 null 结束
+                    "kick", "promote", "demote", "invite", "join", "accept", "deny", "transfer" -> return null
                     else -> emptyList()
                 }
+                filterList(list, args[1])
             }
 
             3 -> {
-                if (args[0].equals("admin", ignoreCase = true)) {
-                    // 提示 # 引导输入 ID，或者如果是 reload 等不需要 ID 的子指令则不返回
-                    return listOf("#").filter { it.startsWith(args[2]) }
-                }
-                if (args[0].equals("admin", ignoreCase = true) && args[1].equals("vault", ignoreCase = true)) {
-                    // 这里可以返回 "#" 提示管理员输入 ID
-                    return listOf("#")
-                }
-                emptyList()
-            }
-
-            4 -> {
                 val sub = args[0].lowercase()
-                val adminSub = args[1].lowercase()
+                val sub2 = args[1].lowercase()
 
-                if (sub == "admin") {
-                    when (adminSub) {
-                        "bank" -> {
-                            // /kg admin bank #1 <TAB>
-                            return listOf("see", "log", "add", "remove", "set").filter { it.startsWith(args[3], ignoreCase = true) }
-                        }
-                        "kick", "join", "transfer" -> {
-                            // /kg admin transfer #1 <TAB> -> 补全在线玩家
-                            return null
-                        }
-                        "rename" -> {
-                            // /kg admin rename #1 <TAB> -> 提示输入名称
-                            return listOf("<name>")
-                        }
-                        "upgrade" -> {
-                            // /kg admin upgrade #1 <TAB> -> 提示输入名称
-                            return listOf("<level>")
-                        }
-                        "exp" -> {
-                            // /kg admin exp #1 <TAB>
-                            return listOf("add", "take", "set").filter { it.startsWith(args[3], ignoreCase = true)
-                            }
-                        }
-                        "vault" -> {
-                            return (1..9).map { it.toString() }
-                        }
-                    }
+                val list = when (sub) {
+                    "pvp" -> if (sub2 == "start") return null else emptyList()
+                    "admin" -> listOf("#")
+                    else -> emptyList()
                 }
-                emptyList()
+                filterList(list, args[2])
             }
 
-            5 -> {
-                if (args[0].equals("admin", ignoreCase = true) && args[1].equals("bank", ignoreCase = true)) {
-                    val bankAction = args[3].lowercase()
-                    if (listOf("add", "remove", "set").contains(bankAction)) {
-                        return listOf("<money>")
-                    } else if (bankAction == "log") {
-                        return listOf("<page>")
-                    }
-                }
-                emptyList()
-            }
+            4 -> handleAdminTab(args)
+
             else -> emptyList()
         }
     }
 
+    /**
+     * 专门处理 /kg admin ... 的补全
+     */
+    private fun handleAdminTab(args: Array<out String>): List<String>? {
+        val adminSub = args[1].lowercase()
+
+        val list = when (adminSub) {
+            "bank" -> listOf("see", "log", "add", "remove", "set")
+            "exp" -> listOf("add", "take", "set")
+            "vault" -> (1..9).map { it.toString() }
+            "arena" -> listOf("setpos1", "setpos2", "setredspawn", "setbluespawn", "info", "setkit", "stop")
+            "rename" -> listOf("<name>")
+            "upgrade" -> listOf("<level>")
+            // 管理员模块中涉及玩家名补全的逻辑
+            "kick", "join", "transfer" -> return null
+            else -> emptyList()
+        }
+
+        return filterList(list, args[3])
+    }
+
+    /**
+     * 辅助方法：过滤列表
+     */
+    private fun filterList(list: List<String>?, input: String): List<String>? {
+        // 如果 list 为 null，直接返回 null（Bukkit 会补全玩家名）
+        // 如果 list 存在，过滤后返回
+        return list?.filter { it.startsWith(input, ignoreCase = true) }
+    }
+
+    /**
+     * 辅助方法：获取 Buff 补全
+     */
+    private fun getBuffTab(player: Player): List<String> {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return emptyList()
+        val level = plugin.dbManager.getGuildData(guildId)?.level ?: 1
+        return plugin.config.getStringList("level.$level.use-buff")
+    }
     /**
      * 根据在线状态渲染成员列表颜色
      */
