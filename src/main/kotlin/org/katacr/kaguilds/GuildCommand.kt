@@ -1340,24 +1340,48 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (match.isStarted) {
-                    player.sendMessage("§c[!] 战斗已开始，无法加入。")
+                    player.sendMessage("§c[!] 战斗已正式开始，无法中途加入。")
                     return
                 }
 
-                // 检查人数限制
+                // 1. 检查人数限制
                 val maxPerTeam = plugin.config.getInt("guild.arena.max-players-per-team", 10)
                 val currentInTeam = match.players.count { plugin.playerGuildCache[it] == guildId }
-                if (currentInTeam >= maxPerTeam && !match.players.contains(player.uniqueId)) {
-                    player.sendMessage("§c[!] 本队出战名额已满。")
+
+                // 如果玩家已经在名单里，不需要重复加入
+                if (match.players.contains(player.uniqueId)) {
+                    player.sendMessage("§e[!] 你已经处于准备就绪状态，请等待倒计时结束。")
                     return
                 }
 
-                val isRed = guildId == match.redGuildId
-                val spawn = if (isRed) plugin.arenaManager.arena.redSpawn else plugin.arenaManager.arena.blueSpawn
+                if (currentInTeam >= maxPerTeam) {
+                    player.sendMessage("§c[!] 本队出战名额已满 ($maxPerTeam 人)。")
+                    return
+                }
 
-                if (spawn != null && match.players.add(player.uniqueId)) {
-                    player.teleport(spawn)
-                    player.sendMessage("§a[PVP] 你已就绪！")
+                // 2. 确认出生点已设置（作为加入的前置条件，防止开赛时报错）
+                val redSpawn = plugin.arenaManager.arena.redSpawn
+                val blueSpawn = plugin.arenaManager.arena.blueSpawn
+                if (redSpawn == null || blueSpawn == null) {
+                    player.sendMessage("§c[!] 竞技场坐标配置不全，请联系管理员。")
+                    return
+                }
+
+                // 3. 执行加入逻辑
+                if (match.players.add(player.uniqueId)) {
+                    // 获取战队名称
+                    val guildName = plugin.dbManager.getGuildData(guildId)?.name ?: "未知公会"
+
+                    // 区分红蓝方并发送广播
+                    val isRed = guildId == match.redGuildId
+                    val prefix = if (isRed) "§c§l[红方] §f[§e$guildName§f]" else "§b§l[蓝方] §f[§e$guildName§f]"
+
+                    // 只给参赛双方玩家发送加入消息
+                    match.smartBroadcast("$prefix §a玩家 §n${player.name}§a 已加入公会战！")
+
+                    // 给玩家个人的反馈（不再传送）
+                    // player.sendMessage("§a[PVP] 你已进入准备状态！")
+                    player.playSound(player.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
                 }
             }
 
