@@ -119,6 +119,7 @@ class PvPManager(private val plugin: KaGuilds) {
             var timeLeft = readyTime
 
             override fun run() {
+
                 // 检查比赛是否由于某一方意外操作（如管理员删除公会）导致提前消失
                 val m = currentMatch ?: run {
                     removeBossBar()
@@ -131,6 +132,16 @@ class PvPManager(private val plugin: KaGuilds) {
 
                 if (timeLeft <= 0) {
                     startBattle()
+                    cancel()
+                    return
+                }
+                val anyRedOnline = plugin.server.onlinePlayers.any { plugin.playerGuildCache[it.uniqueId] == m.redGuildId }
+                val anyBlueOnline = plugin.server.onlinePlayers.any { plugin.playerGuildCache[it.uniqueId] == m.blueGuildId }
+
+                if (!anyRedOnline && !anyBlueOnline) {
+                    // 双方公会都没有任何人在服务器了，直接销毁，不计分
+                    currentMatch = null
+                    removeBossBar()
                     cancel()
                     return
                 }
@@ -286,49 +297,70 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     fun stopBattle(winnerId: Int?) {
         val match = currentMatch ?: return
+        val started = match.isStarted // 记录战斗是否真正开始过
 
-        // 1. 立即停止 BossBar 和计时器，防止任务继续运行
+        // 1. 立即停止 UI 和 逻辑任务
         removeBossBar()
 
-        // 2. 统计结果广播 (全服)
-        broadcastFinalResult(match, winnerId)
+        if (started) {
+            // --- 场景 A: 战斗已正式开始过，进行结算 ---
 
-        // 3. 遍历并清理所有玩家
-        match.players.forEach { uuid ->
-            val player = plugin.server.getPlayer(uuid) ?: return@forEach
+            // 全服广播结果
+            broadcastFinalResult(match, winnerId)
 
-            // 恢复生命值与饥饿度，防止带着残血回城
-            player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
-            player.foodLevel = 20
-            player.fireTicks = 0
-            player.activePotionEffects.clear()
+            // 遍历参战名单恢复状态
+            match.players.forEach { uuid ->
+                val player = plugin.server.getPlayer(uuid) ?: return@forEach
 
-            // 恢复背包与模式
-            restoreSnapshot(player)
-            player.gameMode = GameMode.SURVIVAL
+                // 状态重置
+                player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+                player.foodLevel = 20
+                player.fireTicks = 0
+                player.activePotionEffects.clear()
 
-            // 传送逻辑
-            teleportHome(player)
+                // 恢复背包、模式并传回家
+                restoreSnapshot(player)
+                player.gameMode = GameMode.SURVIVAL
+                teleportHome(player)
 
-            // 仪式感：如果是赢家，发标题和音效
-            val playerGuildId = plugin.playerGuildCache[player.uniqueId]
-            if (winnerId != null && playerGuildId == winnerId) {
-                player.sendTitle("§a§lVICTORY", "§f你们公会赢得了胜利！", 10, 70, 20)
-                player.playSound(player.location, org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
-            } else if (winnerId != null) {
-                player.sendTitle("§c§lDEFEAT", "§f下次再接再厉！", 10, 70, 20)
+                // 胜负仪式感
+                val playerGuildId = plugin.playerGuildCache[player.uniqueId]
+                if (winnerId != null && playerGuildId == winnerId) {
+                    player.sendTitle("§a§lVICTORY", "§f旗开得胜！", 10, 70, 20)
+                    player.playSound(player.location, org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
+                } else if (winnerId != null) {
+                    player.sendTitle("§c§lDEFEAT", "§f下次再接再厉", 10, 70, 20)
+                }
+            }
+
+            // 异步更新数据库战绩与历史
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+                processMatchResults(match, winnerId)
+            })
+
+        } else {
+            // --- 场景 B: 准备阶段取消，不计入统计，仅执行退款 ---
+
+            match.smartBroadcast("§e§l[PVP] §c比赛已取消。原因：人数不足、一方掉线或服务器变动。")
+
+            // 退还公会挑战金 (假设费用存在配置中)
+            val fee = plugin.config.getDouble("balance.pvp", 300.0)
+            if (fee > 0) {
+                // 这里我们退还给发起公会（通常是 redGuildId 发起的挑战）
+                val success = plugin.dbManager.updateGuildBalance(match.redGuildId, fee)
+                if (success) {
+                    match.smartBroadcast("§a[!] 公会挑战金 §e$fee §a已退还至公会金库。")
+                }
             }
         }
 
-        // 4. 数据库统计更新 (建议异步执行)
-        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-            processMatchResults(match, winnerId)
-        })
-
-        // 5. 彻底释放引用
+        // 5. 彻底释放引用，结束生命周期
         currentMatch = null
     }
 
+    /**
+     * 公示最终结果
+     */
     private fun broadcastFinalResult(match: ActiveMatch, winnerId: Int?) {
         val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
         val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
@@ -342,6 +374,9 @@ class PvPManager(private val plugin: KaGuilds) {
         }
     }
 
+    /**
+     * 传送玩家回家或公会基地
+     */
     private fun teleportHome(player: Player) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: -1
         val guildData = plugin.dbManager.getGuildData(guildId)

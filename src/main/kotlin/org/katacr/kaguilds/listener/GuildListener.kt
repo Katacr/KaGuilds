@@ -1,4 +1,4 @@
-package org.katacr.kaguilds
+package org.katacr.kaguilds.listener
 
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -7,6 +7,7 @@ import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.katacr.kaguilds.KaGuilds
 
 class GuildListener(private val plugin: KaGuilds) : Listener {
 

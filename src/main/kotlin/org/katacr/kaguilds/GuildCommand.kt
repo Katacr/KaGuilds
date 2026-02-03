@@ -1304,7 +1304,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 // 扣费并发送邀请
-                val fee = plugin.config.getDouble("guild.arena.challenge-fee", 500.0)
+                val fee = plugin.config.getDouble("balance.pvp", 300.0)
                 if (plugin.dbManager.updateGuildBalance(guildId, -fee)) {
                     plugin.pvpManager.sendChallenge(guildId, targetGuild.id)
                     player.sendMessage("§a[PVP] 挑战已发出，已从公会金库扣除 §e$fee §a金币。")
