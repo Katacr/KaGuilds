@@ -27,7 +27,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
 
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     // 这里的逻辑：如果玩家本地缓存匹配，则发送
-                    var cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+                    val cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
 
                     if (cachedId != null && cachedId == targetGuildId) {
                         onlinePlayer.sendMessage(formattedMsg)

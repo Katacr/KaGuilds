@@ -1130,47 +1130,6 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
-     * 检查并添加 PVP 统计相关字段
-     */
-    fun updatePvpSchema() {
-        val columns = mapOf(
-            "pvp_wins" to "INT DEFAULT 0",
-            "pvp_losses" to "INT DEFAULT 0",
-            "pvp_draws" to "INT DEFAULT 0",
-            "pvp_total" to "INT DEFAULT 0"
-        )
-
-        columns.forEach { (col, type) ->
-            if (!isColumnExists("guild_data", col)) {
-                val sql = "ALTER TABLE guild_data ADD COLUMN $col $type"
-                try {
-                    dataSource?.connection?.use { conn ->
-                        conn.createStatement().use { it.execute(sql) }
-                    }
-                    plugin.logger.info("已成功为 guild_data 添加字段: $col")
-                } catch (e: Exception) {
-                    plugin.logger.severe("添加字段 $col 失败: ${e.message}")
-                }
-            }
-        }
-    }
-
-    /**
-     * 检查表中是否存在某列
-     */
-    private fun isColumnExists(tableName: String, columnName: String): Boolean {
-        return try {
-            dataSource?.connection?.use { conn ->
-                val metaData = conn.metaData
-                val rs = metaData.getColumns(null, null, tableName, columnName)
-                rs.next()
-            } ?: false
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
      * 根据公会名称获取公会数据
      */
     fun getGuildByName(name: String): GuildData? {

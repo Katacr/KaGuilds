@@ -50,15 +50,19 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         // 如果升级等级处于 锁定(0) 或 经验不足(2) 状态
         if (uStatus != null) {
-            if (uStatus == 0) {
-                player.sendMessage("§c§l! §7请按顺序升级公会等级。")
-                return
-            } else if (uStatus == 2) {
-                player.sendMessage("§c§l! §7公会经验不足，无法升级。")
-                return
-            } else if (uStatus == 3) {
-                player.sendMessage("§a§l! §7公会已达到该等级。")
-                return
+            when (uStatus) {
+                0 -> {
+                    player.sendMessage("§c§l! §7请按顺序升级公会等级。")
+                    return
+                }
+                2 -> {
+                    player.sendMessage("§c§l! §7公会经验不足，无法升级。")
+                    return
+                }
+                3 -> {
+                    player.sendMessage("§a§l! §7公会已达到该等级。")
+                    return
+                }
             }
         }
 
@@ -248,7 +252,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                 val soundName = rawArgs.replace(".", "_").uppercase()
                 try {
                     player.playSound(player.location, org.bukkit.Sound.valueOf(soundName), 1f, 1f)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     plugin.logger.warning("无效声音: $soundName")
                 }
             }
@@ -289,12 +293,6 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     companion object {
         private val chatCatchers = mutableMapOf<UUID, String>()
 
-        /**
-         * 提供给外部（如 MenuManager 或其他类）清理数据的公开方法
-         */
-        fun clearCatcher(uuid: UUID) {
-            chatCatchers.remove(uuid)
-        }
     }
 
     /**

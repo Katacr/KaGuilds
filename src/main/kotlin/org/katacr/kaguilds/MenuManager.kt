@@ -1,5 +1,6 @@
 package org.katacr.kaguilds
 
+import me.clip.placeholderapi.PlaceholderAPI
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -15,7 +16,6 @@ import org.katacr.kaguilds.listener.GuildMenuHolder
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.ceil
-import org.bukkit.inventory.Inventory
 
 
 class MenuManager(private val plugin: KaGuilds) {
@@ -98,7 +98,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val updateTicks = config.getLong("update", 0L)
         if (updateTicks > 0) {
             holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-                refreshMenuContent(player, inv, holder)
+                refreshMenuContent(holder)
             }, updateTicks, updateTicks)
         }
 
@@ -265,7 +265,7 @@ class MenuManager(private val plugin: KaGuilds) {
         if (updateTicks > 0) {
             holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
                 // 定时刷新逻辑
-                refreshMenuContent(player, inv, holder)
+                refreshMenuContent(holder)
             }, updateTicks, updateTicks)
         }
 
@@ -308,7 +308,7 @@ class MenuManager(private val plugin: KaGuilds) {
         item.itemMeta = meta
 
         // 4. 调用异步加载逻辑：物品会先显示默认皮肤，随后自动变成玩家皮肤
-        loadSkinAsync(item, member.name, viewer)
+        loadSkinAsync(item, member.name)
 
         return item
     }
@@ -372,7 +372,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         // 2. 处理 PAPI 变量: 使用 %% 格式
         if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
-            result = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(viewer, result)
+            result = PlaceholderAPI.setPlaceholders(viewer, result)
         }
 
         // 3. 最后转换颜色
@@ -416,9 +416,8 @@ class MenuManager(private val plugin: KaGuilds) {
      * 异步加载皮肤
      * @param item 物品
      * @param playerName 玩家名
-     * @param viewer 玩家
      */
-    private fun loadSkinAsync(item: ItemStack, playerName: String?, viewer: Player) {
+    private fun loadSkinAsync(item: ItemStack, playerName: String?) {
         if (playerName.isNullOrBlank()) return
         val meta = item.itemMeta as? SkullMeta ?: return
         meta.owningPlayer = Bukkit.getOfflinePlayer(playerName)
@@ -428,25 +427,17 @@ class MenuManager(private val plugin: KaGuilds) {
 
     /**
      * 局部刷新菜单内容 (供 update 任务调用)
-     * @param player 玩家
-     * @param inv 菜单
      * @param holder 菜单持有者
      */
-    fun refreshMenuContent(player: Player, inv: Inventory, holder: GuildMenuHolder) {
+    fun refreshMenuContent(holder: GuildMenuHolder) {
         val layout = holder.layout
-        val buttons = holder.buttons
 
-        // 获取公会 ID (成员列表需要用)
-        val guildId = plugin.playerGuildCache[player.uniqueId]
 
         for (r in layout.indices) {
             val line = layout[r]
             for (c in line.indices) {
-                val slot = r * 9 + c
                 val char = line[c].toString()
                 if (char == " ") continue
-
-                val btnSection = buttons?.getConfigurationSection(char) ?: continue
 
             }
         }
@@ -655,7 +646,6 @@ class MenuManager(private val plugin: KaGuilds) {
     fun openUpgradeMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
-        val currentLevel = guildData.level
 
         // 1. 获取所有配置好的等级列表 (从 config.yml 的 level 节点获取)
         val levelsSection = plugin.config.getConfigurationSection("level") ?: return
@@ -720,7 +710,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         // 1. 状态逻辑判断
         // 0: 锁定 (需按顺序), 1: 可升级 (经验够), 2: 经验不足, 3: 已达成
-        var statusCode = 0
+        var statusCode: Int
         val status = when {
             guildData.level >= targetLevel -> {
                 statusCode = 3

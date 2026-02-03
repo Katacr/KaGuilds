@@ -42,6 +42,7 @@ class KaGuilds : JavaPlugin() {
         // 初始化竞技场管理器
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
+        arenaManager.loadKit()
         // 初始化数据库管理器
         dbManager = DatabaseManager(this)
         dbManager.setup()

@@ -1,6 +1,9 @@
 package org.katacr.kaguilds.arena
 
 import org.bukkit.GameMode
+import org.bukkit.boss.BarColor
+import org.bukkit.boss.BarStyle
+import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.KaGuilds
 import java.util.UUID
@@ -14,6 +17,9 @@ class PvPManager(private val plugin: KaGuilds) {
 
     // 当前战斗状态（后续步骤使用）
     var currentMatch: ActiveMatch? = null
+
+    // 记录当前的BossBar
+    private var pvpBar: BossBar? = null
 
     // 记录玩家的背包快照，用于战斗结束时恢复
     private val inventorySnapshots = mutableMapOf<UUID, Array<org.bukkit.inventory.ItemStack?>>()
@@ -100,29 +106,42 @@ class PvPManager(private val plugin: KaGuilds) {
         return senderGuildId
     }
 
+    /**
+     * 开始准备任务
+     * 逻辑：此阶段仅进行倒计时、BossBar显示和参赛名单记录，不做任何玩家状态修改。
+     */
     private fun startReadyTask() {
         val readyTime = plugin.config.getInt("guild.arena.ready-time", 120)
+        val match = currentMatch ?: return
+        match.totalTime = readyTime
 
         object : org.bukkit.scheduler.BukkitRunnable() {
             var timeLeft = readyTime
 
             override fun run() {
-                val match = currentMatch ?: run { this.cancel(); return }
-
-                // 如果战斗已经因为某种原因开始了或取消了，停止倒计时
-                if (match.isStarted) { this.cancel(); return }
-
-                if (timeLeft <= 0) {
-                    // --- 扳机按下：正式调用开始战斗 ---
-                    startBattle()
-                    this.cancel()
+                // 检查比赛是否由于某一方意外操作（如管理员删除公会）导致提前消失
+                val m = currentMatch ?: run {
+                    removeBossBar()
+                    cancel()
                     return
                 }
 
-                // 倒计时提示 (每30秒提示一次，最后10秒每秒提示)
-                if (timeLeft % 30 == 0 || timeLeft <= 10) {
-                    plugin.server.broadcastMessage("§e§l[PVP] §f公会战准备倒计时: §c$timeLeft §f秒")
-                    plugin.server.broadcastMessage("§e§l[PVP] §f请参赛成员尽快输入 §a/kg pvp ready")
+                // 如果比赛已经通过某种方式开始了，停止此任务
+                if (m.isStarted) { cancel(); return }
+
+                if (timeLeft <= 0) {
+                    startBattle()
+                    cancel()
+                    return
+                }
+
+                // 更新 BossBar 进度与 mm:ss 格式标题
+                pvpBar?.progress = (timeLeft.toDouble() / m.totalTime.toDouble()).coerceIn(0.0, 1.0)
+                updateBossBar(timeLeft)
+
+                // 仅对参赛双方广播倒计时，减少全服骚扰
+                if (timeLeft % 30 == 0 || (timeLeft in 1..10)) {
+                    m.smartBroadcast("§e§l[PVP] §f准备倒计时: §c${formatTime(timeLeft)}")
                 }
 
                 timeLeft--
@@ -136,56 +155,114 @@ class PvPManager(private val plugin: KaGuilds) {
     fun startBattle() {
         val match = currentMatch ?: return
 
-        // 检查是否有最少人数要求
+        // 1. 筛选当前真实在线的准备玩家并清理名单
+        val participants = match.players.mapNotNull { plugin.server.getPlayer(it) }.filter { it.isOnline }
+        match.players.retainAll(participants.map { it.uniqueId }.toSet())
+
+        // 2. 检查人数：确保两边都至少有一人且满足最小总人数
         val minPlayers = plugin.config.getInt("guild.arena.min-players", 2)
-        if (match.players.size < minPlayers) {
-            plugin.server.broadcastMessage("§e§l[PVP] §c由于准备人数不足 ${minPlayers}人，比赛自动取消。")
-            // 记得退费逻辑可以写在这里
+        val redGroup = participants.filter { plugin.playerGuildCache[it.uniqueId] == match.redGuildId }
+        val blueGroup = participants.filter { plugin.playerGuildCache[it.uniqueId] == match.blueGuildId }
+
+        if (participants.size < minPlayers || redGroup.isEmpty() || blueGroup.isEmpty()) {
+            match.smartBroadcast("§e§l[PVP] §c由于人数不足或一方全部掉线，比赛自动取消。")
+            stopBattle(null)
+            return
+        }
+
+        // 3. 获取竞技场坐标
+        val redSpawn = plugin.arenaManager.arena.redSpawn
+        val blueSpawn = plugin.arenaManager.arena.blueSpawn
+
+        if (redSpawn == null || blueSpawn == null) {
+            match.smartBroadcast("§c[!] 竞技场坐标设置不全，无法开始战斗！")
             stopBattle(null)
             return
         }
 
         match.isStarted = true
 
-        // 只遍历那些点了 Ready 的人
-        match.players.mapNotNull { plugin.server.getPlayer(it) }.forEach { player ->
-            takeSnapshot(player) // 保存原本背包
+        // 4. 全服广播开战消息
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+        plugin.server.broadcastMessage("§6§l【公会战】 §e$redName §f与 §b$blueName §f的决斗正式爆发！")
 
-            // 发放套装
-            if (plugin.config.getBoolean("guild.arena.kit", true)) {
-                player.inventory.contents = plugin.arenaManager.kitContents?.clone() ?: player.inventory.contents
+        // 5. 物资准备
+        val kit = plugin.arenaManager.kitContents
+
+        // 6. 处理参战玩家状态
+        participants.forEach { player ->
+            val playerGuildId = plugin.playerGuildCache[player.uniqueId]
+
+            // A. 状态重置 (血量、饥饿、药水、火)
+            player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+            player.foodLevel = 20
+            player.fireTicks = 0
+            player.activePotionEffects.clear()
+
+            // B. 保存原本背包并彻底清空
+            takeSnapshot(player)
+            player.inventory.clear()
+
+            // C. 传送 (红队去redSpawn，蓝队去blueSpawn)
+            if (playerGuildId == match.redGuildId) {
+                player.teleport(redSpawn)
+            } else {
+                player.teleport(blueSpawn)
             }
 
-            player.gameMode = org.bukkit.GameMode.ADVENTURE
-            player.sendMessage("§6§l>> §e§l战斗正式爆发！")
+            // D. 模式切换与物资发放
+            player.gameMode = GameMode.ADVENTURE
+
+            if (kit != null && plugin.config.getBoolean("guild.arena.kit", true)) {
+                // 填充主背包 (0-35)
+                for (i in 0 until 36) {
+                    if (i < kit.size) player.inventory.setItem(i, kit[i]?.clone())
+                }
+                // 填充盔甲 (36-39)
+                if (kit.size >= 40) {
+                    val armor = kit.sliceArray(36..39).map { it?.clone() }.toTypedArray()
+                    player.inventory.armorContents = armor
+                }
+                // 填充副手 (40)
+                if (kit.size >= 41) {
+                    player.inventory.setItemInOffHand(kit[40]?.clone())
+                }
+            }
+
+            player.updateInventory()
+            player.sendMessage("§a§l⚔ §6§l战斗开始，为了公会的荣耀！")
+            player.playSound(player.location, org.bukkit.Sound.ENTITY_WITHER_SPAWN, 1f, 1f)
         }
 
+        // 7. 启动正式战斗计时器
         startMatchTimer()
     }
-
     /**
      * 实现游戏时长监控
      */
     private fun startMatchTimer() {
-        val pvpTime = plugin.config.getInt("guild.arena.pvp-time", 600)
+        val battleTime = plugin.config.getInt("guild.arena.battle-time", 300)
+        val match = currentMatch ?: return
+        match.totalTime = battleTime
 
         object : org.bukkit.scheduler.BukkitRunnable() {
-            var timeLeft = pvpTime
+            var timeLeft = battleTime
+
             override fun run() {
-                val match = currentMatch ?: run { this.cancel(); return }
+                val m = currentMatch ?: run { removeBossBar(); cancel(); return }
 
                 if (timeLeft <= 0) {
-                    determineWinnerBySurvival() // 时间到，强行结算
-                    this.cancel()
+                    // 时间到，判定当前存活人数
+                    checkWinCondition() // 如果两边都有人，checkWinCondition 会触发平局逻辑
+                    cancel()
                     return
                 }
 
-                // 最后 10 秒倒计时提醒
-                if (timeLeft <= 10) {
-                    match.players.forEach { uuid ->
-                        plugin.server.getPlayer(uuid)?.sendMessage("§c距离战斗结束还剩 §l$timeLeft §c秒！")
-                    }
-                }
+                // 更新 BossBar
+                pvpBar?.progress = (timeLeft.toDouble() / m.totalTime.toDouble()).coerceIn(0.0, 1.0)
+                updateBossBar(timeLeft)
+
                 timeLeft--
             }
         }.runTaskTimer(plugin, 0L, 20L)
@@ -198,34 +275,9 @@ class PvPManager(private val plugin: KaGuilds) {
             // 如果他不在战斗区域（说明是掉线后重新连接）
             if (currentMatch == null || !currentMatch!!.players.contains(player.uniqueId)) {
                 restoreSnapshot(player)
-                player.gameMode = org.bukkit.GameMode.SURVIVAL // 恢复生存模式
+                player.gameMode = GameMode.SURVIVAL // 恢复生存模式
             }
         }
-    }
-
-    /**
-     * 战局结算：通过存活人数判定胜负
-     */
-    private fun determineWinnerBySurvival() {
-        val match = currentMatch ?: return
-
-        // 过滤出当前还在竞技场内且存活的玩家
-        val redAlive = match.players.count { uuid ->
-            val p = plugin.server.getPlayer(uuid)
-            p != null && p.gameMode != org.bukkit.GameMode.SPECTATOR && plugin.playerGuildCache[uuid] == match.redGuildId
-        }
-        val blueAlive = match.players.count { uuid ->
-            val p = plugin.server.getPlayer(uuid)
-            p != null && p.gameMode != org.bukkit.GameMode.SPECTATOR && plugin.playerGuildCache[uuid] == match.blueGuildId
-        }
-
-        val winnerId = when {
-            redAlive > blueAlive -> match.redGuildId
-            blueAlive > redAlive -> match.blueGuildId
-            else -> null // 平局
-        }
-
-        stopBattle(winnerId)
     }
 
     /**
@@ -235,80 +287,128 @@ class PvPManager(private val plugin: KaGuilds) {
     fun stopBattle(winnerId: Int?) {
         val match = currentMatch ?: return
 
-        // 1. 处理数据库统计与奖励
-        processMatchResults(match, winnerId)
+        // 1. 立即停止 BossBar 和计时器，防止任务继续运行
+        removeBossBar()
 
-        // 2. 恢复所有参与者的状态
+        // 2. 统计结果广播 (全服)
+        broadcastFinalResult(match, winnerId)
+
+        // 3. 遍历并清理所有玩家
         match.players.forEach { uuid ->
             val player = plugin.server.getPlayer(uuid) ?: return@forEach
 
-            // 恢复背包
-            restoreSnapshot(player)
+            // 恢复生命值与饥饿度，防止带着残血回城
+            player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+            player.foodLevel = 20
+            player.fireTicks = 0
+            player.activePotionEffects.clear()
 
-            // 恢复模式与状态
+            // 恢复背包与模式
+            restoreSnapshot(player)
             player.gameMode = GameMode.SURVIVAL
 
-            // 传送到公会家园或主城 (这里假设传送到公会传送点)
-            val guildData = plugin.dbManager.getGuildData(plugin.playerGuildCache[uuid] ?: -1)
-            if (guildData?.teleportLocation != null) {
-                val loc = org.katacr.kaguilds.util.SerializationUtil.deserializeLocation(guildData.teleportLocation)
-                if (loc != null) player.teleport(loc)
-            } else {
-                player.teleport(player.world.spawnLocation)
+            // 传送逻辑
+            teleportHome(player)
+
+            // 仪式感：如果是赢家，发标题和音效
+            val playerGuildId = plugin.playerGuildCache[player.uniqueId]
+            if (winnerId != null && playerGuildId == winnerId) {
+                player.sendTitle("§a§lVICTORY", "§f你们公会赢得了胜利！", 10, 70, 20)
+                player.playSound(player.location, org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
+            } else if (winnerId != null) {
+                player.sendTitle("§c§lDEFEAT", "§f下次再接再厉！", 10, 70, 20)
             }
         }
 
-        // 3. 全局广播
-        if (winnerId != null) {
-            val winnerName = plugin.dbManager.getGuildData(winnerId)?.name ?: "未知"
-            plugin.server.broadcastMessage("§e§l[PVP] §f战斗结束！公会 §b$winnerName §f获得了最终胜利！")
-        } else {
-            plugin.server.broadcastMessage("§e§l[PVP] §f战斗结束！双方势均力敌，以平局收场。")
-        }
+        // 4. 数据库统计更新 (建议异步执行)
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            processMatchResults(match, winnerId)
+        })
 
-        // 4. 清除当前战斗实例
+        // 5. 彻底释放引用
         currentMatch = null
     }
 
+    private fun broadcastFinalResult(match: ActiveMatch, winnerId: Int?) {
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+
+        val prefix = "§6§l【公会战结果】 §f"
+        if (winnerId == null) {
+            plugin.server.broadcastMessage("$prefix §e$redName §7vs §b$blueName §f双方握手言和，平局收场！")
+        } else {
+            val winnerName = if (winnerId == match.redGuildId) redName else blueName
+            plugin.server.broadcastMessage("$prefix §e$redName §7vs §b$blueName §f战斗结束，§a§l$winnerName §f勇夺桂冠！")
+        }
+    }
+
+    private fun teleportHome(player: Player) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: -1
+        val guildData = plugin.dbManager.getGuildData(guildId)
+
+        // 如果有公会家园传家园，没有传主城出生点
+        val loc = guildData?.teleportLocation?.let {
+            org.katacr.kaguilds.util.SerializationUtil.deserializeLocation(it)
+        } ?: player.world.spawnLocation
+
+        player.teleport(loc)
+    }
+
+    /**
+     * 战局结算：更新数据库统计与历史记录
+     */
     private fun processMatchResults(match: ActiveMatch, winnerId: Int?) {
         val redId = match.redGuildId
         val blueId = match.blueGuildId
 
-        // 1. 更新 guild_data 统计
-        when (winnerId) {
-            redId -> {
-                updateGuildStats(redId, "wins")
-                updateGuildStats(blueId, "losses")
-                executeRewardCommands(redId)
-            }
-            blueId -> {
-                updateGuildStats(blueId, "wins")
-                updateGuildStats(redId, "losses")
-                executeRewardCommands(blueId)
-            }
-            else -> {
-                updateGuildStats(redId, "draws")
-                updateGuildStats(blueId, "draws")
-            }
-        }
-        // 增加总场次
-        updateGuildStats(redId, "total")
-        updateGuildStats(blueId, "total")
+        // 使用异步任务，避免数据库操作卡顿主线程
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            try {
+                // 1. 更新 guild_data 统计
+                when (winnerId) {
+                    redId -> {
+                        updateGuildStats(redId, "wins")
+                        updateGuildStats(blueId, "losses")
+                        // 奖励指令通常涉及玩家操作，建议回主线程执行或确保指令支持异步
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                            executeRewardCommands(redId)
+                        })
+                    }
+                    blueId -> {
+                        updateGuildStats(blueId, "wins")
+                        updateGuildStats(redId, "losses")
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                            executeRewardCommands(blueId)
+                        })
+                    }
+                    else -> {
+                        updateGuildStats(redId, "draws")
+                        updateGuildStats(blueId, "draws")
+                    }
+                }
 
-        // 2. 插入详细战报历史
-        val sql = "INSERT INTO guild_pvp_history (red_guild_id, blue_guild_id, winner_guild_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)"
-        plugin.dbManager.dataSource?.connection?.use { conn ->
-            conn.prepareStatement(sql).use { ps ->
-                ps.setInt(1, redId)
-                ps.setInt(2, blueId)
-                if (winnerId != null) ps.setInt(3, winnerId) else ps.setNull(3, java.sql.Types.INTEGER)
-                ps.setLong(4, match.startTime)
-                ps.setLong(5, System.currentTimeMillis())
-                ps.executeUpdate()
+                // 增加总场次
+                updateGuildStats(redId, "total")
+                updateGuildStats(blueId, "total")
+
+                // 2. 插入详细战报历史
+                val sql = "INSERT INTO guild_pvp_history (red_guild_id, blue_guild_id, winner_guild_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)"
+                plugin.dbManager.dataSource?.connection?.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        ps.setInt(1, redId)
+                        ps.setInt(2, blueId)
+                        if (winnerId != null) ps.setInt(3, winnerId) else ps.setNull(3, java.sql.Types.INTEGER)
+                        ps.setLong(4, match.startTime)
+                        ps.setLong(5, System.currentTimeMillis())
+                        ps.executeUpdate()
+                    }
+                }
+            } catch (e: Exception) {
+                plugin.logger.severe("更新公会战战报时发生错误: ${e.message}")
+                e.printStackTrace()
             }
-        }
+        })
     }
-
     /**
      * 辅助方法：执行奖励命令
      */
@@ -340,33 +440,117 @@ class PvPManager(private val plugin: KaGuilds) {
     }
 
     /**
-     * 检查胜负条件
+     * 核心胜负判定逻辑
+     * @param forceCutoff 是否强制结算（true 用于倒计时结束，false 用于实时伤亡检查）
      */
-    fun checkWinCondition() {
+    fun checkWinCondition(forceCutoff: Boolean = false) {
         val match = currentMatch ?: return
         if (!match.isStarted) return // 还没开始，不判胜负
 
-        // 获取红队当前存活人数 (在线且处于战斗模式)
+        // 1. 统计红队当前存活人数 (在线且处于 ADVENTURE 模式)
         val redAlive = match.players.count { uuid ->
             val p = plugin.server.getPlayer(uuid)
-            p != null && p.isOnline && p.gameMode == org.bukkit.GameMode.ADVENTURE && plugin.playerGuildCache[uuid] == match.redGuildId
+            p != null && p.isOnline && p.gameMode == GameMode.ADVENTURE && plugin.playerGuildCache[uuid] == match.redGuildId
         }
 
-        // 获取蓝队当前存活人数
+        // 2. 统计蓝队当前存活人数
         val blueAlive = match.players.count { uuid ->
             val p = plugin.server.getPlayer(uuid)
-            p != null && p.isOnline && p.gameMode == org.bukkit.GameMode.ADVENTURE && plugin.playerGuildCache[uuid] == match.blueGuildId
+            p != null && p.isOnline && p.gameMode == GameMode.ADVENTURE && plugin.playerGuildCache[uuid] == match.blueGuildId
         }
 
-        // 只要有一方死光，就结算
+        // A. 实时结算：只要有一方人死光了，立刻结束
         if (redAlive == 0 || blueAlive == 0) {
             val winnerId = when {
                 redAlive > 0 -> match.redGuildId
                 blueAlive > 0 -> match.blueGuildId
-                else -> null // 同归于尽
+                else -> null // 两边都没人了（可能同归于尽或全部掉线）
             }
             stopBattle(winnerId)
+            return
         }
+
+        // B. 超时结算：如果时间到了且两边都有人活着
+        if (forceCutoff) {
+            val winnerId = when {
+                redAlive > blueAlive -> match.redGuildId
+                blueAlive > redAlive -> match.blueGuildId
+                else -> null // 人数完全相等，判定平局
+            }
+            stopBattle(winnerId)
+            return
+        }
+        // C. 继续战斗：两边都有人且时间还没到，则什么都不做
+    }
+
+    /**
+     * 更新 BossBar 显示
+     */
+    fun updateBossBar(seconds: Int) {
+        val match = currentMatch ?: return
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+        val timeStr = formatTime(seconds)
+
+        val title = if (!match.isStarted) {
+            // 准备阶段显示
+            "§e§l[ $redName ] §fVS §b§l[ $blueName ]   §6§l$timeStr §7(输入/kg pvp ready加入)"
+        } else {
+            // 战斗阶段显示：■■□ [ 红队 ] 3:20 [ 蓝队 ] □■■
+            val redIcons = getTeamStatusIcons(match, match.redGuildId, false)
+            val blueIcons = getTeamStatusIcons(match, match.blueGuildId, true)
+            "$redIcons §e§l[ $redName ] §f§l$timeStr §b§l[ $blueName ] $blueIcons"
+        }
+
+        if (pvpBar == null) {
+            pvpBar = plugin.server.createBossBar(title, BarColor.YELLOW, BarStyle.SOLID)
+        } else {
+            pvpBar?.setTitle(title)
+            pvpBar?.color = if (match.isStarted) BarColor.RED else BarColor.YELLOW
+        }
+
+        // 维护玩家可见性（仅参赛公会可见）
+        plugin.server.onlinePlayers.forEach { p ->
+            val gid = plugin.playerGuildCache[p.uniqueId]
+            if (gid == match.redGuildId || gid == match.blueGuildId) {
+                pvpBar?.addPlayer(p)
+            } else {
+                pvpBar?.removePlayer(p)
+            }
+        }
+    }
+
+    /**
+     * 生成 □□■■■ 状态图标
+     * @param isMirrored 是否镜像排列（用于右侧蓝队）
+     */
+    private fun getTeamStatusIcons(match: ActiveMatch, guildId: Int, isMirrored: Boolean): String {
+        // 获取该公会参与战斗的所有 UUID
+        val teamMembers = match.players.filter { plugin.playerGuildCache[it] == guildId }
+
+        val icons = teamMembers.map { uuid ->
+            val p = plugin.server.getPlayer(uuid)
+            // 存活条件：在线且模式为 ADVENTURE
+            if (p != null && p.isOnline && p.gameMode == GameMode.ADVENTURE) "§a■" else "§7□"
+        }
+
+        return if (isMirrored) icons.joinToString("") else icons.reversed().joinToString("")
+    }
+
+    /**
+     * 清除 BossBar
+     */
+    fun removeBossBar() {
+        pvpBar?.removeAll()
+        pvpBar = null
+    }
+    /**
+     * 将秒数转换为 mm:ss 格式
+     */
+    private fun formatTime(seconds: Int): String {
+        val m = seconds / 60
+        val s = seconds % 60
+        return String.format("%d:%02d", m, s)
     }
 
 }
@@ -377,7 +561,8 @@ data class ActiveMatch(
     val blueGuildId: Int,
     val startTime: Long,
     val players: MutableSet<UUID> = mutableSetOf(),
-    var isStarted: Boolean = false
+    var isStarted: Boolean = false,
+    var totalTime: Int = 120
 ) {
     /**
      * 向所有参与本场战斗的玩家发送消息
@@ -390,6 +575,19 @@ data class ActiveMatch(
             val player = plugin?.server?.getPlayer(uuid)
             // 只有玩家在线时才发送，防止报错
             player?.sendMessage(message)
+        }
+    }
+
+
+    fun smartBroadcast(message: String) {
+        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
+
+        plugin.server.onlinePlayers.forEach { onlinePlayer ->
+            val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+            // 只有属于参赛两方的玩家才会收到消息
+            if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
+                onlinePlayer.sendMessage(message)
+            }
         }
     }
 }

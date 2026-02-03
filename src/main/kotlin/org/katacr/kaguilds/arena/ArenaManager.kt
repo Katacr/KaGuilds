@@ -32,25 +32,41 @@ class ArenaManager(private val plugin: KaGuilds) {
     }
 
     fun saveKit(player: org.bukkit.entity.Player) {
-        // 获取玩家包括装备槽在内的所有物品
-        val contents = player.inventory.contents
-        val base64 = SerializationUtil.itemsToBase64(contents)
+        // 1. 分别获取主背包、盔甲、副手物品
+        val mainItems = player.inventory.contents // 0-35 主要是背包空间
+        val armorItems = player.inventory.armorContents // 盔甲栏
+        val extraItems = player.inventory.extraContents // 副手栏
+
+        // 2. 合并为一个大数组
+        val allItems = mainItems + armorItems + extraItems
+
+        val base64 = SerializationUtil.itemsToBase64(allItems)
 
         val file = File(plugin.dataFolder, "arena.yml")
         val config = YamlConfiguration.loadConfiguration(file)
         config.set("kit_data", base64)
         config.save(file)
 
-        this.kitContents = contents
-        plugin.logger.info("公会战套装已更新！")
+        this.kitContents = allItems // 更新缓存
+        plugin.logger.info("公会战套装已更新，共计 ${allItems.size} 个物品槽位。")
     }
 
     fun loadKit() {
         val file = File(plugin.dataFolder, "arena.yml")
-        val config = YamlConfiguration.loadConfiguration(file)
-        val base64 = config.getString("kit_data")
-        if (base64 != null) {
-            this.kitContents = SerializationUtil.itemStackArrayFromBase64(base64)
+        if (!file.exists()) {
+            plugin.logger.warning("未找到 arena.yml，公会战套装目前为空。")
+            return
+        }
+
+        try {
+            val config = YamlConfiguration.loadConfiguration(file)
+            val base64 = config.getString("kit_data")
+
+            if (!base64.isNullOrEmpty()) {
+                this.kitContents = SerializationUtil.itemStackArrayFromBase64(base64)
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("加载公会战套装时发生崩溃: ${e.message}")
         }
     }
 }

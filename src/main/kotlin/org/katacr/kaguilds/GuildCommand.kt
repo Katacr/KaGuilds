@@ -937,9 +937,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     return
                 }
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
-                val action = args[3].lowercase()
-
-                when (action) {
+                when (val action = args[3].lowercase()) {
                     "see" -> {
                         plugin.guildService.getAdminGuildInfo(guildId) { _, info ->
                             val bal = info?.data?.balance ?: 0.0
@@ -1290,7 +1288,15 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     player.sendMessage("§c[!] 指定的目标公会无效。")
                     return
                 }
-
+                // 检查在线玩家是否属于目标公会
+                val isTargetStaffOnline = plugin.server.onlinePlayers.any { onlinePlayer ->
+                    val onlinePlayerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+                    onlinePlayerGuildId == targetGuild.id && plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuild.id)
+                }
+                if (!isTargetStaffOnline) {
+                    player.sendMessage("§c[!] 对方公会的会长或管理员目前不在线，无法发起挑战。")
+                    return
+                }
                 // 检查竞技场是否占用
                 if (plugin.pvpManager.currentMatch != null) {
                     player.sendMessage("§c[!] 竞技场目前正忙，请稍后再试。")
@@ -1317,9 +1323,11 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 val senderId = plugin.pvpManager.acceptChallenge(guildId)
                 if (senderId != null) {
+                    val match = plugin.pvpManager.currentMatch
                     val senderName = plugin.dbManager.getGuildData(senderId)?.name ?: "对方公会"
-                    plugin.server.broadcastMessage("§6§l【公会宣战】 §b${player.name} §f代表公会接受了 §c$senderName §f的挑战！")
-                    plugin.server.broadcastMessage("§e§l>> §f请参赛成员输入 §6/kg pvp ready §f进入竞技场！")
+
+                    match?.smartBroadcast("§6§l【公会战】 §b${player.name} §f代表公会接受了 §c$senderName §f的挑战！")
+                    match?.smartBroadcast("§e§l>> §f请准备参赛的成员输入 §6/kg pvp ready §f进入竞技场！")
                 } else {
                     player.sendMessage("§c[!] 邀请已失效或不存在。")
                 }

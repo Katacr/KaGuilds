@@ -13,14 +13,19 @@ object SerializationUtil {
 
     // 序列化：物品数组 -> 字符串
     fun itemsToBase64(items: Array<ItemStack?>): String {
-        val outputStream = ByteArrayOutputStream()
-        BukkitObjectOutputStream(outputStream).use { dataOutput ->
-            dataOutput.writeInt(items.size)
-            for (item in items) {
-                dataOutput.writeObject(item)
+        try {
+            val outputStream = ByteArrayOutputStream()
+            BukkitObjectOutputStream(outputStream).use { dataOutput ->
+                dataOutput.writeInt(items.size)
+                for (item in items) {
+                    // writeObject 可以处理 null，但显式处理更安全
+                    dataOutput.writeObject(item)
+                }
             }
+            return Base64Coder.encodeLines(outputStream.toByteArray())
+        } catch (e: Exception) {
+            throw IllegalStateException("无法序列化物品栏", e)
         }
-        return Base64Coder.encodeLines(outputStream.toByteArray())
     }
 
     // 反序列化：字符串 -> 物品数组

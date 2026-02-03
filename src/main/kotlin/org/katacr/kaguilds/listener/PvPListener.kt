@@ -10,6 +10,7 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.entity.PlayerDeathEvent
+import org.bukkit.event.player.PlayerCommandPreprocessEvent
 
 class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
 
@@ -48,18 +49,20 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
         val player = event.player
         val match = plugin.pvpManager.currentMatch ?: return
 
-        // 如果掉线的玩家在比赛中
+        // 如果该玩家在参战名单中
         if (match.players.contains(player.uniqueId)) {
-            // 如果比赛已经开始（玩家在冒险模式）
-            if (player.gameMode == GameMode.ADVENTURE) {
-                match.broadcast("§7[PVP] §e${player.name} §c离开了服务器，视为战败。")
-                // 将其设为旁观状态（逻辑上），这样 checkWinCondition 会统计到他已出局
-                // 注意：这里不需要改 GameMode，因为他已经下线了，只需触发胜负检查
 
-                // 延迟一小会儿检查，确保服务器已经处理完该玩家的离线状态
+            if (!match.isStarted) {
+                // 准备阶段退出
+                match.players.remove(player.uniqueId)
+                match.broadcast("§7[PVP] §e${player.name} §f取消了准备 (离开了服务器)。")
+
+            } else {
+                // 战斗阶段退出
                 org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                     plugin.pvpManager.checkWinCondition()
                 }, 1L)
+                match.broadcast("§7[PVP] §e${player.name} §c在战斗中掉线，视为战败。")
             }
         }
     }
@@ -88,6 +91,21 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
                 player.gameMode = GameMode.SPECTATOR
                 plugin.pvpManager.checkWinCondition()
             }, 1L)
+        }
+    }
+
+    @EventHandler
+    fun onCommand(event: PlayerCommandPreprocessEvent) {
+        val player = event.player
+        val match = plugin.pvpManager.currentMatch ?: return
+
+        if (match.players.contains(player.uniqueId)) {
+            val cmd = event.message.lowercase()
+            // 允许玩家输入 /kg pvp 相关的指令，拦截其他所有指令
+            if (!cmd.startsWith("/kg pvp") && !player.hasPermission("kaguilds.admin")) {
+                player.sendMessage("§c[!] 战斗期间禁止使用其他指令！")
+                event.isCancelled = true
+            }
         }
     }
 
