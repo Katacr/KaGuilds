@@ -79,12 +79,33 @@ class KaGuilds : JavaPlugin() {
     /**
      * 关闭插件
      */
-    override fun onDisable() {// 使用 Kotlin 的属性初始化检查，防止在启动失败时调用报错
+    override fun onDisable() {
+        if (::pvpManager.isInitialized) {
+            pvpManager.currentMatch?.let { match ->
+                // 如果战斗还没正式开始，强制执行退款
+                if (!match.isStarted) {
+                    val fee = config.getDouble("balance.pvp", 300.0)
+                    if (fee > 0 && ::dbManager.isInitialized) {
+                        dbManager.updateGuildBalance(match.redGuildId, fee)
+                        logger.info("服务器关闭：已自动为公会 ${match.redGuildId} 退还公会战挑战金。")
+                    }
+                }
+                // 移除 BossBar
+                pvpManager.removeBossBar()
+            }
+        }
+
+        // 2. 关闭数据库连接
         if (::dbManager.isInitialized) {
             dbManager.close()
         }
+
         logger.info("KaGuilds 已安全关闭。")
     }
+
+    /**
+     * 重载插件
+     */
     fun reloadPlugin() {
         reloadConfig()
         langManager.load()
