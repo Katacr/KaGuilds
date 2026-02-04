@@ -11,7 +11,6 @@ import org.katacr.kaguilds.service.OperationResult
 import org.katacr.kaguilds.service.GuildService
 
 class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter {
-
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
         val lang = plugin.langManager
         if (args.isEmpty()) {

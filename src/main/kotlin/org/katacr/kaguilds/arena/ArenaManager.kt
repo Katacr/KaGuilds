@@ -32,6 +32,7 @@ class ArenaManager(private val plugin: KaGuilds) {
     }
 
     fun saveKit(player: org.bukkit.entity.Player) {
+        val lang = plugin.langManager
         // 1. 分别获取主背包、盔甲、副手物品
         val mainItems = player.inventory.contents // 0-35 主要是背包空间
         val armorItems = player.inventory.armorContents // 盔甲栏
@@ -48,13 +49,14 @@ class ArenaManager(private val plugin: KaGuilds) {
         config.save(file)
 
         this.kitContents = allItems // 更新缓存
-        plugin.logger.info("公会战套装已更新，共计 ${allItems.size} 个物品槽位。")
+        plugin.logger.info(lang.get("arena-kit-saved", "size" to allItems.size.toString()))
     }
 
     fun loadKit() {
+        val lang = plugin.langManager
         val file = File(plugin.dataFolder, "arena.yml")
         if (!file.exists()) {
-            plugin.logger.warning("未找到 arena.yml，公会战套装目前为空。")
+            plugin.logger.warning(lang.get("error-not-arena-yml"))
             return
         }
 
@@ -66,7 +68,7 @@ class ArenaManager(private val plugin: KaGuilds) {
                 this.kitContents = SerializationUtil.itemStackArrayFromBase64(base64)
             }
         } catch (e: Exception) {
-            plugin.logger.severe("加载公会战套装时发生崩溃: ${e.message}")
+            plugin.logger.severe(lang.get("error-load-arena-kit", "error" to e.message.orEmpty()))
         }
     }
 }

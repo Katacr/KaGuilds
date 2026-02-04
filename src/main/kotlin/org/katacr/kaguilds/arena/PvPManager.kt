@@ -39,13 +39,14 @@ class PvPManager(private val plugin: KaGuilds) {
      * 通知目标公会
      */
     fun notifyTargetGuild(targetGuildId: Int, senderGuildName: String) {
-        val msg = net.md_5.bungee.api.chat.TextComponent("§6§l[公会战] §f公会 §b$senderGuildName §f向你们发起了挑战！ ")
+        val lang = plugin.langManager
+        val msg = net.md_5.bungee.api.chat.TextComponent(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
 
-        val acceptBtn = net.md_5.bungee.api.chat.TextComponent("§a§l[点击接受]")
+        val acceptBtn = net.md_5.bungee.api.chat.TextComponent(lang.get("arena-pvp-accept-btn"))
         acceptBtn.clickEvent = net.md_5.bungee.api.chat.ClickEvent(
             net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/kg pvp accept"
         )
-        val hoverText = net.md_5.bungee.api.chat.hover.content.Text("§7点击后将立即进入准备阶段")
+        val hoverText = net.md_5.bungee.api.chat.hover.content.Text(lang.get("arena-pvp-accept-btn-hover"))
         acceptBtn.hoverEvent = net.md_5.bungee.api.chat.HoverEvent(
             net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
             hoverText
@@ -66,19 +67,21 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     fun takeSnapshot(player: Player) {
         // 深度备份当前背包
+        val lang = plugin.langManager
         inventorySnapshots[player.uniqueId] = player.inventory.contents.clone()
         player.inventory.clear()
-        player.sendMessage("§7[PVP] 你的原始背包已安全存档。")
+        player.sendMessage(lang.get("arena-pvp-save-inventory"))
     }
 
     /**
      * 恢复玩家背包快照
      */
     fun restoreSnapshot(player: Player) {
+        val lang = plugin.langManager
         val savedItems = inventorySnapshots.remove(player.uniqueId)
         if (savedItems != null) {
             player.inventory.contents = savedItems
-            player.sendMessage("§a[PVP] 你的原始背包已恢复。")
+            player.sendMessage(lang.get("arena-pvp-restore-inventory"))
         }
     }
 
@@ -111,6 +114,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * 逻辑：此阶段仅进行倒计时、BossBar显示和参赛名单记录，不做任何玩家状态修改。
      */
     private fun startReadyTask() {
+        val lang = plugin.langManager
         val readyTime = plugin.config.getInt("guild.arena.ready-time", 120)
         val match = currentMatch ?: return
         match.totalTime = readyTime
@@ -152,7 +156,7 @@ class PvPManager(private val plugin: KaGuilds) {
 
                 // 仅对参赛双方广播倒计时，减少全服骚扰
                 if (timeLeft % 30 == 0 || (timeLeft in 1..10)) {
-                    m.smartBroadcast("§e§l[PVP] §f准备倒计时: §c${formatTime(timeLeft)}")
+                    m.smartBroadcast(lang.get("arena-pvp-ready-countdown", "time" to timeLeft.toString()))
                 }
 
                 timeLeft--
@@ -164,6 +168,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * 正式开始战斗
      */
     fun startBattle() {
+        val lang = plugin.langManager
         val match = currentMatch ?: return
 
         // 1. 筛选当前真实在线的准备玩家并清理名单
@@ -176,7 +181,7 @@ class PvPManager(private val plugin: KaGuilds) {
         val blueGroup = participants.filter { plugin.playerGuildCache[it.uniqueId] == match.blueGuildId }
 
         if (participants.size < minPlayers || redGroup.isEmpty() || blueGroup.isEmpty()) {
-            match.smartBroadcast("§e§l[PVP] §c由于人数不足或一方全部掉线，比赛自动取消。")
+            match.smartBroadcast(lang.get("arena-pvp-not-enough-players"))
             stopBattle(null)
             return
         }
@@ -186,7 +191,7 @@ class PvPManager(private val plugin: KaGuilds) {
         val blueSpawn = plugin.arenaManager.arena.blueSpawn
 
         if (redSpawn == null || blueSpawn == null) {
-            match.smartBroadcast("§c[!] 竞技场坐标设置不全，无法开始战斗！")
+            match.smartBroadcast(lang.get("arena-pvp-no-spawn"))
             stopBattle(null)
             return
         }
@@ -194,9 +199,9 @@ class PvPManager(private val plugin: KaGuilds) {
         match.isStarted = true
 
         // 4. 全服广播开战消息
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
-        plugin.server.broadcastMessage("§6§l【公会战】 §e$redName §f与 §b$blueName §f的决斗正式爆发！")
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "RED-TEAM"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "BLUE-TEAM"
+        plugin.server.broadcastMessage(lang.get("arena-pvp-start", "red" to redName, "blue" to blueName))
 
         // 5. 物资准备
         val kit = plugin.arenaManager.kitContents
@@ -242,7 +247,7 @@ class PvPManager(private val plugin: KaGuilds) {
             }
 
             player.updateInventory()
-            player.sendMessage("§a§l⚔ §6§l战斗开始，为了公会的荣耀！")
+            player.sendMessage(lang.get("arena-pvp-start-msg"))
             player.playSound(player.location, org.bukkit.Sound.ENTITY_WITHER_SPAWN, 1f, 1f)
         }
 
@@ -296,6 +301,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * @param winnerId 获胜公会ID，null 则为平局
      */
     fun stopBattle(winnerId: Int?) {
+        val lang = plugin.langManager
         val match = currentMatch ?: return
         val started = match.isStarted // 记录战斗是否真正开始过
 
@@ -326,10 +332,14 @@ class PvPManager(private val plugin: KaGuilds) {
                 // 胜负仪式感
                 val playerGuildId = plugin.playerGuildCache[player.uniqueId]
                 if (winnerId != null && playerGuildId == winnerId) {
-                    player.sendTitle("§a§lVICTORY", "§f旗开得胜！", 10, 70, 20)
+                    val title = lang.get("arena-pvp-victory-title")
+                    val subtitle = lang.get("arena-pvp-victory-subtitle")
+                    player.sendTitle(title, subtitle, 10, 70, 20)
                     player.playSound(player.location, org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
                 } else if (winnerId != null) {
-                    player.sendTitle("§c§lDEFEAT", "§f下次再接再厉", 10, 70, 20)
+                    val title = lang.get("arena-pvp-defeat-title")
+                    val subtitle = lang.get("arena-pvp-defeat-subtitle")
+                    player.sendTitle(title, subtitle, 10, 70, 20)
                 }
             }
 
@@ -339,17 +349,16 @@ class PvPManager(private val plugin: KaGuilds) {
             })
 
         } else {
-            // --- 场景 B: 准备阶段取消，不计入统计，仅执行退款 ---
+            // 准备阶段取消，不计入统计，仅执行退款
+            match.smartBroadcast(lang.get("arena-pvp-not-enough-players"))
 
-            match.smartBroadcast("§e§l[PVP] §c比赛已取消。原因：人数不足、一方掉线或服务器变动。")
-
-            // 退还公会挑战金 (假设费用存在配置中)
+            // 退还公会挑战金
             val fee = plugin.config.getDouble("balance.pvp", 300.0)
             if (fee > 0) {
                 // 这里我们退还给发起公会（通常是 redGuildId 发起的挑战）
                 val success = plugin.dbManager.updateGuildBalance(match.redGuildId, fee)
                 if (success) {
-                    match.smartBroadcast("§a[!] 公会挑战金 §e$fee §a已退还至公会金库。")
+                    match.smartBroadcast(lang.get("arena-pvp-refund-success", "fee" to fee.toString()))
                 }
             }
         }
@@ -362,15 +371,15 @@ class PvPManager(private val plugin: KaGuilds) {
      * 公示最终结果
      */
     private fun broadcastFinalResult(match: ActiveMatch, winnerId: Int?) {
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+        val lang = plugin.langManager
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "RED_TEAM"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "BLUE_TEAM"
 
-        val prefix = "§6§l【公会战结果】 §f"
         if (winnerId == null) {
-            plugin.server.broadcastMessage("$prefix §e$redName §7vs §b$blueName §f双方握手言和，平局收场！")
+            plugin.server.broadcastMessage(lang.get("arena-pvp-draw-message", "red" to redName, "blue" to blueName))  // "§e$redName §7vs §b$blueName §f双方握手言和，平局收场！"
         } else {
             val winnerName = if (winnerId == match.redGuildId) redName else blueName
-            plugin.server.broadcastMessage("$prefix §e$redName §7vs §b$blueName §f战斗结束，§a§l$winnerName §f勇夺桂冠！")
+            plugin.server.broadcastMessage(lang.get("arena-pvp-victory-message", "red" to redName, "blue" to blueName, "winner" to winnerName)) // "§e$redName §7vs §b$blueName §f战斗结束，§a§l$winnerName §f勇夺桂冠！"
         }
     }
 
@@ -393,6 +402,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * 战局结算：更新数据库统计与历史记录
      */
     private fun processMatchResults(match: ActiveMatch, winnerId: Int?) {
+        val lang = plugin.langManager
         val redId = match.redGuildId
         val blueId = match.blueGuildId
 
@@ -439,7 +449,7 @@ class PvPManager(private val plugin: KaGuilds) {
                     }
                 }
             } catch (e: Exception) {
-                plugin.logger.severe("更新公会战战报时发生错误: ${e.message}")
+                plugin.logger.severe(lang.get("arena-pvp-update-history-error", "error" to e.message.toString()))  //"更新公会战战报时发生错误: ${e.message}"
                 e.printStackTrace()
             }
         })
@@ -522,6 +532,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * 更新 BossBar 显示
      */
     fun updateBossBar(seconds: Int) {
+        val lang = plugin.langManager
         val match = currentMatch ?: return
         val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
         val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
@@ -529,12 +540,14 @@ class PvPManager(private val plugin: KaGuilds) {
 
         val title = if (!match.isStarted) {
             // 准备阶段显示
-            "§e§l[ $redName ] §fVS §b§l[ $blueName ]   §6§l$timeStr §7(输入/kg pvp ready加入)"
+            lang.get("arena-pvp-bossbar-title-ready", "red" to redName, "blue" to blueName, "time" to timeStr)
+            // "§c§l[ $redName ] §fVS §b§l[ $blueName ]   §6§l$timeStr §7(输入/kg pvp ready加入)"
         } else {
             // 战斗阶段显示：■■□ [ 红队 ] 3:20 [ 蓝队 ] □■■
-            val redIcons = getTeamStatusIcons(match, match.redGuildId, false)
-            val blueIcons = getTeamStatusIcons(match, match.blueGuildId, true)
-            "$redIcons §e§l[ $redName ] §f§l$timeStr §b§l[ $blueName ] $blueIcons"
+            val redIcons = getTeamStatusIcons(match, match.redGuildId, true)
+            val blueIcons = getTeamStatusIcons(match, match.blueGuildId, false)
+            lang.get("arena-pvp-bossbar-title-gaming", "red" to redName, "blue" to blueName, "time" to timeStr, "redicons" to redIcons, "blueicons" to blueIcons)
+            // "$redIcons §c§l[ $redName ] §f§l$timeStr §b§l[ $blueName ] $blueIcons"
         }
 
         if (pvpBar == null) {
@@ -561,12 +574,13 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     private fun getTeamStatusIcons(match: ActiveMatch, guildId: Int, isMirrored: Boolean): String {
         // 获取该公会参与战斗的所有 UUID
+        val lang = plugin.langManager
         val teamMembers = match.players.filter { plugin.playerGuildCache[it] == guildId }
 
         val icons = teamMembers.map { uuid ->
             val p = plugin.server.getPlayer(uuid)
             // 存活条件：在线且模式为 ADVENTURE
-            if (p != null && p.isOnline && p.gameMode == GameMode.ADVENTURE) "§a■" else "§7□"
+            if (p != null && p.isOnline && p.gameMode == GameMode.ADVENTURE) lang.get("arena-pvp-bossbar-icon-alive") else lang.get("arena-pvp-bossbar-icon-dead")
         }
 
         return if (isMirrored) icons.joinToString("") else icons.reversed().joinToString("")
