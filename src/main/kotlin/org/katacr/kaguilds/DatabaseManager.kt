@@ -480,14 +480,15 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setInt(2, offset)
                     val rs = ps.executeQuery()
 
-                    val dateFormat = java.text.SimpleDateFormat(plugin.config.get("date-format") as String?)
+                    val dateFormat = java.text.SimpleDateFormat(plugin.config.get("date-format") as String)
                     while (rs.next()) {
                         val typeRaw = rs.getString("type")
                         // 兼容管理员的操作类型
                         val typeStr = when(typeRaw) {
                             "ADD" -> plugin.langManager.get("bank-text-add")  //"§a存入"
                             "REMOVE" -> plugin.langManager.get("bank-text-remove") //"§c强行扣除"
-                            "SET" -> plugin.langManager.get("bank-text-set") //"§b强行重置""SET_TP" -> "§6设置传送点"
+                            "SET" -> plugin.langManager.get("bank-text-set") //"§b强行重置"
+                            "SET_TP"-> plugin.langManager.get("bank-text-settp")  // "§6设置传送点"
                             "SET_ICON" -> plugin.langManager.get("bank-text-seticon") //"§6修改图标"
                             "SET_MOTD" -> plugin.langManager.get("bank-text-setmotd") //"§6修改公告"
                             "RENAME" -> plugin.langManager.get("bank-text-rename") //"§6公会改名"

@@ -1,7 +1,7 @@
 package org.katacr.kaguilds
 
-
 import org.bukkit.GameMode
+import org.bukkit.Sound
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -9,6 +9,8 @@ import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.service.OperationResult
 import org.katacr.kaguilds.service.GuildService
+import kotlin.math.ceil
+import kotlin.math.min
 
 class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter {
     override fun onCommand(sender: CommandSender, cmd: Command, label: String, args: Array<out String>): Boolean {
@@ -28,7 +30,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         // 1. 帮助与控制台基础检查
         if (subCommand == "help") {
-            if (sender is Player) sendHelp(sender) else sender.sendMessage(lang.get("console-help"))
+            val page = args.getOrNull(1)?.toIntOrNull() ?: 1
+            if (sender is Player) sendHelp(sender, page) else sender.sendMessage(lang.get("console-help"))
             return true
         }
 
@@ -556,13 +559,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     /*
      * 处理 /kg help 命令
      */
-    private fun sendHelp(sender: Player) {
+    private fun sendHelp(sender: Player, page: Int) {
         val lang = plugin.langManager
 
-        // 1. 显式传入 false，调用 get(key, boolean, vararg)
-        sender.sendMessage(lang.get("help-header"))
-
-        val cmds = mapOf(
+        // 使用 LinkedHashMap 或 List<Pair> 保持指令显示的顺序
+        val allCmds = listOf(
+            "help [page]" to "desc-help",
+            "menu" to "desc-menu",
             "create <Name>" to "desc-create",
             "join <Name>" to "desc-join",
             "info" to "desc-info",
@@ -575,6 +578,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "leave" to "desc-leave",
             "delete" to "desc-delete",
             "invite <Player>" to "desc-invite",
+            "confirm" to "desc-confirm",
             "yes" to "desc-yes",
             "no" to "desc-no",
             "reload" to "desc-reload",
@@ -584,28 +588,47 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "rename <NewName>" to "desc-rename",
             "settp" to "desc-settp",
             "tp" to "desc-tp",
-
-
-        )
-
-        cmds.forEach { (u, d) ->
-
-            sender.sendMessage(
-                lang.get(
-                    "help-format",
-                    "usage" to u,
-                    "description" to lang.get(d)
-                )
-            )
+            "seticon" to "desc-seticon",
+            "motd <text>" to "desc-motd",
+            "transfer <Player>" to "desc-transfer",
+            "pvp <start|ready|exit|accept>" to "desc-pvp",
+            "vault <num>" to "desc-vault",
+            "upgrade" to "desc-upgrade"
+        ).filter {
+            // 过滤掉权限不符的指令
+            if (it.first == "reload") sender.hasPermission("kaguilds.admin") else true
         }
 
-        if (sender.hasPermission("kaguilds.admin")) {
-            // 3. Admin reload 同理
-            sender.sendMessage(
-                lang.get("help-format", "usage" to "reload", "description" to lang.get("desc-reload"))
-            )
+        val pageSize = 10
+        val maxPage = ceil(allCmds.size.toDouble() / pageSize).toInt()
+
+        // 修正页码边界
+        val currentPage = when {
+            page < 1 -> 1
+            page > maxPage -> maxPage
+            else -> page
         }
-        sender.sendMessage(lang.get("help-footer"))
+
+        // 发送页头
+        sender.sendMessage(lang.get("help-header"))
+
+        // 计算起始和结束索引
+        val start = (currentPage - 1) * pageSize
+        val end = min(start + pageSize, allCmds.size)
+
+        // 循环发送该页的指令
+        for (i in start until end) {
+            val (cmd, descKey) = allCmds[i]
+            sender.sendMessage(" §6/kg $cmd §7- §f${lang.get(descKey)}")
+        }
+
+        // 发送页脚
+        val footer = lang.get("help-footer", "page" to currentPage.toString(), "max" to maxPage.toString())
+        sender.sendMessage(footer)
+
+        if (currentPage < maxPage) {
+            sender.sendMessage(lang.get("help-next-page", "page" to (currentPage + 1).toString()))
+        }
     }
     /*
      * 处理 /kg yes 命令
@@ -1016,7 +1039,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     }
                 }
             }
-
             "join" -> {
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-join-usage"))
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
@@ -1034,7 +1056,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     }
                 }
             }
-
             "vault" -> {
                 // 格式: /kg admin vault #ID [编号]
                 if (args.size < 3) {
@@ -1050,14 +1071,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 // 调用 Service 层专门给 admin 用的方法
                 plugin.guildService.adminOpenVault(sender as Player, guildId, index)
             }
-
             "unlockall" -> {
                 // 用法: /kg admin unlockall
                 // 效果：清空全服务器（及跨服）的所有仓库锁
                 plugin.guildService.forceResetAllLocks()
                 sender.sendMessage(lang.get("admin-unlockall-success"))
             }
-
             "setlevel"-> {
                 val targetId = args[2].replace("#", "").toIntOrNull() ?: return
                 val newLevel = args[3].toIntOrNull() ?: return
@@ -1065,19 +1084,22 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 // 获取对应等级的配置信息
                 val levelSection = plugin.config.getConfigurationSection("level.$newLevel")
                 if (levelSection == null) {
-                    sender.sendMessage("§c配置中不存在等级 $newLevel")
+                    sender.sendMessage(lang.get("admin-unknow-level", "level" to newLevel.toString()))
                     return
                 }
 
                 val maxMembers = levelSection.getInt("max-members")
+                val guild = plugin.dbManager.getGuildById(targetId)
                 if (plugin.dbManager.updateGuildLevel(targetId, newLevel, maxMembers)) {
-                    sender.sendMessage("§a成功将公会 #$targetId 的等级设置为 $newLevel")
+                    if (guild != null) {
+                        sender.sendMessage(lang.get("admin-success-modify-level", "name" to guild.name, "level" to newLevel.toString()))
+                    }
                 }
             }
             "exp" -> {
                 // /kg admin exp #1 add 100
                 if (args.size < 5) {
-                    sender.sendMessage("§c用法: /kg admin exp <#ID> <add|take|set> <数量>")
+                    sender.sendMessage(lang.get("admin-exp-usage"))
                     return
                 }
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return
@@ -1087,46 +1109,90 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
             "arena" -> {
-                if (args.size < 3) {
-                    sender.sendMessage("§c用法: /kg admin arena <setpos1|setpos2|setredspawn|setbluespawn|info>")
+                val action = args.getOrNull(2)?.lowercase()
+                if (action == null) {
+                    sender.sendMessage(lang.get("admin-arena-usage"))
                     return
                 }
-                val action = args[2].lowercase()
+
                 val player = sender as? Player ?: return
                 val loc = player.location
+                val arena = plugin.arenaManager.arena
 
                 when (action) {
-                    "setpos1" -> {
-                        plugin.arenaManager.arena.pos1 = loc
-                        player.sendMessage("§a[PVP] 成功设置对角点 1")
+                    "setpos" -> {
+                        val index = args.getOrNull(3)
+                        when (index) {
+                            "1" -> {
+                                arena.pos1 = loc
+                                player.sendMessage(lang.get("admin-arena-set-pos1"))
+                            }
+                            "2" -> {
+                                arena.pos2 = loc
+                                player.sendMessage(lang.get("admin-arena-set-pos2"))
+                            }
+                            else -> {
+                                player.sendMessage(lang.get("admin-arena-setpos-usage"))
+                                return
+                            }
+                        }
                     }
-                    "setpos2" -> {
-                        plugin.arenaManager.arena.pos2 = loc
-                        player.sendMessage("§a[PVP] 成功设置对角点 2")
+
+                    "setspawn" -> {
+                        val team = args.getOrNull(3)?.lowercase()
+                        when (team) {
+                            "red" -> {
+                                arena.redSpawn = loc
+                                player.sendMessage(lang.get("admin-arena-set-redspawn"))
+                            }
+                            "blue" -> {
+                                arena.blueSpawn = loc
+                                player.sendMessage(lang.get("admin-arena-set-bluespawn"))
+                            }
+                            else -> {
+                                player.sendMessage(lang.get("admin-arena-setspawn-usage"))
+                                return
+                            }
+                        }
                     }
-                    "setredspawn" -> {
-                        plugin.arenaManager.arena.redSpawn = loc
-                        player.sendMessage("§c[PVP] 成功设置红队出生点")
-                    }
-                    "setbluespawn" -> {
-                        plugin.arenaManager.arena.blueSpawn = loc
-                        player.sendMessage("§b[PVP] 成功设置蓝队出生点")
-                    }
-                    "info" -> {
-                        val a = plugin.arenaManager.arena
-                        player.sendMessage("§e--- 竞技场状态 ---")
-                        player.sendMessage("§7对角 1: §f${a.pos1?.let { "已设置" } ?: "§c未设置"}")
-                        player.sendMessage("§7对角 2: §f${a.pos2?.let { "已设置" } ?: "§c未设置"}")
-                        player.sendMessage("§7红队点: §f${a.redSpawn?.let { "已设置" } ?: "§c未设置"}")
-                        player.sendMessage("§7蓝队点: §f${a.blueSpawn?.let { "已设置" } ?: "§c未设置"}")
+
+                    "setkit" -> {
+                        val team = args.getOrNull(3)?.lowercase()
+                        if (team != "red" && team != "blue") {
+                            player.sendMessage(lang.get("admin-arena-setkit-usage"))
+                            return
+                        }
+
+                        plugin.arenaManager.saveKit(player, team)
+                        val teamDisplay = if (team == "red") lang.get("arena-pvp-red-team-name") else lang.get("arena-pvp-blue-team-name")
+                        player.sendMessage(lang.get("admin-arena-set-kit", "team" to teamDisplay))
                         return
                     }
-                    "setkit" -> {
-                        plugin.arenaManager.saveKit(sender)
-                        sender.sendMessage("§a[PVP] 成功！已将你当前的背包（含装备栏）设为公会战预设套装。")
+
+                    "info" -> {
+                        val t = lang.get("admin-arena-info-set")
+                        val f = lang.get("admin-arena-info-unset")
+
+                        player.sendMessage(lang.get("admin-arena-info-header"))
+                        player.sendMessage("${lang.get("admin-arena-info-pos1")} ${if (arena.pos1 != null) t else f}")
+                        player.sendMessage("${lang.get("admin-arena-info-pos2")} ${if (arena.pos2 != null) t else f}")
+                        player.sendMessage("${lang.get("admin-arena-info-redspawn")} ${if (arena.redSpawn != null) t else f}")
+                        player.sendMessage("${lang.get("admin-arena-info-bluespawn")} ${if (arena.blueSpawn != null) t else f}")
+
+                        val redKitStatus = if (plugin.arenaManager.redKitContents != null) t else f
+                        val blueKitStatus = if (plugin.arenaManager.blueKitContents != null) t else f
+                        player.sendMessage("${lang.get("admin-arena-info-redkit")} $redKitStatus")
+                        player.sendMessage("${lang.get("admin-arena-info-bluekit")} $blueKitStatus")
+                        return
+                    }
+
+                    else -> {
+                        sender.sendMessage(lang.get("admin-arena-usage"))
+                        return
                     }
                 }
-                // 只要有修改就立即保存
+
+                // 只要有坐标位置的修改就立即保存配置文件
                 plugin.arenaManager.saveArena()
             }
 
@@ -1239,40 +1305,37 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     private fun handleUpgrade(player: Player) {
         plugin.guildService.upgradeGuild(player) { result ->
             if (result is OperationResult.Error) player.sendMessage(result.message)
-            else player.sendMessage("§a恭喜！公会升级成功。")
+            else player.sendMessage(plugin.langManager.get("menu-upgrade-level-up-msg"))
         }
     }
 
-    /*
-     * 处理 /kg pvp 命令
-     */
     private fun handlePvP(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
 
         if (args.size < 2) {
-            player.sendMessage("§6§l[公会战指令帮手]")
-            player.sendMessage(" §7- §f/kg pvp start <名称> §8发起挑战")
-            player.sendMessage(" §7- §f/kg pvp accept §8接受挑战")
-            player.sendMessage(" §7- §f/kg pvp ready §8准备并进入战场")
-            player.sendMessage(" §7- §f/kg pvp exit §8退出对战/准备")
+            player.sendMessage(lang.get("arena-pvp-help-header"))
+            player.sendMessage(lang.get("arena-pvp-help-start"))
+            player.sendMessage(lang.get("arena-pvp-help-accept"))
+            player.sendMessage(lang.get("arena-pvp-help-ready"))
+            player.sendMessage(lang.get("arena-pvp-help-exit"))
             return
         }
 
         val action = args[1].lowercase()
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: run {
-            player.sendMessage("§c[!] 你必须先加入一个公会。")
+            player.sendMessage(lang.get("error-no-guild"))
             return
         }
 
         when (action) {
             "start" -> {
                 if (args.size < 3) {
-                    player.sendMessage("§c用法: /kg pvp start <公会名或#ID>")
+                    player.sendMessage(lang.get("arena-pvp-start-usage"))
                     return
                 }
 
-                // 权限检查
                 if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
-                    player.sendMessage("§c[!] 只有公会管理层可以发起挑战。")
+                    player.sendMessage(lang.get("not-staff"))
                     return
                 }
 
@@ -1284,133 +1347,120 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (targetGuild == null || targetGuild.id == guildId) {
-                    player.sendMessage("§c[!] 指定的目标公会无效。")
+                    player.sendMessage(lang.get("arena-pvp-error-invalid-target"))
                     return
                 }
-                // 检查在线玩家是否属于目标公会
+
                 val isTargetStaffOnline = plugin.server.onlinePlayers.any { onlinePlayer ->
                     val onlinePlayerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
                     onlinePlayerGuildId == targetGuild.id && plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuild.id)
                 }
                 if (!isTargetStaffOnline) {
-                    player.sendMessage("§c[!] 对方公会的会长或管理员目前不在线，无法发起挑战。")
-                    return
-                }
-                // 检查竞技场是否占用
-                if (plugin.pvpManager.currentMatch != null) {
-                    player.sendMessage("§c[!] 竞技场目前正忙，请稍后再试。")
+                    player.sendMessage(lang.get("arena-pvp-error-target-offline"))
                     return
                 }
 
-                // 扣费并发送邀请
+                if (plugin.pvpManager.currentMatch != null) {
+                    player.sendMessage(lang.get("arena-pvp-error-arena-busy"))
+                    return
+                }
+
                 val fee = plugin.config.getDouble("balance.pvp", 300.0)
                 if (plugin.dbManager.updateGuildBalance(guildId, -fee)) {
                     plugin.pvpManager.sendChallenge(guildId, targetGuild.id)
-                    player.sendMessage("§a[PVP] 挑战已发出，已从公会金库扣除 §e$fee §a金币。")
-                    // 触发对方公会的消息通知
-                    plugin.pvpManager.notifyTargetGuild(targetGuild.id, plugin.dbManager.getGuildData(guildId)?.name ?: "未知")
+                    player.sendMessage(lang.get("arena-pvp-challenge-sent", "fee" to fee.toString()))
+
+                    val myGuildName = plugin.dbManager.getGuildData(guildId)?.name ?: "Unknown"
+                    plugin.pvpManager.notifyTargetGuild(targetGuild.id, myGuildName)
                 } else {
-                    player.sendMessage("§c[!] 公会金库余额不足 §e$fee §c金币。")
+                    player.sendMessage(lang.get("error-insufficient-balance", "needed" to fee.toString()))
                 }
             }
 
             "accept" -> {
                 if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
-                    player.sendMessage("§c[!] 只有管理层可以接受挑战。")
+                    player.sendMessage(lang.get("not-staff"))
                     return
                 }
 
                 val senderId = plugin.pvpManager.acceptChallenge(guildId)
                 if (senderId != null) {
                     val match = plugin.pvpManager.currentMatch
-                    val senderName = plugin.dbManager.getGuildData(senderId)?.name ?: "对方公会"
+                    val senderName = plugin.dbManager.getGuildData(senderId)?.name ?: "Opponent"
 
-                    match?.smartBroadcast("§6§l【公会战】 §b${player.name} §f代表公会接受了 §c$senderName §f的挑战！")
-                    match?.smartBroadcast("§e§l>> §f请准备参赛的成员输入 §6/kg pvp ready §f进入竞技场！")
+                    match?.smartBroadcast(lang.get("arena-pvp-accept-broadcast", "player" to player.name, "sender" to senderName))
+                    match?.smartBroadcast(lang.get("arena-pvp-ready-hint"))
                 } else {
-                    player.sendMessage("§c[!] 邀请已失效或不存在。")
+                    player.sendMessage(lang.get("arena-pvp-error-no-invite"))
                 }
             }
 
             "ready" -> {
                 val match = plugin.pvpManager.currentMatch ?: run {
-                    player.sendMessage("§c[!] 当前没有准备中的公会战。")
+                    player.sendMessage(lang.get("arena-pvp-error-no-match"))
                     return
                 }
 
                 if (match.isStarted) {
-                    player.sendMessage("§c[!] 战斗已正式开始，无法中途加入。")
+                    player.sendMessage(lang.get("arena-pvp-error-started"))
                     return
                 }
 
-                // 1. 检查人数限制
-                val maxPerTeam = plugin.config.getInt("guild.arena.max-players-per-team", 10)
+                val maxPerTeam = plugin.config.getInt("guild.arena.max-players", 10)
                 val currentInTeam = match.players.count { plugin.playerGuildCache[it] == guildId }
 
-                // 如果玩家已经在名单里，不需要重复加入
                 if (match.players.contains(player.uniqueId)) {
-                    player.sendMessage("§e[!] 你已经处于准备就绪状态，请等待倒计时结束。")
+                    player.sendMessage(lang.get("arena-pvp-already-ready"))
                     return
                 }
 
                 if (currentInTeam >= maxPerTeam) {
-                    player.sendMessage("§c[!] 本队出战名额已满 ($maxPerTeam 人)。")
+                    player.sendMessage(lang.get("arena-pvp-error-team-full", "max" to maxPerTeam.toString()))
                     return
                 }
 
-                // 2. 确认出生点已设置（作为加入的前置条件，防止开赛时报错）
-                val redSpawn = plugin.arenaManager.arena.redSpawn
-                val blueSpawn = plugin.arenaManager.arena.blueSpawn
-                if (redSpawn == null || blueSpawn == null) {
-                    player.sendMessage("§c[!] 竞技场坐标配置不全，请联系管理员。")
+                val arena = plugin.arenaManager.arena
+                if (arena.redSpawn == null || arena.blueSpawn == null) {
+                    player.sendMessage(lang.get("arena-arena-pvp-no-spawn"))
                     return
                 }
 
-                // 3. 执行加入逻辑
                 if (match.players.add(player.uniqueId)) {
-                    // 获取战队名称
-                    val guildName = plugin.dbManager.getGuildData(guildId)?.name ?: "未知公会"
-
-                    // 区分红蓝方并发送广播
+                    val guildName = plugin.dbManager.getGuildData(guildId)?.name ?: "Unknown"
                     val isRed = guildId == match.redGuildId
-                    val prefix = if (isRed) "§c§l[红方] §f[§e$guildName§f]" else "§b§l[蓝方] §f[§e$guildName§f]"
+                    val teamDisplay = if (isRed) lang.get("arena-pvp-red-team-name") else lang.get("arena-pvp-blue-team-name")
 
-                    // 只给参赛双方玩家发送加入消息
-                    match.smartBroadcast("$prefix §a玩家 §n${player.name}§a 已加入公会战！")
+                    match.smartBroadcast(lang.get("arena-pvp-join-broadcast",
+                        "team" to teamDisplay,
+                        "guild" to guildName,
+                        "player" to player.name))
 
-                    // 给玩家个人的反馈（不再传送）
-                    // player.sendMessage("§a[PVP] 你已进入准备状态！")
-                    player.playSound(player.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+                    player.playSound(player.location, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
                 }
             }
 
             "exit" -> {
                 val match = plugin.pvpManager.currentMatch
                 if (match == null || !match.players.contains(player.uniqueId)) {
-                    player.sendMessage("§c[!] 你不在对战名单中。")
+                    player.sendMessage(lang.get("arena-pvp-error-not-in-match"))
                     return
                 }
 
-                // 无论处于什么阶段，统一执行退出清理
                 match.players.remove(player.uniqueId)
                 plugin.pvpManager.restoreSnapshot(player)
                 player.gameMode = GameMode.SURVIVAL
                 player.teleport(player.world.spawnLocation)
 
-                player.sendMessage("§a[PVP] 你已退出公会战。")
+                player.sendMessage(lang.get("arena-pvp-exit-success"))
 
-                // 如果已经开始，需检查胜负
                 if (match.isStarted) {
-                    match.broadcast("§7[PVP] §e${player.name} §c退出了战斗。")
+                    match.smartBroadcast(lang.get("arena-pvp-exit-broadcast", "player" to player.name))
                     plugin.pvpManager.checkWinCondition()
                 }
             }
-
-            else -> player.sendMessage("§c未知操作。")
+            else -> player.sendMessage(lang.get("error-missing-args"))
         }
-        return
     }
-
     /*
      * 处理 /kg 命令的 tab 补全
      */
@@ -1436,16 +1486,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             2 -> {
                 val sub = args[0].lowercase()
-                // 这里的 list 变量类型会自动推导为 List<String>?
                 val list = when (sub) {
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
-                        listOf("info", "rename", "delete", "bank", "transfer", "kick", "join", "vault", "setlevel", "exp", "arena")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
                     "buff" -> getBuffTab(sender)
-                    // 对于需要补全玩家的名字的分支，直接返回 null 结束
                     "kick", "promote", "demote", "invite", "join", "accept", "deny", "transfer" -> return null
                     else -> emptyList()
                 }
@@ -1454,17 +1502,37 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             3 -> {
                 val sub = args[0].lowercase()
-                val sub2 = args[1].lowercase()
+                val adminAction = args[1].lowercase()
 
-                val list = when (sub) {
-                    "pvp" -> if (sub2 == "start") return null else emptyList()
-                    "admin" -> listOf("#")
-                    else -> emptyList()
+                if (sub == "admin") {
+                    // 特殊处理没有公会ID参数的指令
+                    if (adminAction == "arena") {
+                        return filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
+                    }
+                    if (adminAction == "unlockall") return emptyList()
+
+                    // 其他 admin 指令此处均为 [公会ID]，提示输入 #
+                    return filterList(listOf("#"), args[2])
                 }
-                filterList(list, args[2])
+
+                if (sub == "pvp" && adminAction == "start") return null
+                emptyList()
             }
 
             4 -> handleAdminTab(args)
+
+            5 -> {
+                // 处理五段式指令的最后一位数值或玩家名
+                val sub = args[0].lowercase()
+                val adminAction = args[1].lowercase()
+                if (sub == "admin") {
+                    when (adminAction) {
+                        "bank", "exp" -> return filterList(listOf("<数值>"), args[4])
+                        "transfer", "kick", "join" -> return null // 补全玩家名
+                    }
+                }
+                emptyList()
+            }
 
             else -> emptyList()
         }
@@ -1474,17 +1542,29 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 专门处理 /kg admin ... 的补全
      */
     private fun handleAdminTab(args: Array<out String>): List<String>? {
-        val adminSub = args[1].lowercase()
+        val adminAction = args[1].lowercase()
+        val thirdArg = args[2].lowercase() // 可能是 ID，也可能是 arena 的 subAction
 
-        val list = when (adminSub) {
+        val list = when (adminAction) {
+            // 模式 A: /kg admin arena [sub] [val] -> 此时 thirdArg 是 subAction
+            "arena" -> when (thirdArg) {
+                "setpos" -> listOf("1", "2")
+                "setspawn", "setkit" -> listOf("red", "blue")
+                else -> emptyList()
+            }
+
+            // 模式 B: /kg admin [action] [ID] [sub] -> 此时需要补全 subAction
             "bank" -> listOf("see", "log", "add", "remove", "set")
-            "exp" -> listOf("add", "take", "set")
+            "exp" -> listOf("add", "remove", "set")
+
+            // 模式 C: /kg admin [action] [ID] [val] -> 此时直接提示值
             "vault" -> (1..9).map { it.toString() }
-            "arena" -> listOf("setpos1", "setpos2", "setredspawn", "setbluespawn", "info", "setkit", "stop")
             "rename" -> listOf("<name>")
-            "upgrade" -> listOf("<level>")
-            // 管理员模块中涉及玩家名补全的逻辑
-            "kick", "join", "transfer" -> return null
+            "setlevel" -> listOf("<level>")
+
+            // 模式 D: /kg admin [action] [ID] [Player] -> 此时补全玩家
+            "transfer", "kick", "join" -> return null
+
             else -> emptyList()
         }
 

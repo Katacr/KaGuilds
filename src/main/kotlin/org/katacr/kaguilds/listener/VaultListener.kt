@@ -12,6 +12,7 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
 
     @EventHandler
     fun onVaultClose(event: InventoryCloseEvent) {
+        val lang = plugin.langManager
         val holder = event.inventory.holder as? VaultHolder ?: return
 
         // 1. 取消续租任务
@@ -36,13 +37,12 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
                 plugin.guildService.vaultLocks.remove(Pair(guildId, index))
             } else {
                 // 6. 异常处理：保存失败时不释放锁，直到租约过期。这能最大限度保护玩家物品不被覆盖。
-                plugin.logger.severe("【紧急】公会 $guildId 的仓库 $index 保存失败！")
-                plugin.logger.severe("玩家 ${player.name} 的修改未生效，为保护数据，物理锁未立即释放。")
+                plugin.logger.severe(lang.get("error-save-vault", "id" to guildId.toString(), "index" to index.toString(), "player" to player.name))
 
                 // 依然需要清理本地内存锁，允许本服稍后重新尝试开启
                 plugin.guildService.vaultLocks.remove(Pair(guildId, index))
 
-                player.sendMessage("§c[!] 仓库数据保存异常，请联系管理员。")
+                player.sendMessage(lang.get("error-database"))
             }
         })
     }

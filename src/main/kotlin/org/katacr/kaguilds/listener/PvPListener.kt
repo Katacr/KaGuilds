@@ -19,6 +19,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     fun onPlayerDamage(event: EntityDamageEvent) {
+        val lang = plugin.langManager
         val player = event.entity as? Player ?: return
         val match = plugin.pvpManager.currentMatch ?: return
 
@@ -38,12 +39,15 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
             player.activePotionEffects.clear()
 
             // 2. 消息与特效
-            player.sendMessage("§c§l[!] 你已战死！正在进入旁观模式...")
+            player.sendMessage(lang.get("arena-pvp-death-msg"))
             player.playSound(player.location, Sound.ENTITY_PLAYER_DEATH, 1f, 1f)
 
             val guildId = plugin.playerGuildCache[player.uniqueId]
-            val teamColor = if (guildId == match.redGuildId) "§c红队" else "§b蓝队"
-            match.smartBroadcast("§7[PVP] $teamColor §f的 §e${player.name} §f已阵亡！")
+            val teamColor = if (guildId == match.redGuildId)
+                lang.get("arena-pvp-red-team-name")
+            else
+                lang.get("arena-pvp-blue-team-name")
+            match.smartBroadcast(lang.get("arena-pvp-death-broadcast", "team" to teamColor, "player" to player.name))
 
             // 3. 检查胜负
             plugin.pvpManager.checkWinCondition()
@@ -55,6 +59,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
      */
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {
+        val lang = plugin.langManager
         val player = event.player
         val match = plugin.pvpManager.currentMatch ?: return
 
@@ -63,10 +68,10 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
         if (!match.isStarted) {
             // 准备阶段掉线，直接踢出名单
             match.players.remove(player.uniqueId)
-            match.smartBroadcast("§7[PVP] §e${player.name} §f离开了服务器，已取消准备。")
+            match.smartBroadcast(lang.get("arena-pvp-ready-quit-broadcast", "player" to player.name))
         } else if (player.gameMode == GameMode.ADVENTURE) {
             // 战斗阶段掉线，视为战败
-            match.smartBroadcast("§7[PVP] §e${player.name} §c在战斗中离线，视为战败。")
+            match.smartBroadcast(lang.get("arena-pvp-gaming-quit-broadcast", "player" to player.name))
             // 延迟一帧检查，确保状态已更新
             org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 plugin.pvpManager.checkWinCondition()
@@ -88,6 +93,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
      */
     @EventHandler
     fun onCommand(event: PlayerCommandPreprocessEvent) {
+        val lang = plugin.langManager
         val player = event.player
         val match = plugin.pvpManager.currentMatch ?: return
 
@@ -95,7 +101,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
             val cmd = event.message.lowercase()
             // 允许管理员指令和公会内部必要指令，拦截 /home, /tpa, /spawn 等
             if (!cmd.startsWith("/kg") && !player.hasPermission("kaguilds.admin")) {
-                player.sendMessage("§c[!] 战斗期间禁止使用逃跑指令！")
+                player.sendMessage(lang.get("arena-pvp-cmd-deny"))
                 event.isCancelled = true
             }
         }
@@ -106,6 +112,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
      */
     @EventHandler
     fun onMove(event: PlayerMoveEvent) {
+        val lang = plugin.langManager
         val match = plugin.pvpManager.currentMatch ?: return
         if (!match.isStarted || !match.players.contains(event.player.uniqueId)) return
 
@@ -127,7 +134,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
             val maxZ = maxOf(pos1.z, pos2.z)
 
             if (loc.x !in minX..maxX || loc.z < minZ || loc.z > maxZ || loc.y < minY || loc.y > maxY) {
-                player.sendMessage("§c[!] 你不能离开竞技场范围！")
+                player.sendMessage(lang.get("arena-pvp-out-of-bounds"))
                 // 传回对应的出生点
                 val spawn = if (plugin.playerGuildCache[player.uniqueId] == match.redGuildId) arena.redSpawn else arena.blueSpawn
                 spawn?.let { player.teleport(it) }

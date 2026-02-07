@@ -17,6 +17,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
     @EventHandler
     fun onClick(event: InventoryClickEvent) {
+        val lang = plugin.langManager
         // 1. 识别是否为本插件菜单
         val holder = event.inventory.holder as? GuildMenuHolder ?: return
         event.isCancelled = true
@@ -43,7 +44,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         // 如果金库未解锁 (0)
         if (vStatus != null && vStatus == 0) {
-            player.sendMessage("§c§l! §7该公会金库尚未解锁，请先提升公会等级。")
+            player.sendMessage(lang.get("menu-vault-not-unlocked"))
             player.playSound(player.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f)
             return
         }
@@ -52,15 +53,15 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         if (uStatus != null) {
             when (uStatus) {
                 0 -> {
-                    player.sendMessage("§c§l! §7请按顺序升级公会等级。")
+                    player.sendMessage(lang.get("menu-upgrade-not-unlocked"))
                     return
                 }
                 2 -> {
-                    player.sendMessage("§c§l! §7公会经验不足，无法升级。")
+                    player.sendMessage(lang.get("menu-upgrade-not-enough-exp"))
                     return
                 }
                 3 -> {
-                    player.sendMessage("§a§l! §7公会已达到该等级。")
+                    player.sendMessage(lang.get("menu-upgrade-now-level"))
                     return
                 }
             }
@@ -253,7 +254,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                 try {
                     player.playSound(player.location, org.bukkit.Sound.valueOf(soundName), 1f, 1f)
                 } catch (_: Exception) {
-                    plugin.logger.warning("无效声音: $soundName")
+                    plugin.logger.warning("Unknown sound: $soundName")
                 }
             }
             "open" -> {
@@ -300,9 +301,11 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     fun onChat(event: AsyncPlayerChatEvent) {
+        val lang = plugin.langManager
         val player = event.player
         // 尝试从缓存中获取当前玩家的捕获任务
         val type = chatCatchers[player.uniqueId] ?: return
+
 
         // 1. 拦截消息
         event.isCancelled = true
@@ -312,14 +315,14 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         // 允许玩家取消
         if (message.equals("cancel", ignoreCase = true)) {
-            player.sendMessage("§e[!] 已取消输入。")
+            player.sendMessage(lang.get("menu-catcher-cancel"))
             return
         }
 
         // 2. 验证是否为数字 (bank_add/get 专用)
         val amount = message.toLongOrNull()
         if (amount == null || amount <= 0) {
-            player.sendMessage("§c[!] 错误：请输入有效的正整数金额。")
+            player.sendMessage(lang.get("menu-catcher-invalid-amount"))
             return
         }
 

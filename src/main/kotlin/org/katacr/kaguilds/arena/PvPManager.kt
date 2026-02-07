@@ -204,45 +204,45 @@ class PvPManager(private val plugin: KaGuilds) {
         plugin.server.broadcastMessage(lang.get("arena-pvp-start", "red" to redName, "blue" to blueName))
 
         // 5. 物资准备
-        val kit = plugin.arenaManager.kitContents
+        val redKit = plugin.arenaManager.redKitContents
+        val blueKit = plugin.arenaManager.blueKitContents
 
         // 6. 处理参战玩家状态
         participants.forEach { player ->
             val playerGuildId = plugin.playerGuildCache[player.uniqueId]
+            val isRedTeam = (playerGuildId == match.redGuildId)
 
-            // A. 状态重置 (血量、饥饿、药水、火)
+            // A. 状态重置
             player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
             player.foodLevel = 20
             player.fireTicks = 0
             player.activePotionEffects.clear()
 
-            // B. 保存原本背包并彻底清空
+            // B. 保存原本背包并清空
             takeSnapshot(player)
             player.inventory.clear()
 
-            // C. 传送 (红队去redSpawn，蓝队去blueSpawn)
-            if (playerGuildId == match.redGuildId) {
-                player.teleport(redSpawn)
-            } else {
-                player.teleport(blueSpawn)
-            }
-
-            // D. 模式切换与物资发放
+            // C. 传送并设置模式
+            val spawn = if (isRedTeam) plugin.arenaManager.arena.redSpawn else plugin.arenaManager.arena.blueSpawn
+            spawn?.let { player.teleport(it) }
             player.gameMode = GameMode.ADVENTURE
 
-            if (kit != null && plugin.config.getBoolean("guild.arena.kit", true)) {
+            // D. 根据阵营发放对应套装
+            val targetKit = if (isRedTeam) redKit else blueKit
+
+            if (targetKit != null && plugin.config.getBoolean("guild.arena.kit", true)) {
                 // 填充主背包 (0-35)
                 for (i in 0 until 36) {
-                    if (i < kit.size) player.inventory.setItem(i, kit[i]?.clone())
+                    if (i < targetKit.size) player.inventory.setItem(i, targetKit[i]?.clone())
                 }
                 // 填充盔甲 (36-39)
-                if (kit.size >= 40) {
-                    val armor = kit.sliceArray(36..39).map { it?.clone() }.toTypedArray()
+                if (targetKit.size >= 40) {
+                    val armor = targetKit.sliceArray(36..39).map { it?.clone() }.toTypedArray()
                     player.inventory.armorContents = armor
                 }
                 // 填充副手 (40)
-                if (kit.size >= 41) {
-                    player.inventory.setItemInOffHand(kit[40]?.clone())
+                if (targetKit.size >= 41) {
+                    player.inventory.setItemInOffHand(targetKit[40]?.clone())
                 }
             }
 

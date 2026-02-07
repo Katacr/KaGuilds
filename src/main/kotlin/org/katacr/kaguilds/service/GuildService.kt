@@ -1737,12 +1737,13 @@ class GuildService(private val plugin: KaGuilds) {
      * @param callback 回调函数，用于处理结果
      */
     fun upgradeGuild(player: Player, callback: (OperationResult) -> Unit) {
-        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.Error(plugin.langManager.get("error-no-guild")))
+        val lang = plugin.langManager
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.Error(lang.get("error-not-has-guild")))
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 权限检查
             if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
-                return@Runnable syncCallback(callback, OperationResult.Error(plugin.langManager.get("error-no-permission")))
+                return@Runnable syncCallback(callback, OperationResult.Error(lang.get("error-no-permission")))
             }
 
             val guildData = plugin.dbManager.getGuildById(guildId) ?: return@Runnable
@@ -1752,13 +1753,13 @@ class GuildService(private val plugin: KaGuilds) {
             val levelSection =
                 plugin.config.getConfigurationSection("level.$nextLevel") ?: return@Runnable syncCallback(
                     callback,
-                    OperationResult.Error("§c公会已达到最高等级！")
+                    OperationResult.Error(lang.get("menu-upgrade-max-level"))
                 )
 
             // 3. 检查经验值
             val needExp = levelSection.getInt("need-exp")
             if (guildData.exp < needExp) {
-                return@Runnable syncCallback(callback, OperationResult.Error("§c经验值不足！升级需要 $needExp 经验（当前: ${guildData.exp}）"))
+                return@Runnable syncCallback(callback, OperationResult.Error(lang.get("menu-upgrade-not-enough-exp", "need" to needExp.toString(), "exp" to guildData.exp.toString())))
             }
 
             // 4. 获取新等级的属性
@@ -1768,7 +1769,7 @@ class GuildService(private val plugin: KaGuilds) {
             if (plugin.dbManager.updateGuildLevel(guildId, nextLevel, maxMembers)) {
                 syncCallback(callback, OperationResult.Success)
                 // 全服广播或公会消息
-                plugin.server.broadcastMessage("§8[§b公会§8] §f${guildData.name} §7成功升级到了等级 §f$nextLevel§7！")
+                plugin.server.broadcastMessage(lang.get("menu-upgrade-level-up-broadcast", "name" to guildData.name, "level" to nextLevel.toString())) //"§8[§b公会§8] §f${guildData.name} §7成功升级到了等级 §f$nextLevel§7！"
             } else {
                 syncCallback(callback, OperationResult.Error(plugin.langManager.get("error-database")))
             }
@@ -1779,20 +1780,21 @@ class GuildService(private val plugin: KaGuilds) {
      * 修改公会经验值
      * @param sender 命令发送者
      * @param guildId 公会 ID
-     * @param type 类型（add/take/set）
+     * @param type 类型（add/remove/set）
      * @param amount 数量
      */
     fun adminModifyExp(sender: CommandSender, guildId: Int, type: String, amount: Int) {
+        val lang = plugin.langManager
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val guild = plugin.dbManager.getGuildById(guildId)
             if (guild == null) {
-                sender.sendMessage("§c未找到 ID 为 #$guildId 的公会")
+                sender.sendMessage(lang.get("error-guild-not-found", "id" to guildId.toString()))
                 return@Runnable
             }
 
             val success = when (type.lowercase()) {
                 "add" -> plugin.dbManager.updateGuildExp(guildId, amount, false)
-                "take" -> plugin.dbManager.updateGuildExp(guildId, -amount, false)
+                "remove" -> plugin.dbManager.updateGuildExp(guildId, -amount, false)
                 "set" -> plugin.dbManager.updateGuildExp(guildId, amount, true)
                 else -> false
             }
@@ -1800,9 +1802,9 @@ class GuildService(private val plugin: KaGuilds) {
             plugin.server.scheduler.runTask(plugin, Runnable {
                 if (success) {
                     val newExp = if (type == "set") amount else (guild.exp + if (type == "add") amount else -amount)
-                    sender.sendMessage("§a成功将公会 §f${guild.name} §a的经验值修改为 §f$newExp")
+                    sender.sendMessage(lang.get("admin-success-modify-exp", "name" to guild.name,"exp" to newExp.toString()))
                 } else {
-                    sender.sendMessage("§c数据库操作失败，请检查后台。")
+                    sender.sendMessage(lang.get("error-database"))
                 }
             })
         })

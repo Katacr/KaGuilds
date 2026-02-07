@@ -9,7 +9,8 @@ import java.io.File
 class ArenaManager(private val plugin: KaGuilds) {
     private val file = File(plugin.dataFolder, "arena.yml")
     private var config = YamlConfiguration.loadConfiguration(file)
-    var kitContents: Array<ItemStack?>? = null
+    var redKitContents: Array<ItemStack?>? = null
+    var blueKitContents: Array<ItemStack?>? = null
     val arena = ArenaData()
 
     init {
@@ -31,43 +32,58 @@ class ArenaManager(private val plugin: KaGuilds) {
         config.save(file)
     }
 
-    fun saveKit(player: org.bukkit.entity.Player) {
+    fun saveKit(player: org.bukkit.entity.Player, team: String) {
         val lang = plugin.langManager
-        // 1. 分别获取主背包、盔甲、副手物品
-        val mainItems = player.inventory.contents // 0-35 主要是背包空间
-        val armorItems = player.inventory.armorContents // 盔甲栏
-        val extraItems = player.inventory.extraContents // 副手栏
-
-        // 2. 合并为一个大数组
+        val mainItems = player.inventory.contents
+        val armorItems = player.inventory.armorContents
+        val extraItems = player.inventory.extraContents
         val allItems = mainItems + armorItems + extraItems
 
         val base64 = SerializationUtil.itemsToBase64(allItems)
-
         val file = File(plugin.dataFolder, "arena.yml")
         val config = YamlConfiguration.loadConfiguration(file)
-        config.set("kit_data", base64)
+
+        // 根据团队存储不同的路径
+        val path = if (team.lowercase() == "red") "kit_data_red" else "kit_data_blue"
+        config.set(path, base64)
         config.save(file)
 
-        this.kitContents = allItems // 更新缓存
-        plugin.logger.info(lang.get("arena-kit-saved", "size" to allItems.size.toString()))
+        // 更新内存缓存
+        if (team.lowercase() == "red") redKitContents = allItems else blueKitContents = allItems
+
+        plugin.logger.info(lang.get("arena-kit-saved", "team" to team, "size" to allItems.size.toString()))
     }
 
     fun loadKit() {
         val lang = plugin.langManager
         val file = File(plugin.dataFolder, "arena.yml")
-        if (!file.exists()) {
-            plugin.logger.warning(lang.get("error-not-arena-yml"))
-            return
-        }
+
+        if (!file.exists()) return
 
         try {
             val config = YamlConfiguration.loadConfiguration(file)
-            val base64 = config.getString("kit_data")
 
-            if (!base64.isNullOrEmpty()) {
-                this.kitContents = SerializationUtil.itemStackArrayFromBase64(base64)
+            // 1. 加载红队套装数据
+            config.getString("kit_data_red")?.let { base64 ->
+                if (base64.isNotEmpty()) {
+                    this.redKitContents = SerializationUtil.itemStackArrayFromBase64(base64)
+                }
             }
+
+            // 2. 加载蓝队套装数据
+            config.getString("kit_data_blue")?.let { base64 ->
+                if (base64.isNotEmpty()) {
+                    this.blueKitContents = SerializationUtil.itemStackArrayFromBase64(base64)
+                }
+            }
+
+            // 日志后台记录
+            val redSize = redKitContents?.size ?: 0
+            val blueSize = blueKitContents?.size ?: 0
+            plugin.logger.info(lang.get("arena-kit-load", "red" to redSize.toString(), "blue" to blueSize.toString()))
+
         } catch (e: Exception) {
+            // 报错时（如 Base64 损坏）才打印错误
             plugin.logger.severe(lang.get("error-load-arena-kit", "error" to e.message.orEmpty()))
         }
     }
