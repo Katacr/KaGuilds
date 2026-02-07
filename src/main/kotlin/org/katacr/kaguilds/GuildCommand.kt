@@ -619,7 +619,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         // 循环发送该页的指令
         for (i in start until end) {
             val (cmd, descKey) = allCmds[i]
-            sender.sendMessage(" §6/kg $cmd §7- §f${lang.get(descKey)}")
+            sender.sendMessage(" §6/guild $cmd §7- §f${lang.get(descKey)}")
         }
 
         // 发送页脚
@@ -1309,6 +1309,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
+    /*
+     * 处理 /kg pvp 命令
+     */
     private fun handlePvP(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
 
@@ -1330,15 +1333,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         when (action) {
             "start" -> {
                 if (args.size < 3) {
-                    player.sendMessage(lang.get("arena-pvp-start-usage"))
+                    player.sendMessage(lang.get("pvp-start-usage"))
                     return
                 }
 
-                if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
-                    player.sendMessage(lang.get("not-staff"))
+                // 基础检查：是否有正在进行的比赛
+                if (plugin.pvpManager.currentMatch != null) {
+                    player.sendMessage(lang.get("pvp-error-arena-busy"))
                     return
                 }
 
+                // 获取目标公会
                 val targetInput = args[2]
                 val targetGuild = if (targetInput.startsWith("#")) {
                     plugin.dbManager.getGuildData(targetInput.substring(1).toIntOrNull() ?: -1)
@@ -1347,33 +1352,34 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (targetGuild == null || targetGuild.id == guildId) {
-                    player.sendMessage(lang.get("arena-pvp-error-invalid-target"))
+                    player.sendMessage(lang.get("pvp-error-invalid-target"))
                     return
                 }
 
+                // 检查对方是否有管理在线 (保持在主线程检查)
                 val isTargetStaffOnline = plugin.server.onlinePlayers.any { onlinePlayer ->
                     val onlinePlayerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
                     onlinePlayerGuildId == targetGuild.id && plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuild.id)
                 }
                 if (!isTargetStaffOnline) {
-                    player.sendMessage(lang.get("arena-pvp-error-target-offline"))
+                    player.sendMessage(lang.get("pvp-error-target-offline"))
                     return
                 }
 
-                if (plugin.pvpManager.currentMatch != null) {
-                    player.sendMessage(lang.get("arena-pvp-error-arena-busy"))
-                    return
-                }
+                // 调用 Service 层执行扣费与发起逻辑
+                plugin.guildService.startPvPChallenge(player, targetGuild) { result ->
+                    when (result) {
+                        is OperationResult.Success -> {
+                            val cost = plugin.config.getDouble("balance.pvp", 300.0)
+                            player.sendMessage(lang.get("pvp-challenge-sent", "fee" to cost.toString()))
 
-                val fee = plugin.config.getDouble("balance.pvp", 300.0)
-                if (plugin.dbManager.updateGuildBalance(guildId, -fee)) {
-                    plugin.pvpManager.sendChallenge(guildId, targetGuild.id)
-                    player.sendMessage(lang.get("arena-pvp-challenge-sent", "fee" to fee.toString()))
-
-                    val myGuildName = plugin.dbManager.getGuildData(guildId)?.name ?: "Unknown"
-                    plugin.pvpManager.notifyTargetGuild(targetGuild.id, myGuildName)
-                } else {
-                    player.sendMessage(lang.get("error-insufficient-balance", "needed" to fee.toString()))
+                            val myGuildName = plugin.dbManager.getGuildData(guildId)?.name ?: "Unknown"
+                            plugin.pvpManager.notifyTargetGuild(targetGuild.id, myGuildName)
+                        }
+                        is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
+                        is OperationResult.Error -> player.sendMessage(result.message)
+                        else -> {}
+                    }
                 }
             }
 

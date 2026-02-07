@@ -1809,6 +1809,54 @@ class GuildService(private val plugin: KaGuilds) {
             })
         })
     }
+    /**
+     * 发起公会战申请 (消耗公会资金)
+     */
+    fun startPvPChallenge(player: Player, targetGuild: DatabaseManager.GuildData, callback: (OperationResult) -> Unit) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
+
+        // 1. 权限检查
+        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        if (role != "OWNER" && role != "ADMIN") {
+            return callback(OperationResult.NoPermission)
+        }
+
+        // 2. 异步处理
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val cost = plugin.config.getDouble("balance.pvp", 300.0)
+            val guild = plugin.dbManager.getGuildById(guildId)
+
+            // 3. 余额检查
+            if (guild == null || guild.balance < cost) {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(
+                        plugin.langManager.get(
+                            "error-balance-not-enough",
+                            "cost" to cost.toString(),
+                            "balance" to (guild?.balance ?: 0.0).toString()
+                        )
+                    ))
+                })
+                return@Runnable
+            }
+
+            // 4. 执行扣费与逻辑
+            if (plugin.dbManager.updateGuildBalance(guildId, -cost)) {
+                // 记录银行日志
+                plugin.dbManager.logBankTransaction(guildId, player.name, "PVP_CHALLENGE", cost)
+
+                // 回到主线程执行 PvP 逻辑 (PvPManager 通常涉及在线玩家操作)
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    plugin.pvpManager.sendChallenge(guildId, targetGuild.id)
+                    callback(OperationResult.Success)
+                })
+            } else {
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    callback(OperationResult.Error(plugin.langManager.get("error-database")))
+                })
+            }
+        })
+    }
 
     // 辅助方法：确保回调在主线程执行
     private fun syncCallback(callback: (OperationResult) -> Unit, result: OperationResult) {

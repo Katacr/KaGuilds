@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.3.20-Beta1"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     id("com.gradleup.shadow") version "8.3.0"
     id("xyz.jpenilla.run-paper") version "2.3.1"
 }
@@ -9,7 +10,15 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
-    // SkinsRestorer 仓库
+    maven("https://maven.aliyun.com/repository/public/"){
+        name = "Aliyun"
+    }
+    maven("https://maven.aliyun.com/repository/central"){
+        name = "central"
+    }
+    maven("https://repo.alessiodp.com/releases/"){
+        name = "libby"
+    }
     maven("https://repo.codemc.org/repository/maven-public/") {
         name = "codemc"
     }
@@ -30,12 +39,14 @@ repositories {
 }
 
 dependencies {
+    implementation("net.byteflux:libby-bukkit:1.3.0")
+    implementation("org.bstats:bstats-bukkit:3.1.0")
     compileOnly(fileTree("libs") { include("*.jar") })
     compileOnly("com.destroystokyo.paper:paper-api:1.16.1-R0.1-SNAPSHOT")
     compileOnly("com.mojang:authlib:1.5.25")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib")
-    implementation("com.zaxxer:HikariCP:5.0.1")
-    implementation("org.xerial:sqlite-jdbc:3.42.0.0")
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib")
+    compileOnly("com.zaxxer:HikariCP:5.0.1")
+    compileOnly("org.xerial:sqlite-jdbc:3.42.0.0")
     compileOnly("me.clip:placeholderapi:2.11.7")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
@@ -66,13 +77,9 @@ tasks {
     }
 
     shadowJar {
-        // 移除文件名末尾的 "-all"
+        relocate("org.bstats", project.group.toString())
         archiveClassifier.set("")
 
-        // 可选：重定向包路径（Relocation）
-        // 这是为了防止其他插件也带了不同版本的相同库导致冲突
-        relocate("kotlin", "org.katacr.kaguilds.libs.kotlin")
-        relocate("com.zaxxer.hikari", "org.katacr.kaguilds.libs.hikari")
     }
 }
 

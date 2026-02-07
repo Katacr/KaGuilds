@@ -1,18 +1,18 @@
 package org.katacr.kaguilds
 
-import org.bukkit.plugin.java.JavaPlugin
-import java.util.UUID
+import net.byteflux.libby.BukkitLibraryManager
+import net.byteflux.libby.Library
 import net.milkbowl.vault.economy.Economy
+import org.bstats.bukkit.Metrics
+import org.bstats.charts.SingleLineChart
 import org.bukkit.plugin.RegisteredServiceProvider
+import org.bukkit.plugin.java.JavaPlugin
 import org.katacr.kaguilds.arena.ArenaManager
 import org.katacr.kaguilds.arena.PvPManager
-import org.katacr.kaguilds.listener.GuildListener
-import org.katacr.kaguilds.listener.MenuListener
-import org.katacr.kaguilds.listener.NotifyListener
-import org.katacr.kaguilds.listener.PvPListener
-import org.katacr.kaguilds.listener.VaultListener
+import org.katacr.kaguilds.listener.*
 import org.katacr.kaguilds.service.GuildService
 import java.io.File
+import java.util.*
 
 class KaGuilds : JavaPlugin() {
 
@@ -26,6 +26,44 @@ class KaGuilds : JavaPlugin() {
     lateinit var menuManager: MenuManager
     lateinit var arenaManager: ArenaManager
     lateinit var pvpManager: PvPManager
+
+    /**
+     * 在插件加载时优先处理依赖下载
+     */
+    override fun onLoad() {
+        val libraryManager = BukkitLibraryManager(this)
+
+        // 添加 Maven 中央仓库和阿里云镜像（加速国内下载）
+        libraryManager.addMavenCentral()
+        libraryManager.addRepository("https://maven.aliyun.com/repository/public")
+
+        // 1. Kotlin 标准库
+        val kotlinStd = Library.builder()
+            .groupId("org{}jetbrains{}kotlin")
+            .artifactId("kotlin-stdlib")
+            .version("1.9.22")
+            .build()
+
+        // 2. HikariCP 连接池
+        val hikari = Library.builder()
+            .groupId("com{}zaxxer")
+            .artifactId("HikariCP")
+            .version("5.1.0")
+            .build()
+
+        // 3. SQLite JDBC 驱动
+        val sqlite = Library.builder()
+            .groupId("org{}xerial")
+            .artifactId("sqlite-jdbc")
+            .version("3.45.1.0")
+            .build()
+
+        logger.info("Checking and downloading necessary dependent libraries, please wait...")
+
+        libraryManager.loadLibrary(kotlinStd)
+        libraryManager.loadLibrary(hikari)
+        libraryManager.loadLibrary(sqlite)
+    }
 
     /**
      * 启用插件
@@ -75,6 +113,12 @@ class KaGuilds : JavaPlugin() {
         // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
         mutableMapOf<UUID, Int>()
         server.pluginManager.registerEvents(GuildListener(this), this) // 公会监听器
+        val pluginId = 29368
+        val metrics = Metrics(this, pluginId)
+
+        metrics.addCustomChart(SingleLineChart("guilds_total") {
+            dbManager.getGuildCount()
+        })
     }
 
     /**
