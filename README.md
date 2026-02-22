@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/github/license/katacr/KaGuilds)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/katacr/KaGuilds)
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.8%2B-brightgreen)](https://www.minecraft.net/)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.16%2B-brightgreen)](https://www.minecraft.net/)
 
 **KaGuilds** is a highly customized guild plugin designed for Minecraft networks (BungeeCord/Velocity). It utilizes **SQL Transactions** and a **Cross-Server Message Bus** to ensure data consistency and security across a distributed environment.
 
