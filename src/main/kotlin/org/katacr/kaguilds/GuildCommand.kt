@@ -104,7 +104,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             }
 
             else -> {
-                sender.sendMessage(lang.get("unknown-command"))
                 sender.sendMessage(lang.get("help-hint"))
             }
         }
@@ -745,7 +744,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         plugin.guildService.createGuild(player, guildName) { result ->
             when (result) {
                 is OperationResult.Success -> player.sendMessage(plugin.langManager.get("create-success", "name" to guildName))
-                is OperationResult.NameAlreadyExists -> player.sendMessage(plugin.langManager.get("create-exists"))
+                is OperationResult.NameAlreadyExists -> player.sendMessage(plugin.langManager.get("create-name-exists"))
                 is OperationResult.InsufficientFunds -> player.sendMessage(plugin.langManager.get("create-insufficient-funds"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
@@ -829,7 +828,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             // 检查是否是会长 (对比 UUID)
             if (guildData?.ownerUuid != player.uniqueId.toString()) {
-                player.sendMessage(lang.get("no-guild-admin"))
+                player.sendMessage(lang.get("not-staff"))
                 return@Runnable
             }
 
@@ -1333,13 +1332,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         when (action) {
             "start" -> {
                 if (args.size < 3) {
-                    player.sendMessage(lang.get("pvp-start-usage"))
+                    player.sendMessage(lang.get("arena-pvp-start-usage"))
                     return
                 }
 
                 // 基础检查：是否有正在进行的比赛
                 if (plugin.pvpManager.currentMatch != null) {
-                    player.sendMessage(lang.get("pvp-error-arena-busy"))
+                    player.sendMessage(lang.get("arena-pvp-error-arena-busy"))
                     return
                 }
 
@@ -1352,7 +1351,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (targetGuild == null || targetGuild.id == guildId) {
-                    player.sendMessage(lang.get("pvp-error-invalid-target"))
+                    player.sendMessage(lang.get("arena-pvp-error-invalid-target"))
                     return
                 }
 
@@ -1362,7 +1361,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     onlinePlayerGuildId == targetGuild.id && plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuild.id)
                 }
                 if (!isTargetStaffOnline) {
-                    player.sendMessage(lang.get("pvp-error-target-offline"))
+                    player.sendMessage(lang.get("arena-pvp-error-target-offline"))
                     return
                 }
 
@@ -1371,7 +1370,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     when (result) {
                         is OperationResult.Success -> {
                             val cost = plugin.config.getDouble("balance.pvp", 300.0)
-                            player.sendMessage(lang.get("pvp-challenge-sent", "fee" to cost.toString()))
+                            player.sendMessage(lang.get("arena-pvp-challenge-sent", "fee" to cost.toString()))
 
                             val myGuildName = plugin.dbManager.getGuildData(guildId)?.name ?: "Unknown"
                             plugin.pvpManager.notifyTargetGuild(targetGuild.id, myGuildName)

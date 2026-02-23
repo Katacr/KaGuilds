@@ -64,30 +64,6 @@ Full language switching support in `config.yml`:
 
 ---
 
-## 🏗️ Architecture
-
-### Core Components
-
-| Component | Description |
-|-----------|-------------|
-| `KaGuilds` | Main plugin class, manages lifecycle and services |
-| `DatabaseManager` | SQL operations using HikariCP connection pooling |
-| `GuildService` | Core business logic for guild operations |
-| `GuildCommand` | Command executor with tab completion |
-| `LanguageManager` | Multi-language support system |
-| `MenuManager` | GUI menu rendering and interaction |
-| `PvPManager` | Guild battle matchmaking and management |
-| `ArenaManager` | Arena configuration and kit storage |
-
-### Data Structures
-
-- **GuildData**: Guild information including level, exp, balance, members
-- **MemberData**: Player membership with role and join time
-- **ArenaData**: PvP arena configuration with team spawns
-- **ActiveMatch**: Ongoing PvP match state
-
----
-
 ## 🎮 Command Reference
 
 ### Player Commands

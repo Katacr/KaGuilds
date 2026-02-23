@@ -69,56 +69,69 @@ class KaGuilds : JavaPlugin() {
      * 启用插件
      */
     override fun onEnable() {
-        //  释放并加载配置文件
+        // 1. 基础配置与语言
         saveDefaultConfig()
-        //  初始化语言管理器
         langManager = LanguageManager(this)
         langManager.load()
 
-        // 初始化菜单管理器
+        // 2. 模块初始化
         setupGuiFolder()
         menuManager = MenuManager(this)
-        // 初始化竞技场管理器
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
         arenaManager.loadKit()
-        // 初始化数据库管理器
-        dbManager = DatabaseManager(this)
-        dbManager.setup()
-        // 初始化 Service 层 (传入 this 以便 Service 访问插件资源)
-        guildService = GuildService(this)
-        // 注册指令
-        getCommand("guilds")?.setExecutor(GuildCommand(this))
-        // 注册事件监听器
-        server.pluginManager.registerEvents(VaultListener(this), this) // 经济监听器
-        server.pluginManager.registerEvents(MenuListener(this), this) // 菜单监听器
-        server.pluginManager.registerEvents(NotifyListener(this), this) // 通知监听器
-        server.pluginManager.registerEvents(PvPListener(this), this) // 公会战监听器
 
-        logger.info("KaGuilds 已启用！")
-        val cmd = getCommand("kaguilds")
-        cmd?.setExecutor(GuildCommand(this))
-        cmd?.tabCompleter = GuildCommand(this)
-        if (!setupEconomy()) {
-            logger.severe("未找到 Vault 经济插件！经济功能将无法使用。")
+        // 3. 数据库初始化
+        try {
+            dbManager = DatabaseManager(this)
+            dbManager.setup()
+        } catch (e: Exception) {
+            logger.severe("数据库连接失败! 插件将无法正常工作。")
+            server.pluginManager.disablePlugin(this)
+            return
         }
-        // 检查服务器是否安装了 PlaceholderAPI
+
+        // 4. 服务层与指令注册
+        guildService = GuildService(this)
+        setupCommands()
+        setupListeners()
+
+        // 5. 外部插件对接
         if (server.pluginManager.getPlugin("PlaceholderAPI") != null) {
             KaGuildsExpansion(this).register()
-            logger.info("已成功对接 PlaceholderAPI 变量。")
         }
-        // 注册自定义插件消息通道
-        this.server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
-        this.server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
-        // 存储当前服务器在线玩家的 UUID 到 公会ID 的映射
-        mutableMapOf<UUID, Int>()
-        server.pluginManager.registerEvents(GuildListener(this), this) // 公会监听器
-        val pluginId = 29368
-        val metrics = Metrics(this, pluginId)
 
+        // 6. 统计与消息通道
+        val metrics = Metrics(this, 29368)
         metrics.addCustomChart(SingleLineChart("guilds_total") {
             dbManager.getGuildCount()
         })
+
+        server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
+        server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
+
+        // 7. 打印Logo
+        sendStartupMessage()
+    }
+
+    // 指令注册逻辑
+    private fun setupCommands() {
+        val cmd = getCommand("kaguilds")
+        val executor = GuildCommand(this)
+        cmd?.setExecutor(executor)
+        cmd?.tabCompleter = executor
+        // 兼容别名
+        getCommand("guilds")?.setExecutor(executor)
+    }
+
+    // 监听器注册逻辑
+    private fun setupListeners() {
+        val pm = server.pluginManager
+        pm.registerEvents(VaultListener(this), this)
+        pm.registerEvents(MenuListener(this), this)
+        pm.registerEvents(NotifyListener(this), this)
+        pm.registerEvents(PvPListener(this), this)
+        pm.registerEvents(GuildListener(this), this)
     }
 
     /**
@@ -193,6 +206,43 @@ class KaGuilds : JavaPlugin() {
                     saveResource("gui/$fileName", false)
                 }
             }
+        }
+    }
+
+    /**
+     * 打印LOGO
+     */
+    private fun sendStartupMessage() {
+        val console = server.consoleSender
+        val version = description.version
+        // 获取服务器版本
+        val gameVersion = server.version.split("MC: ")[1].removeSuffix(")")
+
+        // 动态判断各种状态
+        val vaultStatus = if (setupEconomy()) "§aHooked" else "§cNot found"
+        val papiStatus = if (server.pluginManager.getPlugin("PlaceholderAPI") != null) "§aHooked" else "§cNot found"
+        val dbType = config.getString("database.type", "SQLite") ?: "SQLite"
+        // 使用三引号避免转义字符导致的对齐问题
+        val logo = """
+            §b________________________________________________________
+            §b
+            §b  _  __      §3  ____         _     _         §b
+            §b | |/ / ____ §3 / ___|_   _(_) | __| | ___    §b
+            §b | ' / |    |§3| |  _| | | | | |/ _` |/ __/   §b
+            §b | . \ | || |§3| |_| | |_| | | | (_| |__  \   §b
+            §b |_|\_\|__,\\§3 \____|\__,_|_|_|\__,_|____/   §b
+            §b
+            §7    Version: §e$version
+            §7    Minecraft: §b$gameVersion
+            §7    Database: §6$dbType
+            §7    Vault: $vaultStatus
+            §7    PlaceholderAPI: $papiStatus
+            §b________________________________________________________
+        """.trimIndent()
+
+        // 考虑到有些控制台不支持一次性发送多行，我们按行拆分发送
+        logo.split("\n").forEach { line ->
+            console.sendMessage(line)
         }
     }
 }

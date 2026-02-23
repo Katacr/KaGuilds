@@ -78,9 +78,9 @@ class ArenaManager(private val plugin: KaGuilds) {
             }
 
             // 日志后台记录
-            val redSize = redKitContents?.size ?: 0
-            val blueSize = blueKitContents?.size ?: 0
-            plugin.logger.info(lang.get("arena-kit-load", "red" to redSize.toString(), "blue" to blueSize.toString()))
+            // val redSize = redKitContents?.size ?: 0
+            // val blueSize = blueKitContents?.size ?: 0
+            // plugin.logger.info(lang.get("arena-kit-load", "red" to redSize.toString(), "blue" to blueSize.toString()))
 
         } catch (e: Exception) {
             // 报错时（如 Base64 损坏）才打印错误
