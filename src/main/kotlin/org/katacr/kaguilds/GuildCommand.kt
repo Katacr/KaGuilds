@@ -41,9 +41,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 sender.sendMessage(lang.get("no-permission"))
                 return true
             }
-            plugin.reloadConfig()
-            plugin.langManager.load()
-            plugin.menuManager.reload()
+            plugin.reloadPlugin()
             sender.sendMessage(lang.get("reload-success"))
             return true
         }
@@ -225,7 +223,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
 
             // 从配置文件获取当前等级的金库上限
-            val maxBank = plugin.config.getLong("level.${guildData.level}.max-money", 50000L).toDouble()
+            val maxBank = plugin.levelsConfig.getLong("levels.${guildData.level}.max-money", 50000L).toDouble()
 
             when (action) {
                 "add" -> {
@@ -1081,7 +1079,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val newLevel = args[3].toIntOrNull() ?: return
 
                 // 获取对应等级的配置信息
-                val levelSection = plugin.config.getConfigurationSection("level.$newLevel")
+                val levelSection = plugin.levelsConfig.getConfigurationSection("levels.$newLevel")
                 if (levelSection == null) {
                     sender.sendMessage(lang.get("admin-unknow-level", "level" to newLevel.toString()))
                     return
@@ -1591,7 +1589,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     private fun getBuffTab(player: Player): List<String> {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return emptyList()
         val level = plugin.dbManager.getGuildData(guildId)?.level ?: 1
-        return plugin.config.getStringList("level.$level.use-buff")
+        return plugin.levelsConfig.getStringList("levels.$level.use-buff")
     }
     /**
      * 根据在线状态渲染成员列表颜色

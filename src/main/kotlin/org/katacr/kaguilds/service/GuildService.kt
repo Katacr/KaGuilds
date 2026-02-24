@@ -732,7 +732,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 3. 获取等级费用与倒计时设置
             val level = guildData.level
-            val cost = plugin.config.getDouble("level.$level.tp-money", 500.0)
+            val cost = plugin.levelsConfig.getDouble("levels.$level.tp-money", 500.0)
             val cooldown = plugin.config.getInt("guild.teleport.cooldown", 3)
 
             // 4. 检查经济
@@ -947,7 +947,7 @@ class GuildService(private val plugin: KaGuilds) {
             val balance = guildData.balance
 
             // 3. 等级限制检查
-            val allowedBuffs = plugin.config.getStringList("level.$level.use-buff")
+            val allowedBuffs = plugin.levelsConfig.getStringList("levels.$level.use-buff")
             if (!allowedBuffs.contains(buffKey)) {
                 val errorMsg = plugin.langManager.get("buff-level-low", "level" to level.toString())
                 return@Runnable callback(OperationResult.Error(errorMsg))
@@ -955,14 +955,15 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 4. 读取 Buff 配置与价格
             val path = "buffs.$buffKey"
-            if (!plugin.config.contains(path)) {
+            if (!plugin.buffsConfig.contains(path)) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("buff-not-exist")))
             }
 
-            val price = plugin.config.getDouble("$path.price")
-            val typeStr = plugin.config.getString("$path.type")
-            val amplifier = plugin.config.getInt("$path.amplifier", 0)
-            val buffName = plugin.config.getString("$path.name", buffKey) ?: buffKey
+            val price = plugin.buffsConfig.getDouble("$path.price")
+            val typeStr = plugin.buffsConfig.getString("$path.type")
+            val amplifier = plugin.buffsConfig.getInt("$path.amplifier", 0)
+            val buffName = plugin.buffsConfig.getString("$path.name", buffKey) ?: buffKey
+            val durationSeconds = plugin.buffsConfig.getInt("$path.time", 90)
 
             val potionType = PotionEffectType.getByName(typeStr ?: "")
                 ?: return@Runnable callback(OperationResult.Error("配置错误：无效效果 $typeStr"))
@@ -983,7 +984,6 @@ class GuildService(private val plugin: KaGuilds) {
 
                 // 7. 切回主线程进行分发 (PotionEffect 必须在主线程操作)
                 plugin.server.scheduler.runTask(plugin, Runnable {
-                    val durationSeconds = plugin.config.getInt("guild.buff-time", 90)
                     dispatchBuff(guildId, potionType, durationSeconds, amplifier, player.name, buffName)
                     callback(OperationResult.Success)
                 })
@@ -1370,7 +1370,7 @@ class GuildService(private val plugin: KaGuilds) {
 
         // 1. 等级检查
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
-        val maxVaults = plugin.config.getInt("level.${guildData.level}.vaults", 1)
+        val maxVaults = plugin.levelsConfig.getInt("levels.${guildData.level}.vaults", 1)
         if (vaultIndex > maxVaults) {
             player.sendMessage(lang.get("vault-max-vaults", "max" to maxVaults.toString()))
             return
@@ -1751,7 +1751,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 2. 检查配置中是否存在下一级
             val levelSection =
-                plugin.config.getConfigurationSection("level.$nextLevel") ?: return@Runnable syncCallback(
+                plugin.levelsConfig.getConfigurationSection("levels.$nextLevel") ?: return@Runnable syncCallback(
                     callback,
                     OperationResult.Error(lang.get("menu-upgrade-max-level"))
                 )

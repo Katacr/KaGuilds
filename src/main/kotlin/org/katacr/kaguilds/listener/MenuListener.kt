@@ -33,7 +33,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         // 2. 获取按钮配置
         val iconChar = holder.getIconChar(slot) ?: return
         val button = holder.buttons?.getConfigurationSection(iconChar) ?: return
-        val actionsSection = button.getConfigurationSection("actions") ?: return
+        val actionsSection = getActionsSection(button) ?: return
 
         // 3. 状态拦截：检查金库解锁和升级解锁
         val vaultUnlockedKey = org.bukkit.NamespacedKey(plugin, "vault_unlocked")
@@ -57,7 +57,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     return
                 }
                 2 -> {
-                    player.sendMessage(lang.get("menu-upgrade-not-enough-exp"))
+                    player.sendMessage(lang.get("menu-upgrade-not-exp"))
                     return
                 }
                 3 -> {
@@ -212,7 +212,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     plugin.dbManager.getGuildMembers(guildId).size
                 }
                 holder.menuName.contains("buff", ignoreCase = true) -> {
-                    plugin.config.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
+                    plugin.buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
                 }
                 holder.menuName.contains("list", ignoreCase = true) -> {
                     plugin.dbManager.getGuildCount()
@@ -341,5 +341,18 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
         chatCatchers.remove(event.player.uniqueId)
+    }
+
+    /**
+     * 辅助方法：获取按钮操作配置（支持多种键名变体）
+     */
+    private fun getActionsSection(button: org.bukkit.configuration.ConfigurationSection): org.bukkit.configuration.ConfigurationSection? {
+        val keys = listOf("actions", "Actions", "action", "Action", "ACTION")
+        for (key in button.getKeys(false)) {
+            if (keys.contains(key)) {
+                return button.getConfigurationSection(key)
+            }
+        }
+        return null
     }
 }

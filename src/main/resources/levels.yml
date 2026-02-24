@@ -1,0 +1,74 @@
+# KaGuilds Levels 配置文件
+# 公会等级设置 - 此文件包含所有公会等级的配置信息
+
+levels:
+  1:
+    need-exp: 0 # 公会等级1需要的经验值，默认1级
+    max-members: 10 # 公会最大人数
+    max-money: 50000 # 公会金库最大金币
+    tp-money: 500 # 传送费用，等级越高费用越便宜
+    vaults: 1  # 拥有仓库数量
+    use-buff: # 允许使用的buff列表
+     - NightVision
+     - Speed
+
+  2:
+    need-exp: 5000 # 公会等级2需要的经验值
+    max-members: 20 # 公会最大人数
+    max-money: 100000 # 公会金库最大金币
+    tp-money: 300 # 传送费用，等级越高费用越便宜
+    vaults: 2  # 拥有仓库数量
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+
+  3:
+    need-exp: 10000 # 公会等级3需要的经验值
+    max-members: 30 # 公会最大人数
+    max-money: 200000 # 公会金库最大金币
+    tp-money: 200 # 传送费用，等级越高费用越便宜
+    vaults: 3  # 拥有仓库数量
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+
+  4:
+    need-exp: 20000 # 公会等级4需要的经验值
+    max-members: 40 # 公会最大人数
+    max-money: 400000 # 公会金库最大金币
+    tp-money: 100 # 传送费用，等级越高费用越便宜
+    vaults: 4  # 拥有仓库数量
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+      - Strength
+      - Resistance
+
+  5:
+    need-exp: 50000 # 公会等级5需要的经验值
+    max-members: 50 # 公会最大人数
+    max-money: 600000 # 公会金库最大金币
+    tp-money: 50 # 传送费用，等级越高费用越便宜
+    vaults: 5  # 拥有仓库数量（上限9个）
+    use-buff: # 允许使用的buff列表
+      - NightVision
+      - Speed
+      - Haste
+      - Jump
+      - WaterBreathing
+      - Luck
+      - Strength
+      - Resistance
+      - FireResist
+      - Regeneration
+      - Absorption
