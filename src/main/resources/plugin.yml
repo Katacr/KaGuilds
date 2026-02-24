@@ -91,9 +91,6 @@ permissions:
   kaguilds.command.leave:
     description: 允许玩家使用退出公会
     default: false
-  kaguilds.command.reload:
-    description: 允许玩家使用重载配置文件指令
-    default: op
   kaguilds.command.vault:
     description: 允许玩家使用公会云仓库指令
     default: false
@@ -117,6 +114,9 @@ permissions:
     default: false
 
 
+  kaguilds.admin.reload:
+    description: 允许玩家使用重载配置文件指令
+    default: op
   kaguilds.admin.rename:
     description: 允许管理员使用公会重命名指令
     default: op

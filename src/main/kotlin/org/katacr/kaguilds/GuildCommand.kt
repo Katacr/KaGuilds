@@ -37,7 +37,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         // 2. 处理 /kg reload 命令
         if (subCommand == "reload") {
-            if (!sender.hasPermission("kaguilds.admin")) {
+            if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.reload")) {
                 sender.sendMessage(lang.get("no-permission"))
                 return true
             }
