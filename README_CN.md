@@ -116,7 +116,7 @@
 | `/kg admin vault <公会> <索引>` | 管理员打开仓库 | `kaguilds.admin` / `kaguilds.admin.vault` |
 | `/kg admin unlockall` | 强制重置所有仓库锁定 | `kaguilds.admin` / `kaguilds.admin.unlockall` |
 | `/kg admin arena <setpos/setspawn/setkit/info>` | 配置 PvP 竞技场 | `kaguilds.admin` / `kaguilds.admin.arena` |
-| `/kg reload` | 重载配置文件 | `kaguilds.admin` / `kaguilds.command.reload` |
+| `/kg reload` | 重载配置文件 | `kaguilds.admin` / `kaguilds.command.reload` | 
 
 ---
 
