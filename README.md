@@ -3,8 +3,8 @@
 # 🛡️ KaGuilds - High-Performance Cross-Server Guild System
 
 [![License](https://img.shields.io/github/license/katacr/KaGuilds)](LICENSE)
-|[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/katacr/KaGuilds)
-|[![Minecraft](https://img.shields.io/badge/Minecraft-1.16%2B-brightgreen)](https://www.minecraft.net/)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/katacr/KaGuilds)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.16%2B-brightgreen)](https://www.minecraft.net/)
 
 **KaGuilds** is a highly customized guild plugin designed for Minecraft networks (BungeeCord/Velocity). It utilizes **SQL Transactions** and a **Cross-Server Message Bus** to ensure data consistency and security across a distributed environment.
 
@@ -13,54 +13,54 @@
 ## ✨ Key Features
 
 ### 🔄 Cross-Server Synchronization
-|- Global guild chat, notifications, and invitations powered by Velocity/BungeeCord channels
-|- Real-time sync of guild info and permissions regardless of sub-server members are on
-|- Cross-server player invitations and join requests
+- Global guild chat, notifications, and invitations powered by Velocity/BungeeCord channels
+- Real-time sync of guild info and permissions regardless of sub-server members are on
+- Cross-server player invitations and join requests
 
 ### 💰 Deep Economy Integration
-|- **Creation Cost**: Configurable fees deducted automatically via Vault API
-|- **Guild Bank**: Supports deposits and withdrawals with paginated transaction logs for staff
-|- **Vault System**: Multiple lockable guild vaults with inventory lease management
+- **Creation Cost**: Configurable fees deducted automatically via Vault API
+- **Guild Bank**: Supports deposits and withdrawals with paginated transaction logs for staff
+- **Vault System**: Multiple lockable guild vaults with inventory lease management
 
 ### 👥 Rigid Role Hierarchy
-|- Three tiers of authority: **Owner**, **Administrator**, and **Member**
-|- Built-in logic for Promotion and Demotion with clear permission boundaries
-|- Ownership transfer capabilities
+- Three tiers of authority: **Owner**, **Administrator**, and **Member**
+- Built-in logic for Promotion and Demotion with clear permission boundaries
+- Ownership transfer capabilities
 
 ### 📈 Dynamic Leveling System
-|- Automated leveling based on guild EXP
-|- Dynamically increasing member limits and bank capacity
-|- Upgrade system with configurable tiers
+- Automated leveling based on guild EXP
+- Dynamically increasing member limits and bank capacity
+- Upgrade system with configurable tiers
 
 ### 📋 Comprehensive Invite & Request System
-|- **Invitations**: Global player invites with automated expiration
-|- **Requests**: Staff can view, approve, or deny pending applications at any time
+- **Invitations**: Global player invites with automated expiration
+- **Requests**: Staff can view, approve, or deny pending applications at any time
 
 ### 🎮 PvP Arena System
-|- Guild vs Guild battles with custom kits
-|- Match timing and win conditions
-|- Statistics tracking (wins/losses/draws)
-|- Reward commands on victory
+- Guild vs Guild battles with custom kits
+- Match timing and win conditions
+- Statistics tracking (wins/losses/draws)
+- Reward commands on victory
 
 ### 🖼️ GUI Menu System
-|- Main menu with guild operations
-|- Member list with pagination
-|- Guilds list browser
-|- Buff shop
-|- Upgrade shop
-|- Bank management
+- Main menu with guild operations
+- Member list with pagination
+- Guilds list browser
+- Buff shop
+- Upgrade shop
+- Bank management
 
 ### 📊 PlaceholderAPI Support
 Integrated variables for scoreboards or chat:
-|- `%kaguilds_name%` - Current guild name
-|- `%kaguilds_role%` - Player rank (Owner/Admin/Member)
-|- `%kaguilds_level%` - Current guild level
-|- `%kaguilds_balance%` - Current guild balance
+- `%kaguilds_name%` - Current guild name
+- `%kaguilds_role%` - Player rank (Owner/Admin/Member)
+- `%kaguilds_level%` - Current guild level
+- `%kaguilds_balance%` - Current guild balance
 
 ### 🌍 Localization
 Full language switching support in `config.yml`:
-|- **Simplified Chinese**: `zh_CN.yml`
-|- **English**: `en_US.yml`
+- **Simplified Chinese**: `zh_CN.yml`
+- **English**: `en_US.yml`
 
 ---
 
@@ -195,30 +195,30 @@ kaguilds.admin.arena    # Configure PvP arena
 ## 💾 Database Schema
 
 The plugin uses MySQL with following main tables:
-|- `guilds` - Guild information and settings
-|- `members` - Member data and roles
-|- `bank_logs` - Transaction history
-|- `requests` - Join requests
-|- `vaults` - Guild vault data
+- `guilds` - Guild information and settings
+- `members` - Member data and roles
+- `bank_logs` - Transaction history
+- `requests` - Join requests
+- `vaults` - Guild vault data
 
 ---
 
 ## 🔧 Configuration
 
 ### config.yml
-|- Database connection settings
-|- Economy settings (creation cost, level costs)
-|- Guild limits (max members, max vaults)
-|- PvP settings (match duration, arena config)
-|- Message channel names
+- Database connection settings
+- Economy settings (creation cost, level costs)
+- Guild limits (max members, max vaults)
+- PvP settings (match duration, arena config)
+- Message channel names
 
 ### GUI Files
-|- `main_menu.yml` - Main guild menu
-|- `guilds_list.yml` - Guild browser
-|- `guild_members.yml` - Member list
-|- `guild_bank.yml` - Bank interface
-|- `guild_vaults.yml` - Vault selector
-|- `guild_buffs.yml` - Buff shop
-|- `guild_upgrade.yml` - Upgrade menu
+- `main_menu.yml` - Main guild menu
+- `guilds_list.yml` - Guild browser
+- `guild_members.yml` - Member list
+- `guild_bank.yml` - Bank interface
+- `guild_vaults.yml` - Vault selector
+- `guild_buffs.yml` - Buff shop
+- `guild_upgrade.yml` - Upgrade menu
 
 ---

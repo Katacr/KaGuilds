@@ -1,6 +1,5 @@
 # Command Help Menu
 help-header: "§8§m-------§r §bKaGuilds Help Menu §8§m-------"
-help-format: "§6/kg %usage% §7- §f%description%"
 help-footer: "§8---------- §7Page: §e%page% §7/ §e%max% §8----------"
 help-next-page: "§8Tip: Type §6/kg help %page% §8to view next page"
 console-help: "Console available command: /kg reload"
@@ -40,10 +39,8 @@ desc-menu: "Open guild main menu"
 
 # Common Error Messages
 no-permission: "§cYou do not have permission to execute this command."
-no-guild-admin: "§cYou are not a guild admin, cannot execute this command."
 player-only: "§cThis command can only be executed by players."
 player-not-online: "§cThat player is currently offline."
-unknown-command: "&cUnknown subcommand."
 help-hint: "&7Unknown command, please type &f/kg help &7to view command usage."
 econ-not-ready: "§cPlugin economy system is not ready, please contact administrator."
 confirm-no-pending: "§cYou have no pending operations to confirm, or the operation has timed out."
@@ -51,7 +48,6 @@ confirm-no-pending: "§cYou have no pending operations to confirm, or the operat
 # Guild Creation Related
 create-usage: "§cUsage: /kg create <guild name>"
 create-name-exists: "§cThat guild name already exists."
-create-repeat-name: "§cThe guild name is the same as the current one."
 create-insufficient-funds: "§cYou don't have enough gold to create a guild!"
 create-pay-success: "§aDeducted §f%cost% §agold from your account for guild creation."
 create-failed-refund: "§cGuild creation failed, gold has been refunded to your account."
@@ -62,7 +58,6 @@ create-invalid-name: "§cGuild name contains illegal characters! Only Chinese ch
 
 # Invitation and Application Related
 invite-usage: "§cUsage: /kg invite <player name>"
-invite-not-online: "§cThat player is currently offline."
 invite-self-limit: "§cYou cannot invite yourself."
 invite-already-member: "§cThat player is already in a guild."
 invite-join-guild: "§aThat player is already a member of this guild!"
@@ -197,6 +192,16 @@ vault-title: "§6Guild Vault #%index%"
 vault-max-vaults: "§cYour guild can currently only use %max% vaults."
 
 # Menu Related
+menu-not-found: "§c[!] §cMenu %menu% does not exist."
+menu-text-buff-unlocked: "§aAvailable"
+menu-text-buff-locked: "§cLocked (Guild level insufficient)"
+menu-text-vault-unlocked: "§aAvailable"
+menu-text-vault-locked: "§cLocked (Guild level insufficient)"
+menu-text-level-upgrade-done: "§a● Completed"
+menu-text-level-can-upgrade: "§e⚡ Click to upgrade"
+menu-text-level-not-exp: "§6○ Insufficient experience"
+menu-text-level-locked: "§c🔒 Upgrade in order"
+menu-reload-success: "§aAll GUI configuration files reloaded."
 menu-catcher-invalid-amount: "§c[!] Error: Please enter a valid positive integer amount."
 menu-catcher-cancel: "§e[!] Input cancelled."
 menu-vault-not-unlocked: "§c[!] That guild vault is not unlocked yet, please upgrade guild level first."
