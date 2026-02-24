@@ -68,42 +68,37 @@
 
 || 命令 | 说明 | 权限 |
 ||---------|-------------|------------|
-|| `/kg create <名称>` | 支付创建新公会 | `kaguilds.use` / `kaguilds.command.create` |
-|| `/kg join <名称>` | 申请加入指定公会 | `kaguilds.use` / `kaguilds.command.join` |
-|| `/kg info [名称]` | 查看公会详细信息 | `kaguilds.use` / `kaguilds.command.info` |
-|| `/kg chat <消息>` | 在公会内部频道交流 | `kaguilds.use` / `kaguilds.command.chat` |
-|| `/kg bank <add/get/log>` | 向公金库存/取款或查看日志 | `kaguilds.use` / `kaguilds.command.bank` |
-|| `/kg leave` | 退出当前公会 | `kaguilds.use` / `kaguilds.command.leave` |
-|| `/kg tp` | 传送到公会位置 | `kaguilds.use` / `kaguilds.command.tp` |
-|| `/kg settp` | 设置公会传送位置 | `kaguilds.use` / `kaguilds.command.settp` |
-|| `/kg rename <名称>` | 重命名公会（需确认） | `kaguilds.use` / `kaguilds.command.rename` |
-|| `/kg vault <索引>` | 打开公会仓库（1-9） | `kaguilds.use` / `kaguilds.command.vault` |
-|| `/kg motd <消息>` | 设置公会公告 | `kaguilds.use` / `kaguilds.command.motd` |
-|| `/kg seticon` | 从手持物品设置公会图标 | `kaguilds.use` / `kaguilds.command.seticon` |
-|| `/kg upgrade` | 升级公会等级 | `kaguilds.use` / `kaguilds.command.upgrade` |
-|| `/kg buff <名称>` | 购买公会增益 | `kaguilds.use` / `kaguilds.command.buff` |
-|| `/kg pvp <公会>` | 向其他公会发起 PvP 挑战 | `kaguilds.use` / `kaguilds.command.pvp` |
-|| `/kg yes` | 接受公会邀请 | `kaguilds.use` / `kaguilds.command.yes` |
-|| `/kg no` | 拒绝公会邀请 | `kaguilds.use` / `kaguilds.command.no` |
-|| `/kg confirm` | 确认待处理操作 | `kaguilds.use` / `kaguilds.command.confirm` |
-|| `/kg menu` | 打开公会主菜单 | `kaguilds.use` / `kaguilds.command.menu` |
-|| `/kg help [页码]` | 查看命令帮助菜单 | `kaguilds.use` / `kaguilds.command.help` |
-
-### 员工命令
-
-|| 命令 | 说明 | 权限 |
-||---------|-------------|------------|
-|| `/kg invite <玩家>` | 邀请在线/跨服玩家 | `kaguilds.use` / `kaguilds.command.invite` |
-|| `/kg accept <玩家>` | 批准入会申请 | `kaguilds.use` / `kaguilds.command.accept` |
-|| `/kg deny <玩家>` | 拒绝入会申请 | `kaguilds.use` / `kaguilds.command.deny` |
-|| `/kg promote <玩家>` | 将成员提升为管理员 | `kaguilds.use` / `kaguilds.command.promote` |
-|| `/kg demote <玩家>` | 将管理员降职为成员 | `kaguilds.use` / `kaguilds.command.demote` |
-|| `/kg kick <玩家>` | 将成员踢出公会 | `kaguilds.use` / `kaguilds.command.kick` |
-|| `/kg transfer <玩家>` | 转让公会所有权 | `kaguilds.use` / `kaguilds.command.transfer` |
-|| `/kg bank log [页码]` | 查看交易历史 | `kaguilds.use` / `kaguilds.command.bank` |
-|| `/kg delete` | 删除公会（仅会长） | `kaguilds.use` / `kaguilds.command.delete` |
-|| `/kg requests` | 查看所有入会申请 | `kaguilds.use` / `kaguilds.command.requests` |
-|| `/kg confirm` | 确认公会删除或转让 | `kaguilds.use` / `kaguilds.command.confirm` |
+|| `/kg create <名称>` | 支付创建新公会 | `kaguilds.command.create` |
+|| `/kg join <名称>` | 申请加入指定公会 | `kaguilds.command.join` |
+|| `/kg info [名称]` | 查看公会详细信息 | `kaguilds.command.info` |
+|| `/kg chat <消息>` | 在公会内部频道交流 | `kaguilds.command.chat` |
+|| `/kg bank <add/get/log>` | 向公金库存/取款或查看日志 | `kaguilds.command.bank` |
+|| `/kg leave` | 退出当前公会 | `kaguilds.command.leave` |
+|| `/kg tp` | 传送到公会位置 | `kaguilds.command.tp` |
+|| `/kg settp` | 设置公会传送位置 | `kaguilds.command.settp` |
+|| `/kg rename <名称>` | 重命名公会（需确认） | `kaguilds.command.rename` |
+|| `/kg vault <索引>` | 打开公会仓库（1-9） | `kaguilds.command.vault` |
+|| `/kg motd <消息>` | 设置公会公告 | `kaguilds.command.motd` |
+|| `/kg seticon` | 从手持物品设置公会图标 | `kaguilds.command.seticon` |
+|| `/kg upgrade` | 升级公会等级 | `kaguilds.command.upgrade` |
+|| `/kg buff <名称>` | 购买公会增益 | `kaguilds.command.buff` |
+|| `/kg pvp <公会>` | 向其他公会发起 PvP 挑战 | `kaguilds.command.pvp` |
+|| `/kg yes` | 接受公会邀请 | `kaguilds.command.yes` |
+|| `/kg no` | 拒绝公会邀请 | `kaguilds.command.no` |
+|| `/kg confirm` | 确认待处理操作 | `kaguilds.command.confirm` |
+|| `/kg menu` | 打开公会主菜单 | `kaguilds.command.menu` |
+|| `/kg help [页码]` | 查看命令帮助菜单 | `kaguilds.command.help` |
+|| `/kg invite <玩家>` | 邀请在线/跨服玩家 | `kaguilds.command.invite` |
+|| `/kg accept <玩家>` | 批准入会申请 | `kaguilds.command.accept` |
+|| `/kg deny <玩家>` | 拒绝入会申请 | `kaguilds.command.deny` |
+|| `/kg promote <玩家>` | 将成员提升为管理员 | `kaguilds.command.promote` |
+|| `/kg demote <玩家>` | 将管理员降职为成员 | `kaguilds.command.demote` |
+|| `/kg kick <玩家>` | 将成员踢出公会 | `kaguilds.command.kick` |
+|| `/kg transfer <玩家>` | 转让公会所有权 | `kaguilds.command.transfer` |
+|| `/kg bank log [页码]` | 查看交易历史 | `kaguilds.command.bank` |
+|| `/kg delete` | 删除公会（仅会长） | `kaguilds.command.delete` |
+|| `/kg requests` | 查看所有入会申请 | `kaguilds.command.requests` |
+|| `/kg confirm` | 确认公会删除或转让 | `kaguilds.command.confirm` |
 
 ### 管理员命令
 
@@ -160,10 +155,6 @@ kaguilds.command.pvp     # 访问 PvP 系统
 kaguilds.command.yes     # 接受公会邀请
 kaguilds.command.no      # 拒绝公会邀请
 kaguilds.command.confirm # 确认待处理操作
-```
-
-### 员工命令
-```yaml
 kaguilds.command.invite  # 邀请玩家
 kaguilds.command.accept  # 批准入会申请
 kaguilds.command.deny    # 拒绝入会申请
@@ -172,7 +163,7 @@ kaguilds.command.demote  # 降职管理员
 kaguilds.command.kick    # 踢出成员
 kaguilds.command.transfer # 转让所有权
 kaguilds.command.delete  # 删除公会
-kaguilds.command.requests# 查看入会申请
+kaguilds.command.requests # 查看入会申请
 kaguilds.command.reload  # 重载插件配置
 ```
 
@@ -188,7 +179,7 @@ kaguilds.admin.kick     # 管理员踢出成员
 kaguilds.admin.join     # 管理员添加成员
 kaguilds.admin.transfer # 管理员转让所有权
 kaguilds.admin.vault    # 管理员打开仓库
-kaguilds.admin.unlockall# 强制解锁所有仓库
+kaguilds.admin.unlockall # 强制解锁所有仓库
 kaguilds.admin.arena    # 配置 PvP 竞技场
 ```
 

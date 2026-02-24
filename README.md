@@ -70,42 +70,42 @@ Full language switching support in `config.yml`:
 
 | Command | Description | Permission |
 |---------|-------------|------------|
-| `/kg create <name>` | Pay to create a new guild | `kaguilds.use` / `kaguilds.command.create` |
-| `/kg join <name>` | Apply to join a specific guild | `kaguilds.use` / `kaguilds.command.join` |
-| `/kg info [name]` | View detailed guild information | `kaguilds.use` / `kaguilds.command.info` |
-| `/kg chat <message>` | Communicate in internal guild channel | `kaguilds.use` / `kaguilds.command.chat` |
-| `/kg bank <add/get/log>` | Deposit, withdraw guild funds or view logs | `kaguilds.use` / `kaguilds.command.bank` |
-| `/kg leave` | Leave your current guild | `kaguilds.use` / `kaguilds.command.leave` |
-| `/kg tp` | Teleport to guild location | `kaguilds.use` / `kaguilds.command.tp` |
-| `/kg settp` | Set guild teleport location | `kaguilds.use` / `kaguilds.command.settp` |
-| `/kg rename <name>` | Rename your guild (confirmation required) | `kaguilds.use` / `kaguilds.command.rename` |
-| `/kg vault <index>` | Open guild vault (1-9) | `kaguilds.use` / `kaguilds.command.vault` |
-| `/kg motd <message>` | Set guild announcement | `kaguilds.use` / `kaguilds.command.motd` |
-| `/kg seticon` | Set guild icon from held item | `kaguilds.use` / `kaguilds.command.seticon` |
-| `/kg upgrade` | Upgrade guild level | `kaguilds.use` / `kaguilds.command.upgrade` |
-| `/kg buff <name>` | Purchase guild buff | `kaguilds.use` / `kaguilds.command.buff` |
-| `/kg pvp <guild>` | Challenge another guild to PvP | `kaguilds.use` / `kaguilds.command.pvp` |
-| `/kg yes` | Accept guild invitation | `kaguilds.use` / `kaguilds.command.yes` |
-| `/kg no` | Decline guild invitation | `kaguilds.use` / `kaguilds.command.no` |
-| `/kg confirm` | Confirm pending actions | `kaguilds.use` / `kaguilds.command.confirm` |
-| `/kg menu` | Open main guild menu | `kaguilds.use` / `kaguilds.command.menu` |
-| `/kg help [page]` | View command help menu | `kaguilds.use` / `kaguilds.command.help` |
+| `/kg create <name>` | Pay to create a new guild | `kaguilds.command.create` |
+| `/kg join <name>` | Apply to join a specific guild | `kaguilds.command.join` |
+| `/kg info [name]` | View detailed guild information | `kaguilds.command.info` |
+| `/kg chat <message>` | Communicate in internal guild channel | `kaguilds.command.chat` |
+| `/kg bank <add/get/log>` | Deposit, withdraw guild funds or view logs | `kaguilds.command.bank` |
+| `/kg leave` | Leave your current guild | `kaguilds.command.leave` |
+| `/kg tp` | Teleport to guild location | `kaguilds.command.tp` |
+| `/kg settp` | Set guild teleport location | `kaguilds.command.settp` |
+| `/kg rename <name>` | Rename your guild (confirmation required) | `kaguilds.command.rename` |
+| `/kg vault <index>` | Open guild vault (1-9) | `kaguilds.command.vault` |
+| `/kg motd <message>` | Set guild announcement | `kaguilds.command.motd` |
+| `/kg seticon` | Set guild icon from held item | `kaguilds.command.seticon` |
+| `/kg upgrade` | Upgrade guild level | `kaguilds.command.upgrade` |
+| `/kg buff <name>` | Purchase guild buff | `kaguilds.command.buff` |
+| `/kg pvp <guild>` | Challenge another guild to PvP | `kaguilds.command.pvp` |
+| `/kg yes` | Accept guild invitation | `kaguilds.command.yes` |
+| `/kg no` | Decline guild invitation | `kaguilds.command.no` |
+| `/kg confirm` | Confirm pending actions | `kaguilds.command.confirm` |
+| `/kg menu` | Open main guild menu | `kaguilds.command.menu` |
+| `/kg help [page]` | View command help menu | `kaguilds.command.help` |
 
 ### Staff Commands
 
 | Command | Description | Permission |
 |---------|-------------|------------|
-| `/kg invite <player>` | Invite online/cross-server players | `kaguilds.use` / `kaguilds.command.invite` |
-| `/kg accept <player>` | Approve a join application | `kaguilds.use` / `kaguilds.command.accept` |
-| `/kg deny <player>` | Deny a join application | `kaguilds.use` / `kaguilds.command.deny` |
-| `/kg promote <player>` | Promote a member to Admin | `kaguilds.use` / `kaguilds.command.promote` |
-| `/kg demote <player>` | Demote Admin to Member | `kaguilds.use` / `kaguilds.command.demote` |
-| `/kg kick <player>` | Kick a member from guild | `kaguilds.use` / `kaguilds.command.kick` |
-| `/kg transfer <player>` | Transfer guild ownership | `kaguilds.use` / `kaguilds.command.transfer` |
-| `/kg bank log [page]` | View transaction history | `kaguilds.use` / `kaguilds.command.bank` |
-| `/kg delete` | Delete guild (owner only) | `kaguilds.use` / `kaguilds.command.delete` |
-| `/kg requests` | View all join requests | `kaguilds.use` / `kaguilds.command.requests` |
-| `/kg confirm` | Confirm guild deletion or transfer | `kaguilds.use` / `kaguilds.command.confirm` |
+| `/kg invite <player>` | Invite online/cross-server players | `kaguilds.command.invite` |
+| `/kg accept <player>` | Approve a join application | `kaguilds.command.accept` |
+| `/kg deny <player>` | Deny a join application | `kaguilds.command.deny` |
+| `/kg promote <player>` | Promote a member to Admin | `kaguilds.command.promote` |
+| `/kg demote <player>` | Demote Admin to Member | `kaguilds.command.demote` |
+| `/kg kick <player>` | Kick a member from guild | `kaguilds.command.kick` |
+| `/kg transfer <player>` | Transfer guild ownership | `kaguilds.command.transfer` |
+| `/kg bank log [page]` | View transaction history | `kaguilds.command.bank` |
+| `/kg delete` | Delete guild (owner only) | `kaguilds.command.delete` |
+| `/kg requests` | View all join requests | `kaguilds.command.requests` |
+| `/kg confirm` | Confirm guild deletion or transfer | `kaguilds.command.confirm` |
 
 ### Admin Commands
 
@@ -162,10 +162,6 @@ kaguilds.command.pvp     # Access PvP system
 kaguilds.command.yes     # Accept guild invitations
 kaguilds.command.no      # Decline guild invitations
 kaguilds.command.confirm # Confirm pending actions
-```
-
-### Staff Commands
-```yaml
 kaguilds.command.invite  # Invite players
 kaguilds.command.accept  # Accept join applications
 kaguilds.command.deny    # Deny join applications
@@ -174,7 +170,7 @@ kaguilds.command.demote  # Demote admins
 kaguilds.command.kick    # Kick members
 kaguilds.command.transfer # Transfer ownership
 kaguilds.command.delete  # Delete guild
-kaguilds.command.requests# View join requests
+kaguilds.command.requests # View join requests
 kaguilds.command.reload  # Reload plugin config
 ```
 
@@ -190,7 +186,7 @@ kaguilds.admin.kick     # Admin kick member
 kaguilds.admin.join     # Admin add member
 kaguilds.admin.transfer # Admin transfer ownership
 kaguilds.admin.vault    # Admin open vault
-kaguilds.admin.unlockall# Force unlock all vaults
+kaguilds.admin.unlockall # Force unlock all vaults
 kaguilds.admin.arena    # Configure PvP arena
 ```
 
