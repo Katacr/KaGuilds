@@ -5,6 +5,8 @@ import net.byteflux.libby.Library
 import net.milkbowl.vault.economy.Economy
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.SingleLineChart
+import org.bukkit.configuration.file.FileConfiguration
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.RegisteredServiceProvider
 import org.bukkit.plugin.java.JavaPlugin
 import org.katacr.kaguilds.arena.ArenaManager
@@ -26,6 +28,8 @@ class KaGuilds : JavaPlugin() {
     lateinit var menuManager: MenuManager
     lateinit var arenaManager: ArenaManager
     lateinit var pvpManager: PvPManager
+    lateinit var buffsConfig: FileConfiguration
+    lateinit var levelsConfig: FileConfiguration
 
     /**
      * 在插件加载时优先处理依赖下载
@@ -76,6 +80,8 @@ class KaGuilds : JavaPlugin() {
 
         // 2. 模块初始化
         setupGuiFolder()
+        loadBuffsConfig()
+        loadLevelsConfig()
         menuManager = MenuManager(this)
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
@@ -166,7 +172,32 @@ class KaGuilds : JavaPlugin() {
      */
     fun reloadPlugin() {
         reloadConfig()
+        loadBuffsConfig()
+        loadLevelsConfig()
         langManager.load()
+        menuManager.reload()
+    }
+
+    /**
+     * 加载 Buffs 配置文件
+     */
+    private fun loadBuffsConfig() {
+        val buffsFile = File(dataFolder, "buffs.yml")
+        if (!buffsFile.exists()) {
+            saveResource("buffs.yml", false)
+        }
+        buffsConfig = YamlConfiguration.loadConfiguration(buffsFile)
+    }
+
+    /**
+     * 加载 Levels 配置文件
+     */
+    private fun loadLevelsConfig() {
+        val levelsFile = File(dataFolder, "levels.yml")
+        if (!levelsFile.exists()) {
+            saveResource("levels.yml", false)
+        }
+        levelsConfig = YamlConfiguration.loadConfiguration(levelsFile)
     }
 
     /**
@@ -229,8 +260,8 @@ class KaGuilds : JavaPlugin() {
             §b  _  __      §3  ____         _     _         §b
             §b | |/ / ____ §3 / ___|_   _(_) | __| | ___    §b
             §b | ' / |    |§3| |  _| | | | | |/ _` |/ __/   §b
-            §b | . \ | || |§3| |_| | |_| | | | (_| |__  \   §b
-            §b |_|\_\|__,\\§3 \____|\__,_|_|_|\__,_|____/   §b
+            §b | . \ | [] |§3| |_| | |_| | | | (_| |__  \   §b
+            §b |_|\_\|_,\_\§3 \____|\__,_|_|_|\__,_|____/   §b
             §b
             §7    Version: §e$version
             §7    Minecraft: §b$gameVersion

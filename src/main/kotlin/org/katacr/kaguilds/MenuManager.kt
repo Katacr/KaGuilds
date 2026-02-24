@@ -22,6 +22,45 @@ class MenuManager(private val plugin: KaGuilds) {
     private val menuCache = mutableMapOf<String, YamlConfiguration>()
 
     /**
+     * 辅助方法：获取布局配置（支持多种键名变体）
+     */
+    private fun getLayout(config: ConfigurationSection): List<String> {
+        val keys = listOf("Layout", "layout", "layouts", "LAYOUT", "Layouts")
+        for (key in config.getKeys(false)) {
+            if (keys.contains(key)) {
+                return config.getStringList(key)
+            }
+        }
+        return emptyList()
+    }
+
+    /**
+     * 辅助方法：获取按钮配置（支持多种键名变体）
+     */
+    private fun getButtonsSection(config: ConfigurationSection): ConfigurationSection? {
+        val keys = listOf("button", "Button", "buttons", "Buttons", "BUTTON")
+        for (key in config.getKeys(false)) {
+            if (keys.contains(key)) {
+                return config.getConfigurationSection(key)
+            }
+        }
+        return null
+    }
+
+    /**
+     * 辅助方法：获取材质名称（支持多种键名变体）
+     */
+    private fun getMaterial(display: ConfigurationSection): String? {
+        val keys = listOf("material", "Material", "mat", "Mat", "Mats", "mats","materials", "Materials", "MATERIAL")
+        for (key in display.getKeys(false)) {
+            if (keys.contains(key)) {
+                return display.getString(key)
+            }
+        }
+        return null
+    }
+
+    /**
      * 菜单统一入口
      * @param player 玩家
      * @param menuName 菜单名称
@@ -35,7 +74,7 @@ class MenuManager(private val plugin: KaGuilds) {
         }
 
         val config = YamlConfiguration.loadConfiguration(file)
-        val buttons = config.getConfigurationSection("button") ?: return
+        val buttons = getButtonsSection(config) ?: return
 
         // 检查按钮类型
         var isGuildList = false
@@ -73,8 +112,8 @@ class MenuManager(private val plugin: KaGuilds) {
      */
     private fun renderStandardMenu(player: Player, config: YamlConfiguration, menuName: String) {
         val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "Menu")!!)
-        val layout = config.getStringList("Layout")
-        val buttons = config.getConfigurationSection("button")
+        val layout = getLayout(config)
+        val buttons = getButtonsSection(config)
 
         // 这里 page 默认为 0，普通菜单通常不需要分页逻辑
         val holder = GuildMenuHolder(title, layout, buttons, 0, menuName)
@@ -116,8 +155,8 @@ class MenuManager(private val plugin: KaGuilds) {
 
         val config = YamlConfiguration.loadConfiguration(file)
         val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "Guild List")!!)
-        val layout = config.getStringList("Layout")
-        val buttons = config.getConfigurationSection("button") ?: return
+        val layout = getLayout(config)
+        val buttons = getButtonsSection(config) ?: return
 
         // 1. 统计布局中共有多少个用于展示公会的槽位
         val listSlots = mutableListOf<Int>()
@@ -217,8 +256,8 @@ class MenuManager(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
         val config = YamlConfiguration.loadConfiguration(file)
-        val layout = config.getStringList("Layout")
-        val buttons = config.getConfigurationSection("button") ?: return
+        val layout = getLayout(config)
+        val buttons = getButtonsSection(config) ?: return
 
         val allMembers = plugin.dbManager.getGuildMembers(guildId)
         val listSlots = mutableListOf<Int>()
@@ -323,7 +362,7 @@ class MenuManager(private val plugin: KaGuilds) {
      */
     private fun buildNormalItem(section: ConfigurationSection, holder: GuildMenuHolder, maxPages: Int = 1, player: Player): ItemStack {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.STONE)
-        val materialName = display.getString("material", "STONE")!!.uppercase()
+        val materialName = getMaterial(display)?.uppercase() ?: "STONE"
 
         // 读取数量和自定义材质数据
         val amount = display.getInt("amount", 1).coerceIn(1, 64)
@@ -455,17 +494,17 @@ class MenuManager(private val plugin: KaGuilds) {
         val currentLevel = guildData.level
 
         // 1. 获取当前等级解锁的 Buff 列表
-        val allowedBuffs = plugin.config.getStringList("level.$currentLevel.use-buff")
+        val allowedBuffs = plugin.levelsConfig.getStringList("levels.$currentLevel.use-buff")
 
-        // 2. 获取所有的 Buff 配置 (从 config.yml)
-        val buffsSection = plugin.config.getConfigurationSection("buffs") ?: return
+        // 2. 获取所有的 Buff 配置 (从 buffs.yml)
+        val buffsSection = plugin.buffsConfig.getConfigurationSection("buffs") ?: return
         val allBuffKeys = buffsSection.getKeys(false).toList() // 获取 NightVision, Speed 等
 
         // 3. 加载菜单布局
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
         val menuConfig = YamlConfiguration.loadConfiguration(file)
-        val layout = menuConfig.getStringList("Layout")
-        val buttons = menuConfig.getConfigurationSection("button") ?: return
+        val layout = getLayout(menuConfig)
+        val buttons = getButtonsSection(menuConfig) ?: return
 
         // 4. 计算分页
         val buffSlots = mutableListOf<Int>()
@@ -517,7 +556,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param viewer 玩家
      */
     private fun buildBuffItem(section: ConfigurationSection, buffKey: String, isUnlocked: Boolean, viewer: Player): ItemStack {
-        val buffConfig = plugin.config.getConfigurationSection("buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
+        val buffConfig = plugin.buffsConfig.getConfigurationSection("buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.GLASS_BOTTLE)
 
         // 判断材质和状态
@@ -535,7 +574,7 @@ class MenuManager(private val plugin: KaGuilds) {
             "buff_keyname" to buffKey,
             "buff_name" to (buffConfig.getString("name") ?: buffKey),
             "buff_price" to buffConfig.getDouble("price").toString(),
-            "buff_time" to plugin.config.getInt("guild.buff-time").toString(),
+            "buff_time" to buffConfig.getInt("time", 90).toString(),
             "buff_status" to status
         )
 
@@ -560,15 +599,14 @@ class MenuManager(private val plugin: KaGuilds) {
 
         val config = YamlConfiguration.loadConfiguration(file)
         val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "公会金库")!!)
-        // 兼容 Layout 和 layout 两种写法
-        val layout = config.getStringList("Layout").ifEmpty { config.getStringList("layout") }
-        val buttons = config.getConfigurationSection("button") ?: return
+        val layout = getLayout(config)
+        val buttons = getButtonsSection(config) ?: return
 
         // 1. 获取公会等级数据
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
         val guildData = plugin.dbManager.getGuildData(guildId)
         val level = guildData?.level ?: 1
-        val unlockedCount = plugin.config.getInt("level.$level.vaults", 0)
+        val unlockedCount = plugin.levelsConfig.getInt("levels.$level.vaults", 0)
 
         // 2. 创建 Holder 和 Inventory (关键：必须传入 holder 才能防止物品被取走)
         val holder = GuildMenuHolder(title, layout, buttons, 0, menuName)
@@ -647,16 +685,16 @@ class MenuManager(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
 
-        // 1. 获取所有配置好的等级列表 (从 config.yml 的 level 节点获取)
-        val levelsSection = plugin.config.getConfigurationSection("level") ?: return
+        // 1. 获取所有配置好的等级列表 (从 levels.yml 的 levels 节点获取)
+        val levelsSection = plugin.levelsConfig.getConfigurationSection("levels") ?: return
         val allLevelKeys = levelsSection.getKeys(false).toList().mapNotNull { it.toIntOrNull() }.sorted()
 
         // 2. 加载菜单布局
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
         if (!file.exists()) return
         val menuConfig = YamlConfiguration.loadConfiguration(file)
-        val layout = menuConfig.getStringList("Layout")
-        val buttons = menuConfig.getConfigurationSection("button") ?: return
+        val layout = getLayout(menuConfig)
+        val buttons = getButtonsSection(menuConfig) ?: return
 
         // 3. 计算分页槽位
         val upgradeSlots = mutableListOf<Int>()
@@ -705,7 +743,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 构建公会等级升级物品
      */
     private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: DatabaseManager.GuildData, viewer: Player): ItemStack {
-        val levelConfig = plugin.config.getConfigurationSection("level.$targetLevel") ?: return ItemStack(Material.BARRIER)
+        val levelConfig = plugin.levelsConfig.getConfigurationSection("levels.$targetLevel") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
 
         // 1. 状态逻辑判断

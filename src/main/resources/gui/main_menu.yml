@@ -57,3 +57,10 @@ button:
     actions:
       left:
         - 'open: guild_bank'
+  "7":
+    display:
+      material: DIAMOND
+      name: '&a公会升级'
+    actions:
+      left:
+        - 'open: guild_upgrade'
