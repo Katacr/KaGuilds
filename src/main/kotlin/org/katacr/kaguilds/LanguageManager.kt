@@ -27,7 +27,7 @@ class LanguageManager(private val plugin: KaGuilds) {
      */
     fun get(key: String, vararg placeholders: Pair<String, String>): String {
         // 尝试从配置读取内容，不存在则返回错误提示
-        var message = langConfig?.getString(key) ?: return "§cMissing key: $key"
+        var message = langConfig?.getString(key) ?: return "§cMissing key: [ $key ]"
 
         // 遍历传入的 Pair 对，将 %key% 替换为 value
         placeholders.forEach { (placeholder, value) ->

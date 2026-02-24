@@ -96,10 +96,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "upgrade" -> handleUpgrade(sender)
             "pvp" -> handlePvP(sender, args)
             "menu" -> {
-                // 默认打开 main_menu.yml
+                if (!sender.hasPermission("kaguilds.use") && !sender.hasPermission("kaguilds.command.menu")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return true
+                }
                 plugin.menuManager.openMenu(sender, "main_menu")
                 return true
             }
+
 
             else -> {
                 sender.sendMessage(lang.get("help-hint"))
@@ -113,6 +117,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleBuff(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+        
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.buff 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.buff")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+        
         if (args.size < 2) {
             player.sendMessage(lang.get("buff-usage"))
             return
@@ -132,12 +143,18 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
     }
 
-
     /*
      * 处理 /kg chat 命令
      */
     private fun handleChat(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.chat 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.chat")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         // 检查参数：/kg chat <消息...>
         if (args.size < 2) {
             player.sendMessage(lang.get("chat-usage"))
@@ -154,6 +171,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleBank(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.bank 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.bank")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
 
         // 1. 基础检查
         if (args.size < 2) {
@@ -280,6 +303,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg kick 命令
      */
     private fun handleKick(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.kick 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.kick")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
             player.sendMessage(plugin.langManager.get("error-missing-args"))
             player.sendMessage(plugin.langManager.get("kick-usage"))
@@ -300,7 +330,15 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg delete 命令
      */
     private fun handleDelete(player: Player) {
+        val lang = plugin.langManager
         val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.delete 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.delete")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (role != "OWNER") {
             player.sendMessage(plugin.langManager.get("no-permission"))
             return
@@ -316,6 +354,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleCreate(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.create 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.create")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
             player.sendMessage(lang.get("create-usage"))
             return
@@ -351,7 +396,15 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     * 处理 /kg leave 命令
     */
     private fun handleLeave(player: Player) {
+        val lang = plugin.langManager
         val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.leave 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.leave")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (role == "OWNER") {
             player.sendMessage(plugin.langManager.get("owner-cannot-leave"))
             return
@@ -366,6 +419,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg info 命令
      */
     private fun handleInfo(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.info 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.info")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.guildService.getDetailedInfo(player) { result, info ->
             when (result) {
                 is OperationResult.Success -> {
@@ -395,7 +456,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleRoleChange(sender: Player, args: Array<out String>, newRole: String, roleDisplay: String) {
         val lang = plugin.langManager
+
         if (args.size < 2) {
+            if (args[0] == "promote") {
+                if (!sender.hasPermission("kaguilds.use") && !sender.hasPermission("kaguilds.command.promote")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
+            }
+            if (args[0] == "demote") {
+                if (!sender.hasPermission("kaguilds.use") && !sender.hasPermission("kaguilds.command.demote")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
+            }
             sender.sendMessage(lang.get("promote-usage", "cmd" to args[0]))
             return
         }
@@ -426,14 +500,21 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     * 处理 /kg invite 命令
     */
     private fun handleInvite(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.invite 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.invite")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("error-missing-args"))
-            player.sendMessage(plugin.langManager.get("invite-usage"))
+            player.sendMessage(lang.get("error-missing-args"))
+            player.sendMessage(lang.get("invite-usage"))
             return
         }
 
         plugin.guildService.invitePlayer(player, args[1]) { result ->
-            val lang = plugin.langManager
             // 回到主线程执行消息反馈
             plugin.server.scheduler.runTask(plugin, Runnable {
                 when (result) {
@@ -455,8 +536,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg join 命令
      */
     private fun handleJoin(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.join 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.join")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("join-usage"))
+            player.sendMessage(lang.get("join-usage"))
             return
         }
 
@@ -475,9 +564,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         input
                     }
 
-                    player.sendMessage(plugin.langManager.get("join-success", "guild" to displayName))
+                    player.sendMessage(lang.get("join-success", "guild" to displayName))
                 }
-                is OperationResult.AlreadyInGuild -> player.sendMessage(plugin.langManager.get("join-already"))
+                is OperationResult.AlreadyInGuild -> player.sendMessage(lang.get("join-already"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
@@ -488,22 +577,27 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg requests 命令
      */
     private fun handleRequests(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.requests 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.requests")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
-                ?: return@Runnable player.sendMessage(plugin.langManager.get("not-in-guild"))
+                ?: return@Runnable player.sendMessage(lang.get("not-in-guild"))
 
             // 数据库返回的是 List<Pair<UUID, Long>>
             val requests = plugin.dbManager.getRequests(guildId)
-            val lang = plugin.langManager
 
             player.sendMessage(lang.get("requests-header"))
             if (requests.isEmpty()) {
                 player.sendMessage(lang.get("requests-none"))
             } else {
-                requests.forEach { (uuid, _) -> // 忽略时间戳
-                    // 核心修复：手动转换 UUID 为名字
+                requests.forEach { (uuid, _) ->
                     val requesterName = plugin.server.getOfflinePlayer(uuid).name ?: "Unknown"
-                    // 这样传参就是 Pair<String, String>，不会报错了
                     player.sendMessage(lang.get("requests-format", "name" to requesterName))
                 }
             }
@@ -515,15 +609,22 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg accept 命令
      */
     private fun handleAccept(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.accept 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.accept")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("error-missing-args"))
-            player.sendMessage(plugin.langManager.get("accept-usage"))
+            player.sendMessage(lang.get("error-missing-args"))
+            player.sendMessage(lang.get("accept-usage"))
             return
         }
 
         // 调用 Service 层处理申请逻辑 (之前已经写好的 acceptRequest)
         plugin.guildService.acceptRequest(player, args[1]) { result ->
-            val lang = plugin.langManager
             when (result) {
                 is OperationResult.Success -> player.sendMessage(lang.get("accept-success", "player" to args[1]))
                 is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
@@ -537,14 +638,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg deny 命令
      */
     private fun handleDeny(player: Player, args: Array<out String>) {
-        if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("error-missing-args"))
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.deny 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.deny")) {
+            player.sendMessage(lang.get("no-permission"))
             return
         }
 
-        // 修复方案：调用 Service 中的处理方法，不要在 Command 层传字符串给需要 UUID 的 DB 方法
+        if (args.size < 2) {
+            player.sendMessage(lang.get("error-missing-args"))
+            return
+        }
+
         plugin.guildService.denyRequest(player, args[1]) { result ->
-            val lang = plugin.langManager
             when (result) {
                 is OperationResult.Success -> player.sendMessage(lang.get("deny-success", "player" to args[1]))
                 is OperationResult.Error -> player.sendMessage("§c${result.message}")
@@ -558,6 +665,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun sendHelp(sender: Player, page: Int) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.help 权限
+        if (!sender.hasPermission("kaguilds.use") && !sender.hasPermission("kaguilds.command.help")) {
+            sender.sendMessage(lang.get("no-permission"))
+            return
+        }
 
         // 使用 LinkedHashMap 或 List<Pair> 保持指令显示的顺序
         val allCmds = listOf(
@@ -631,13 +744,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg yes 命令
      */
     private fun handleYes(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.yes 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.yes")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.guildService.acceptInvite(player) { result ->
-            val lang = plugin.langManager
             when (result) {
                 is OperationResult.Success -> {
                     player.sendMessage(lang.get("invite-accepted"))
                     // 播放成功音效
-                    player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
+                    player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
                 }
                 is OperationResult.AlreadyInGuild -> player.sendMessage(lang.get("join-already-in-guild"))
                 is OperationResult.Error -> player.sendMessage(result.message)
@@ -650,26 +770,42 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg no 命令
      */
     private fun handleNo(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.no 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.no")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (!plugin.inviteCache.containsKey(player.uniqueId)) {
-            player.sendMessage(plugin.langManager.get("invite-none"))
+            player.sendMessage(lang.get("invite-none"))
             return
         }
         plugin.guildService.declineInvite(player)
-        player.sendMessage(plugin.langManager.get("invite-declined"))
+        player.sendMessage(lang.get("invite-declined"))
     }
 
     /*
      * 处理 /kg settp 命令
      */
     private fun handleSetTp(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.settp 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.settp")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.guildService.setGuildTP(player) { result ->
             when (result) {
                 is OperationResult.Success -> {
                     val cost = plugin.config.getDouble("balance.settp", 1000.0)
-                    player.sendMessage(plugin.langManager.get("tp-set-success"))
-                    player.sendMessage(plugin.langManager.get("tp-set-cost", "cost" to cost.toString()))
+                    player.sendMessage(lang.get("tp-set-success"))
+                    player.sendMessage(lang.get("tp-set-cost", "cost" to cost.toString()))
                 }
-                is OperationResult.NoPermission -> player.sendMessage(plugin.langManager.get("not-staff"))
+                is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
@@ -680,9 +816,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg tp 命令
      */
     private fun handleTp(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.tp 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.tp")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.guildService.teleportToGuild(player) { result ->
             when (result) {
-                is OperationResult.Success -> player.sendMessage(plugin.langManager.get("tp-success"))
+                is OperationResult.Success -> player.sendMessage(lang.get("tp-success"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
@@ -693,8 +837,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg rename 命令
      */
     private fun handleRename(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.rename 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.rename")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("rename-usage"))
+            player.sendMessage(lang.get("rename-usage"))
             return
         }
 
@@ -706,7 +858,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             when (result) {
                 is OperationResult.Success -> {
                     val price = plugin.config.getDouble("balance.rename", 3000.0).toString()
-                    player.sendMessage(plugin.langManager.get("rename-success",
+                    player.sendMessage(lang.get("rename-success",
                         "name" to newName,
                         "price" to price
                     ))
@@ -721,8 +873,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg confirm 命令
      */
     private fun handleConfirm(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.confirm 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.confirm")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         val action = plugin.guildService.consumePendingAction(player.uniqueId) ?: run {
-            player.sendMessage(plugin.langManager.get("confirm-no-pending"))
+            player.sendMessage(lang.get("confirm-no-pending"))
             return
         }
 
@@ -806,6 +966,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleTransfer(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.transfer 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.transfer")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
             player.sendMessage(lang.get("transfer-usage"))
             return
@@ -849,11 +1016,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleAdmin(sender: CommandSender, args: Array<out String>) {
         val lang = plugin.langManager
-        // 权限检查
-        if (!sender.hasPermission("kaguilds.admin")) {
-            sender.sendMessage(lang.get("no-permission"))
-            return
-        }
 
         if (args.size < 2) {
             sender.sendMessage(lang.get("admin-usage"))
@@ -863,6 +1025,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         when (args[1].lowercase()) {
             "rename" -> {
                 // 格式: /kg admin rename #ID [新名称]
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.rename")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 4) {
                     sender.sendMessage(lang.get("admin-rename-usage"))
                     return
@@ -903,6 +1069,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "delete" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.delete")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 3) {
                     sender.sendMessage(lang.get("admin-delete-usage"))
                     return
@@ -922,6 +1092,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "info" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.info")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 3) {
                     sender.sendMessage(lang.get("admin-info-usage"))
                     return
@@ -950,6 +1124,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "bank" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.bank")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 4) {
 
                     sender.sendMessage(lang.get("admin-bank-usage"))
@@ -1010,6 +1188,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "transfer" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.transfer")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 val lang = plugin.langManager
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-transfer-usage"))
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
@@ -1024,6 +1206,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "kick" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.kick")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-kick-usage"))
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
                 val targetName = args[3]
@@ -1037,6 +1223,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "join" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.join")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-join-usage"))
                 val guildId = args[2].replace("#", "").toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
@@ -1054,6 +1244,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "vault" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.vault")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 // 格式: /kg admin vault #ID [编号]
                 if (args.size < 3) {
                     sender.sendMessage(lang.get("admin-vault-usage"))
@@ -1069,12 +1263,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.guildService.adminOpenVault(sender as Player, guildId, index)
             }
             "unlockall" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.unlockall")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 // 用法: /kg admin unlockall
                 // 效果：清空全服务器（及跨服）的所有仓库锁
                 plugin.guildService.forceResetAllLocks()
                 sender.sendMessage(lang.get("admin-unlockall-success"))
             }
             "setlevel"-> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.setlevel")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 val targetId = args[2].replace("#", "").toIntOrNull() ?: return
                 val newLevel = args[3].toIntOrNull() ?: return
 
@@ -1094,6 +1296,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "exp" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.exp")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 // /kg admin exp #1 add 100
                 if (args.size < 5) {
                     sender.sendMessage(lang.get("admin-exp-usage"))
@@ -1106,6 +1312,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
             "arena" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.arena")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
                 val action = args.getOrNull(2)?.lowercase()
                 if (action == null) {
                     sender.sendMessage(lang.get("admin-arena-usage"))
@@ -1203,6 +1413,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
     private fun handleVault(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
 
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.vault 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.vault")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
+
         // 1. 获取玩家公会 ID (从缓存获取最快)
         val guildId = plugin.playerGuildCache[player.uniqueId]
         if (guildId == null) {
@@ -1231,6 +1448,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg seticon 命令
      */
     private fun handleSetIcon(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.seticon 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.seticon")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         val item = player.inventory.itemInMainHand
         if (item.type == org.bukkit.Material.AIR) {
             player.sendMessage(plugin.langManager.get("error-no-item"))
@@ -1260,8 +1485,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg motd  命令
      */
     private fun handleMotd(player: Player, args: Array<out String>) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.motd 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.motd")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         if (args.size < 2) {
-            player.sendMessage(plugin.langManager.get("motd-usage"))
+            player.sendMessage(lang.get("motd-usage"))
             return
         }
 
@@ -1270,14 +1503,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         // 2. 长度校验 (64字符)
         if (content.length > 64) {
-            player.sendMessage(plugin.langManager.get("motd-too-long"))
+            player.sendMessage(lang.get("motd-too-long"))
             return
         }
 
         // 3. 安全过滤 (禁止引号、分号、括号、彩色符号等)
         val forbiddenPattern = Regex("""['";\\<>{}\[\]§&]""")
         if (forbiddenPattern.containsMatchIn(content)) {
-            player.sendMessage(plugin.langManager.get("motd-forbidden-char"))
+            player.sendMessage(lang.get("motd-forbidden-char"))
             return
         }
 
@@ -1286,10 +1519,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             when (result) {
                 is OperationResult.Success -> {
                     val cost = plugin.config.getDouble("balance.motd", 100.0)
-                    player.sendMessage(plugin.langManager.get("motd-success", "cost" to cost.toString()))
+                    player.sendMessage(lang.get("motd-success", "cost" to cost.toString()))
 
                 }
-                is OperationResult.NoPermission -> player.sendMessage(plugin.langManager.get("not-staff"))
+                is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
                 is OperationResult.Error -> player.sendMessage(result.message)
                 else -> {}
             }
@@ -1300,9 +1533,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg upgrade 命令
      */
     private fun handleUpgrade(player: Player) {
+        val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.upgrade 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.upgrade")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
         plugin.guildService.upgradeGuild(player) { result ->
             if (result is OperationResult.Error) player.sendMessage(result.message)
-            else player.sendMessage(plugin.langManager.get("menu-upgrade-level-up-msg"))
+            else player.sendMessage(lang.get("menu-upgrade-level-up-msg"))
         }
     }
 
@@ -1311,6 +1552,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handlePvP(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+
+        // 权限检查：需要 kaguilds.use 或 kaguilds.command.pvp 权限
+        if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.pvp")) {
+            player.sendMessage(lang.get("no-permission"))
+            return
+        }
+
 
         if (args.size < 2) {
             player.sendMessage(lang.get("arena-pvp-help-header"))

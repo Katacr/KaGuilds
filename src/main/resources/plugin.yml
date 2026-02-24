@@ -3,18 +3,153 @@ version: 1.0.0
 main: org.katacr.kaguilds.KaGuilds
 api-version: '1.16'
 
-softdepend: ["PlaceholderAPI", "Vault", "SkinsRestorer"]
+softdepend: ["PlaceholderAPI", "Vault"]
 
 commands:
   kaguilds:
     description: KaGuilds 主指令
     aliases: [guild, kg] # 别名
-    permission: kaguilds.use
+    permission: kaguilds.command.main
 
 permissions:
   kaguilds.use:
-    description: 允许玩家使用基础公会指令
-    default: true  # 关键点：设置为 true 表示所有玩家默认拥有该权限
+    description: 允许玩家使用公会全部功能
+    default: false
   kaguilds.admin:
     description: 允许玩家使用重载等管理指令
-    default: op    # 仅 OP 拥有管理权限
+    default: op
+  kaguilds.command.main:
+    description: 允许玩家使用基础公会指令
+    default: true
+  kaguilds.command.help:
+    description: 允许玩家使用帮助指令
+    default: true
+
+  kaguilds.command.buff:
+    description: 允许玩家使用公会Buff指令
+    default: false
+  kaguilds.command.create:
+    description: 允许玩家使用创建公会指令
+    default: false
+  kaguilds.command.delete:
+    description: 允许玩家使用解散公会指令
+    default: false
+  kaguilds.command.promote:
+    description: 允许玩家使用提升公会成员指令
+    default: false
+  kaguilds.command.demote:
+    description: 允许玩家使用降级公会成员指令
+    default: false
+  kaguilds.command.accept:
+    description: 允许玩家使用批准入会申请指令
+    default: false
+  kaguilds.command.deny:
+    description: 允许玩家使用拒绝入会申请指令
+    default: false
+  kaguilds.command.confirm:
+    description: 允许玩家使用确认操作指令
+    default: false
+  kaguilds.command.bank:
+    description: 允许玩家使用公会金库指令
+    default: false
+  kaguilds.command.chat:
+    description: 允许玩家使用公会聊天指令
+    default: false
+  kaguilds.command.menu:
+    description: 允许玩家使用公会主菜单指令
+    default: false
+  kaguilds.command.motd:
+    description: 允许玩家使用公会公告指令
+    default: false
+  kaguilds.command.rename:
+    description: 允许玩家使用公会重命名指令
+    default: false
+  kaguilds.command.seticon:
+    description: 允许玩家使用公会图标指令
+    default: false
+  kaguilds.command.settp:
+    description: 允许玩家使用公会传送点指令
+    default: false
+  kaguilds.command.tp:
+    description: 允许玩家使用公会传送指令
+    default: false
+  kaguilds.command.upgrade:
+    description: 允许玩家使用公会升级指
+    default: false
+  kaguilds.command.info:
+    description: 允许玩家使用查看公会信息指令
+    default: false
+  kaguilds.command.invite:
+    description: 允许玩家使用邀请入会指令
+    default: false
+  kaguilds.command.join:
+    description: 允许玩家使用申请入会指令
+    default: false
+  kaguilds.command.kick:
+    description: 允许玩家使用踢出公会成员指令
+    default: false
+  kaguilds.command.leave:
+    description: 允许玩家使用退出公会
+    default: false
+  kaguilds.command.reload:
+    description: 允许玩家使用重载配置文件指令
+    default: op
+  kaguilds.command.vault:
+    description: 允许玩家使用公会云仓库指令
+    default: false
+  kaguilds.command.transfer:
+    description: 允许玩家使用公会转让指令
+    default: false
+  kaguilds.command.pvp:
+    description: 允许玩家使用公会战相关指令
+    default: false
+  kaguilds.command.admin:
+    description: 允许玩家使用公会管理员管理指令
+    default: false
+  kaguilds.command.yes:
+    description: 允许玩家使用接受邀请入会指令
+    default: false
+  kaguilds.command.no:
+    description: 允许玩家使用拒绝邀请入会指令
+    default: false
+  kaguilds.command.requests:
+    description: 允许玩家使用查看入会申请指令
+    default: false
+
+
+  kaguilds.admin.rename:
+    description: 允许管理员使用公会重命名指令
+    default: op
+  kaguilds.admin.delete:
+    description: 允许管理员使用公会解散指令
+    default: op
+  kaguilds.admin.info:
+    description: 允许管理员使用公会信息指令
+    default: op
+  kaguilds.admin.bank:
+    description: 允许管理员使用公会金库指令
+    default: op
+  kaguilds.admin.transfer:
+    description: 允许管理员使用公会转让指令
+    default: op
+  kaguilds.admin.kick:
+    description: 允许管理员使用公会踢出指令
+    default: op
+  kaguilds.admin.join:
+    description: 允许管理员使用公会加入指令
+    default: op
+  kaguilds.admin.vault:
+    description: 允许管理员使用公会云仓库指令
+    default: op
+  kaguilds.admin.unlockall:
+    description: 允许管理员使用公会存储解锁全部指令
+    default: op
+  kaguilds.admin.setlevel:
+    description: 允许管理员使用公会等级指令
+    default: op
+  kaguilds.admin.exp:
+    description: 允许管理员使用公会经验指令
+    default: op
+  kaguilds.admin.arena:
+    description: 允许管理员使用公会战指令
+    default: op

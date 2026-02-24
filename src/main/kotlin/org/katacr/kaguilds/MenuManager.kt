@@ -67,9 +67,10 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param page 页码
      */
     fun openMenu(player: Player, menuName: String, page: Int = 0) {
+        val lang = plugin.langManager
         val file = File(plugin.dataFolder, "gui/$menuName.yml")
         if (!file.exists()) {
-            player.sendMessage("§c菜单 $menuName 不存在！")
+            player.sendMessage(lang.get("menu-not-found", "menu" to menuName))
             return
         }
 
@@ -336,7 +337,7 @@ class MenuManager(private val plugin: KaGuilds) {
         }
 
         val placeholders = mapOf(
-            "members_name" to (member.name ?: "未知"),
+            "members_name" to (member.name ?: "Null"),
             "members_role" to roleDisplay,
             "members_join_time" to SimpleDateFormat(plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss")!!).format(Date(member.joinTime))
         )
@@ -437,9 +438,9 @@ class MenuManager(private val plugin: KaGuilds) {
             "max_members" to guild.maxMembers.toString(),
             "online" to onlineCount.toString(),
             "balance" to String.format("%.2f", guild.balance),
-            "announcement" to (guild.announcement ?: "暂无公告"),
+            "announcement" to (guild.announcement ?: "None"),
             "create_time" to createTimeStr,
-            "owner" to (guild.ownerName ?: "未知"),
+            "owner" to (guild.ownerName ?: "Null"),
             "player" to player.name,
             "role" to (plugin.dbManager.getPlayerRole(player.uniqueId) ?: "NONE"),
             "role_node" to when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
@@ -556,12 +557,13 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param viewer 玩家
      */
     private fun buildBuffItem(section: ConfigurationSection, buffKey: String, isUnlocked: Boolean, viewer: Player): ItemStack {
+        val lang = plugin.langManager
         val buffConfig = plugin.buffsConfig.getConfigurationSection("buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.GLASS_BOTTLE)
 
         // 判断材质和状态
         val materialName = if (isUnlocked) "HONEY_BOTTLE" else "GLASS_BOTTLE"
-        val status = if (isUnlocked) "§a可购买" else "§c已锁定 (需要公会升级)"
+        val status = if (isUnlocked) { lang.get("menu-text-buff-unlocked") } else { lang.get("menu-text-buff-locked") }
 
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.GLASS_BOTTLE)
         val meta = item.itemMeta ?: return item
@@ -598,7 +600,7 @@ class MenuManager(private val plugin: KaGuilds) {
         if (!file.exists()) return
 
         val config = YamlConfiguration.loadConfiguration(file)
-        val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "公会金库")!!)
+        val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "Guild Vaults")!!)
         val layout = getLayout(config)
         val buttons = getButtonsSection(config) ?: return
 
@@ -646,9 +648,10 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param section 按钮配置
      */
     private fun buildVaultItem(viewer: Player, vaultNum: Int, unlockedCount: Int, section: ConfigurationSection): ItemStack {
+        val lang = plugin.langManager
         val isUnlocked = vaultNum <= unlockedCount
         val materialName = if (isUnlocked) "CHEST_MINECART" else "MINECART"
-        val status = if (isUnlocked) "§a已解锁" else "§c已锁定"
+        val status = if (isUnlocked) { lang.get("menu-text-vault-unlocked") } else { lang.get("menu-text-vault-locked") }
 
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.CHEST_MINECART)
         val meta = item.itemMeta ?: return item
@@ -743,6 +746,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 构建公会等级升级物品
      */
     private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: DatabaseManager.GuildData, viewer: Player): ItemStack {
+        val lang = plugin.langManager
         val levelConfig = plugin.levelsConfig.getConfigurationSection("levels.$targetLevel") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
 
@@ -752,21 +756,21 @@ class MenuManager(private val plugin: KaGuilds) {
         val status = when {
             guildData.level >= targetLevel -> {
                 statusCode = 3
-                "§a● 已达成"
+                lang.get("menu-text-level-upgrade-done")
             }
             guildData.level == targetLevel - 1 -> {
                 val needExp = levelConfig.getInt("need-exp")
                 if (guildData.exp >= needExp) {
                     statusCode = 1
-                    "§e⚡ 点击升级"
+                    lang.get("menu-text-level-can-upgrade")
                 } else {
                     statusCode = 2
-                    "§6○ 经验不足"
+                    lang.get("menu-text-level-not-exp")
                 }
             }
             else -> {
                 statusCode = 0
-                "§c🔒 需按顺序升级"
+                lang.get("menu-text-level-locked")
             }
         }
 
@@ -808,6 +812,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
 
     fun reload() {
+        val lang = plugin.langManager
         menuCache.clear()
         val guiFolder = File(plugin.dataFolder, "gui")
         if (!guiFolder.exists()) guiFolder.mkdirs()
@@ -817,6 +822,6 @@ class MenuManager(private val plugin: KaGuilds) {
                 player.closeInventory()
             }
         }
-        plugin.logger.info("已重新加载所有 GUI 配置文件。")
+        plugin.logger.info(lang.get("menu-reload-success"))
     }
 }
