@@ -1330,7 +1330,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (sender !is Player) {
-                    sender.sendMessage("§c此指令需要在游戏内由玩家执行！")
+                    sender.sendMessage(lang.get("player-only"))
                     return
                 }
 
@@ -1349,7 +1349,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
 
                 if (sender !is Player) {
-                    sender.sendMessage("§c此指令需要在游戏内由玩家执行！")
+                    sender.sendMessage(lang.get("player-only"))
                     return
                 }
 
@@ -1746,8 +1746,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      * 处理 /kg 命令的 tab 补全
      */
     override fun onTabComplete(sender: CommandSender, cmd: Command, alias: String, args: Array<out String>): List<String>? {
-        if (sender !is Player) return emptyList()
-
         return when (args.size) {
             1 -> {
                 val list = mutableListOf(
@@ -1759,7 +1757,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 if (sender.hasPermission("kaguilds.admin")) {
                     list.addAll(listOf("reload", "admin"))
                 }
-                if (plugin.guildService.hasPendingAction(sender.uniqueId)) {
+                if (sender is Player && plugin.guildService.hasPendingAction(sender.uniqueId)) {
                     list.add("confirm")
                 }
                 filterList(list, args[0])
@@ -1774,7 +1772,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
-                    "buff" -> getBuffTab(sender)
+                    "buff" -> if (sender is Player) getBuffTab(sender) else emptyList()
                     "kick", "promote", "demote", "invite", "join", "accept", "deny", "transfer" -> return null
                     else -> emptyList()
                 }
