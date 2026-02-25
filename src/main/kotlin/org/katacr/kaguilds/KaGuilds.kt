@@ -30,6 +30,7 @@ class KaGuilds : JavaPlugin() {
     lateinit var pvpManager: PvPManager
     lateinit var buffsConfig: FileConfiguration
     lateinit var levelsConfig: FileConfiguration
+    val guiMenuFiles = mutableListOf<String>()
 
     /**
      * 在插件加载时优先处理依赖下载
@@ -80,6 +81,7 @@ class KaGuilds : JavaPlugin() {
 
         // 2. 模块初始化
         setupGuiFolder()
+        loadGuiMenus()
         loadBuffsConfig()
         loadLevelsConfig()
         menuManager = MenuManager(this)
@@ -172,6 +174,7 @@ class KaGuilds : JavaPlugin() {
      */
     fun reloadPlugin() {
         reloadConfig()
+        loadGuiMenus()
         loadBuffsConfig()
         loadLevelsConfig()
         langManager.load()
@@ -236,6 +239,21 @@ class KaGuilds : JavaPlugin() {
                 if (!destFile.exists()) {
                     saveResource("gui/$fileName", false)
                 }
+            }
+        }
+    }
+
+    /**
+     * 加载 GUI 菜单文件列表
+     */
+    private fun loadGuiMenus() {
+        guiMenuFiles.clear()
+        val guiFolder = File(dataFolder, "gui")
+        if (guiFolder.exists() && guiFolder.isDirectory) {
+            guiFolder.listFiles()?.filter { it.isFile && it.extension == "yml" }?.forEach { file ->
+                // 去除 .yml 扩展名，只保留文件名部分
+                val menuName = file.name.substring(0, file.name.length - 4)
+                guiMenuFiles.add(menuName)
             }
         }
     }

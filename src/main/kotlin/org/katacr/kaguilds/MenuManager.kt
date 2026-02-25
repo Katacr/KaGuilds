@@ -952,6 +952,5 @@ class MenuManager(private val plugin: KaGuilds) {
                 player.closeInventory()
             }
         }
-        plugin.logger.info(lang.get("menu-reload-success"))
     }
 }

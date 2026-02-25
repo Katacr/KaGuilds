@@ -1754,7 +1754,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = when (sub) {
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
@@ -1775,6 +1775,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         return filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
                     }
                     if (adminAction == "unlockall") return emptyList()
+                    if (adminAction == "open") {
+                        return filterList(plugin.guiMenuFiles, args[2])
+                    }
 
                     // 其他 admin 指令此处均为 [公会ID]，提示输入 #
                     return filterList(listOf("#"), args[2])
@@ -1826,6 +1829,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "vault" -> (1..9).map { it.toString() }
             "rename" -> listOf("<name>")
             "setlevel" -> listOf("<level>")
+            "open" -> plugin.guiMenuFiles
 
             // 模式 D: /kg admin [action] [ID] [Player] -> 此时补全玩家
             "transfer", "kick", "join" -> return null
