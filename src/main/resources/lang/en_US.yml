@@ -301,7 +301,8 @@ confirm-leave: "§eAre you sure you want to leave the current guild?"
 confirm-hint: "§eIf confirmed, please type §6/kg confirm §ewithin 30 seconds to execute."
 
 # Admin Command Related
-admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join>"
+admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join|open>"
+admin-open-usage: "§cUsage: /kg admin open <menu name>"
 admin-rename-notify: "§6[Guild Announcement] §eAdmin has renamed the guild to §b%name%§e."
 admin-delete-usage: "§cUsage: /kg admin delete #ID"
 admin-delete-notify: "§c§l[Guild Announcement] §eYour guild has been forcibly dissolved by admin."

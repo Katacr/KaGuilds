@@ -26,7 +26,7 @@ button:
       material: LIME_STAINED_GLASS_PANE
       name: ' &a存入 &7[ &b1,000 金币 &7]'
       amount: 1  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
-      custom_model_data: 1234567890
+      custom_data: 10001
     actions:
       left:
         - 'command: kg bank add 1000'

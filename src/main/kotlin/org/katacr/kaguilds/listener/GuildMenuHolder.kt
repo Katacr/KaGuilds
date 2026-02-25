@@ -1,14 +1,19 @@
 package org.katacr.kaguilds.listener
+import org.bukkit.Bukkit
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
+import org.bukkit.inventory.ItemStack
 import org.bukkit.configuration.ConfigurationSection
+import org.bukkit.entity.Player
+import org.katacr.kaguilds.KaGuilds
 
 class GuildMenuHolder(
     val title: String,
     val layout: List<String>,
     val buttons: ConfigurationSection?,
     var currentPage: Int = 0,
-    val menuName: String
+    val menuName: String,
+    val player: Player
 ) : InventoryHolder {
     private var inventory: Inventory? = null
     var updateTask: org.bukkit.scheduler.BukkitTask? = null

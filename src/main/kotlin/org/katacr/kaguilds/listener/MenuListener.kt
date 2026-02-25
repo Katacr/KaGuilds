@@ -164,28 +164,143 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         executeActionLine(player, finalLine)
     }
     /**
-     * 解析并检查条件字符串 (例如 "%vault_eco_balance% >= 2000")
+     * 解析并检查条件字符串 (支持 &&, || 复合条件)
+     * 例如: "%player_level% >= 0 && %player_level% < 10"
      */
     private fun checkCondition(player: Player, condition: String?): Boolean {
         if (condition == null || condition.isBlank()) return true
 
-        // 1. 变量替换 (PAPI 变量在此处被解析为具体的数值或字符串)
+        // 先进行 PAPI 变量替换
         var processed = condition
         if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
             processed = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, processed)
         }
 
-        // 2. 匹配操作符
+        // 解析逻辑表达式（支持 && 和 ||）
+        return parseLogicalExpression(processed)
+    }
+
+    /**
+     * 递归解析逻辑表达式（支持 && 和 ||）
+     * 优先级：&& 高于 ||
+     */
+    private fun parseLogicalExpression(expression: String): Boolean {
+        val trimmed = expression.trim()
+
+        // 1. 先检查是否包含 ||（优先级最低）
+        val orParts = splitByOperator(trimmed, "||")
+        if (orParts.size > 1) {
+            // 如果有 ||，先解析第一部分，如果为 true 则直接返回 true（短路求值）
+            val firstPart = orParts[0]
+            val firstResult = parseLogicalExpression(firstPart)
+            if (firstResult) return true // || 短路求值
+
+            // 否则继续解析剩余部分
+            val remaining = trimmed.substring(firstPart.length).trim().removePrefix("||").trim()
+            return parseLogicalExpression(remaining)
+        }
+
+        // 2. 再检查是否包含 &&（优先级高于 ||）
+        val andParts = splitByOperator(trimmed, "&&")
+        if (andParts.size > 1) {
+            // 如果有 &&，先解析第一部分，如果为 false 则直接返回 false（短路求值）
+            val firstPart = andParts[0]
+            val firstResult = parseLogicalExpression(firstPart)
+            if (!firstResult) return false // && 短路求值
+
+            // 否则继续解析剩余部分
+            val remaining = trimmed.substring(firstPart.length).trim().removePrefix("&&").trim()
+            return parseLogicalExpression(remaining)
+        }
+
+        // 3. 如果没有逻辑运算符，则为基本条件
+        return evaluateSingleCondition(trimmed)
+    }
+
+    /**
+     * 按运算符分割表达式（考虑括号和优先级）
+     */
+    private fun splitByOperator(expression: String, operator: String): List<String> {
+        val result = mutableListOf<String>()
+        var current = StringBuilder()
+        var parenDepth = 0
+        var i = 0
+
+        while (i < expression.length) {
+            val char = expression[i]
+
+            when {
+                char == '(' -> {
+                    parenDepth++
+                    current.append(char)
+                }
+                char == ')' -> {
+                    parenDepth--
+                    current.append(char)
+                }
+                parenDepth > 0 -> {
+                    // 括号内不分割
+                    current.append(char)
+                }
+                else -> {
+                    // 检查是否匹配运算符
+                    if (i + operator.length <= expression.length &&
+                        expression.substring(i, i + operator.length) == operator) {
+                        // 匹配到运算符
+                        result.add(current.toString().trim())
+                        current = StringBuilder()
+                        i += operator.length - 1 // 跳过运算符
+                    } else {
+                        current.append(char)
+                    }
+                }
+            }
+            i++
+        }
+
+        if (current.isNotEmpty()) {
+            result.add(current.toString().trim())
+        }
+
+        return result
+    }
+
+    /**
+     * 评估单个条件（如 "5 >= 3"）
+     */
+    private fun evaluateSingleCondition(condition: String): Boolean {
+        val trimmed = condition.trim()
+
+        // 如果是括号包裹的表达式，去掉括号后递归解析
+        if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+            val inner = trimmed.substring(1, trimmed.length - 1).trim()
+            // 确保括号是成对的
+            var parenCount = 0
+            var isCompletePair = true
+            for (char in inner) {
+                when (char) {
+                    '(' -> parenCount++
+                    ')' -> parenCount--
+                }
+                if (parenCount < 0) {
+                    isCompletePair = false
+                    break
+                }
+            }
+            if (isCompletePair && parenCount == 0) {
+                return parseLogicalExpression(inner)
+            }
+        }
+
+        // 匹配比较运算符
         val regex = "(>=|<=|==|!=|>|<)".toRegex()
-        val match = regex.find(processed) ?: return false
+        val match = regex.find(trimmed) ?: return false
 
         val op = match.value
-        // 使用 limit = 2 拆分，防止右侧内容包含相同字符导致解析错误
-        val parts = processed.split(op, limit = 2)
+        val parts = trimmed.split(op, limit = 2)
         val left = parts[0].trim()
         val right = parts[1].trim()
 
-        // 3. 逻辑判断
         return when (op) {
             "==" -> left.equals(right, ignoreCase = true)
             "!=" -> !left.equals(right, ignoreCase = true)
@@ -265,9 +380,6 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             "close" -> player.closeInventory()
             "catcher" -> {
                 chatCatchers[player.uniqueId] = rawArgs.lowercase()
-                // 捕获器触发后通常会自动执行 close 逻辑，
-                // 但为了保险，可以在这里直接调用 closeInventory()
-                player.closeInventory()
             }
         }
     }

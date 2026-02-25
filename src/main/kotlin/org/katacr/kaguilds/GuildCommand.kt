@@ -1311,6 +1311,20 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
+            "open" -> {
+                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.open")) {
+                    sender.sendMessage(lang.get("no-permission"))
+                    return
+                }
+                if (args.size < 3) {
+                    sender.sendMessage(lang.get("admin-open-usage"))
+                    return
+                }
+
+                val menuName = args[2]
+                val player = sender as? Player ?: return
+                plugin.menuManager.openMenu(player, menuName)
+            }
             "arena" -> {
                 if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.arena")) {
                     sender.sendMessage(lang.get("no-permission"))

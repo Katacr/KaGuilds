@@ -20,7 +20,6 @@ button:
     actions:
       left:
         - 'command: kg info'  # 直接执行，无需条件
-        - 'tell: &e正在为你查询公会信息...' # 直接执行
         - 'close'
   "2":
     display:

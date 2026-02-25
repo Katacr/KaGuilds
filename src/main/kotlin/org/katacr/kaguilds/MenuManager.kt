@@ -117,11 +117,11 @@ class MenuManager(private val plugin: KaGuilds) {
         val buttons = getButtonsSection(config)
 
         // 这里 page 默认为 0，普通菜单通常不需要分页逻辑
-        val holder = GuildMenuHolder(title, layout, buttons, 0, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, 0, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 
-        // 填充图标
+        // 填充图标并检查按钮级别的 update
         for (r in layout.indices) {
             val line = layout[r]
             for (c in line.indices) {
@@ -186,7 +186,7 @@ class MenuManager(private val plugin: KaGuilds) {
             plugin.dbManager.getGuildsByPage(safePage, guildsPerPage)
         } else emptyList()
 
-        val holder = GuildMenuHolder(title, layout, buttons, safePage, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, safePage, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 
@@ -276,7 +276,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val currentPageData = allMembers.drop(page * membersPerPage).take(membersPerPage)
 
         val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "Members")!!)
-        val holder = GuildMenuHolder(title, layout, buttons, page, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 
@@ -300,12 +300,32 @@ class MenuManager(private val plugin: KaGuilds) {
             }
         }
 
-        // --- 启动定时刷新任务 ---
+        // --- 启动菜单级别的定时刷新任务 ---
         val updateTicks = config.getLong("update", 0L)
         if (updateTicks > 0) {
             holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
                 // 定时刷新逻辑
-                refreshMenuContent(holder)
+                for (r in layout.indices) {
+                    val line = layout[r]
+                    for (c in line.indices) {
+                        val slot = r * 9 + c
+                        val char = line[c].toString()
+                        
+                        // 跳过有独立刷新任务的按钮
+                        val btnSection = buttons?.getConfigurationSection(char)
+                        if (btnSection != null && btnSection.getLong("update", 0L) > 0) continue
+                        
+                        // 只刷新动态类型的按钮（列表类型）
+                        val type = btnSection?.getString("type")
+                        if (type == "MEMBERS_LIST") {
+                            val relativeIdx = listSlots.indexOf(slot)
+                            if (relativeIdx != -1 && relativeIdx < currentPageData.size) {
+                                val item = buildMemberItem(btnSection, currentPageData[relativeIdx], player)
+                                inv.setItem(slot, item)
+                            }
+                        }
+                    }
+                }
             }, updateTicks, updateTicks)
         }
 
@@ -522,7 +542,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val currentPageBuffs = allBuffKeys.drop(page * buffsPerPage).take(buffsPerPage)
 
         val title = ChatColor.translateAlternateColorCodes('&', menuConfig.getString("title", "Buff Shop")!!)
-        val holder = GuildMenuHolder(title, layout, buttons, page, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 
@@ -611,7 +631,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val unlockedCount = plugin.levelsConfig.getInt("levels.$level.vaults", 0)
 
         // 2. 创建 Holder 和 Inventory (关键：必须传入 holder 才能防止物品被取走)
-        val holder = GuildMenuHolder(title, layout, buttons, 0, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, 0, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 
@@ -715,7 +735,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val currentPageLevels = allLevelKeys.drop(page * itemsPerPage).take(itemsPerPage)
 
         val title = ChatColor.translateAlternateColorCodes('&', menuConfig.getString("title", "Guild Upgrade")!!)
-        val holder = GuildMenuHolder(title, layout, buttons, page, menuName)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName, player)
         val inv = Bukkit.createInventory(holder, layout.size * 9, title)
         holder.setInventory(inv)
 

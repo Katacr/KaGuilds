@@ -153,3 +153,6 @@ permissions:
   kaguilds.admin.arena:
     description: 允许管理员使用公会战指令
     default: op
+  kaguilds.admin.open:
+    description: 允许管理员打开任意GUI菜单
+    default: op

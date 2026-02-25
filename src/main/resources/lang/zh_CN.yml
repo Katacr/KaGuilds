@@ -301,7 +301,8 @@ confirm-leave: "§e您确定要退出当前公会吗？"
 confirm-hint: "§e若确定，请在 30 秒内输入 §6/kg confirm §e以执行。"
 
 # 管理员指令相关
-admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join>"
+admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join|open>"
+admin-open-usage: "§c用法: /kg admin open <菜单名称>"
 admin-rename-notify: "§6[公会公告] §e管理员已将公会名称统一修改为 §b%name%§e。"
 admin-delete-usage: "§c用法: /kg admin delete #ID"
 admin-delete-notify: "§c§l[公会公告] §e你的公会已被管理员强制解散。"
