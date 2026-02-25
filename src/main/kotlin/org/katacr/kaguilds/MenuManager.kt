@@ -10,6 +10,7 @@ import org.bukkit.ChatColor
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.meta.SkullMeta
 import org.bukkit.persistence.PersistentDataType
 import org.katacr.kaguilds.listener.GuildMenuHolder
@@ -138,7 +139,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val updateTicks = config.getLong("update", 0L)
         if (updateTicks > 0) {
             holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-                refreshMenuContent(holder)
+                refreshMenu(holder)
             }, updateTicks, updateTicks)
         }
 
@@ -304,28 +305,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val updateTicks = config.getLong("update", 0L)
         if (updateTicks > 0) {
             holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-                // 定时刷新逻辑
-                for (r in layout.indices) {
-                    val line = layout[r]
-                    for (c in line.indices) {
-                        val slot = r * 9 + c
-                        val char = line[c].toString()
-                        
-                        // 跳过有独立刷新任务的按钮
-                        val btnSection = buttons?.getConfigurationSection(char)
-                        if (btnSection != null && btnSection.getLong("update", 0L) > 0) continue
-                        
-                        // 只刷新动态类型的按钮（列表类型）
-                        val type = btnSection?.getString("type")
-                        if (type == "MEMBERS_LIST") {
-                            val relativeIdx = listSlots.indexOf(slot)
-                            if (relativeIdx != -1 && relativeIdx < currentPageData.size) {
-                                val item = buildMemberItem(btnSection, currentPageData[relativeIdx], player)
-                                inv.setItem(slot, item)
-                            }
-                        }
-                    }
-                }
+                refreshMenu(holder)
             }, updateTicks, updateTicks)
         }
 
@@ -482,23 +462,153 @@ class MenuManager(private val plugin: KaGuilds) {
         val meta = item.itemMeta as? SkullMeta ?: return
         meta.owningPlayer = Bukkit.getOfflinePlayer(playerName)
         item.itemMeta = meta
-
     }
 
     /**
-     * 局部刷新菜单内容 (供 update 任务调用)
+     * 通用刷新菜单内容 (供 update 任务调用)
      * @param holder 菜单持有者
      */
-    fun refreshMenuContent(holder: GuildMenuHolder) {
+    private fun refreshMenu(holder: GuildMenuHolder) {
         val layout = holder.layout
-
+        val buttons = holder.buttons
+        val inv = holder.inventory
+        val player = holder.player
 
         for (r in layout.indices) {
             val line = layout[r]
             for (c in line.indices) {
+                val slot = r * 9 + c
                 val char = line[c].toString()
                 if (char == " ") continue
 
+                val btnSection = buttons?.getConfigurationSection(char) ?: continue
+                val type = btnSection.getString("type")
+
+                when (type) {
+                    "MEMBERS_LIST" -> {
+                        // 实时获取成员列表数据
+                        val guildId = plugin.playerGuildCache[player.uniqueId]
+                        if (guildId != null) {
+                            val allMembers = plugin.dbManager.getGuildMembers(guildId)
+                            val listSlots = mutableListOf<Int>()
+                            for (lr in layout.indices) {
+                                for (lc in layout[lr].indices) {
+                                    if (buttons.getConfigurationSection(layout[lr][lc].toString())?.getString("type") == "MEMBERS_LIST") {
+                                        listSlots.add(lr * 9 + lc)
+                                    }
+                                }
+                            }
+                            val membersPerPage = listSlots.size
+                            val currentPageData = allMembers.drop(holder.currentPage * membersPerPage).take(membersPerPage)
+                            val relativeIdx = listSlots.indexOf(slot)
+                            if (relativeIdx != -1 && relativeIdx < currentPageData.size) {
+                                val item = buildMemberItem(btnSection, currentPageData[relativeIdx], player)
+                                inv.setItem(slot, item)
+                            }
+                        }
+                    }
+                    "GUILDS_LIST" -> {
+                        // 实时获取公会列表数据
+                        val listSlots = mutableListOf<Int>()
+                        for (lr in layout.indices) {
+                            for (lc in layout[lr].indices) {
+                                if (buttons.getConfigurationSection(layout[lr][lc].toString())?.getString("type") == "GUILDS_LIST") {
+                                    listSlots.add(lr * 9 + lc)
+                                }
+                            }
+                        }
+                        val guildsPerPage = listSlots.size
+                        val currentPageGuilds = if (guildsPerPage > 0) {
+                            plugin.dbManager.getGuildsByPage(holder.currentPage, guildsPerPage)
+                        } else emptyList()
+                        val relativeIdx = listSlots.indexOf(slot)
+                        if (relativeIdx != -1 && relativeIdx < currentPageGuilds.size) {
+                            val item = buildGuildItem(btnSection, currentPageGuilds[relativeIdx], player)
+                            inv.setItem(slot, item)
+                        }
+                    }
+                    "BUFF_LIST" -> {
+                        // 实时获取Buff数据
+                        val guildId = plugin.playerGuildCache[player.uniqueId]
+                        if (guildId != null) {
+                            val guildData = plugin.dbManager.getGuildData(guildId)
+                            if (guildData != null) {
+                                val allBuffKeys = plugin.buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.toList() ?: emptyList()
+                                val listSlots = mutableListOf<Int>()
+                                for (lr in layout.indices) {
+                                    for (lc in layout[lr].indices) {
+                                        if (buttons.getConfigurationSection(layout[lr][lc].toString())?.getString("type") == "BUFF_LIST") {
+                                            listSlots.add(lr * 9 + lc)
+                                        }
+                                    }
+                                }
+                                val buffsPerPage = listSlots.size
+                                val currentPageBuffs = allBuffKeys.drop(holder.currentPage * buffsPerPage).take(buffsPerPage)
+                                val relativeIdx = listSlots.indexOf(slot)
+                                if (relativeIdx != -1 && relativeIdx < currentPageBuffs.size) {
+                                    val buffKey = currentPageBuffs[relativeIdx]
+                                    val allowedBuffs = plugin.levelsConfig.getStringList("levels.${guildData.level}.use-buff")
+                                    val isUnlocked = allowedBuffs.contains(buffKey)
+                                    val item = buildBuffItem(btnSection, buffKey, isUnlocked, player)
+                                    inv.setItem(slot, item)
+                                }
+                            }
+                        }
+                    }
+                    "GUILD_VAULTS" -> {
+                        // 实时获取金库数据
+                        val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
+                        val guildData = plugin.dbManager.getGuildData(guildId)
+                        val level = guildData?.level ?: 1
+                        val unlockedCount = plugin.levelsConfig.getInt("levels.$level.vaults", 0)
+                        var vaultCounter = 1
+                        for (vr in layout.indices) {
+                            for (vc in layout[vr].indices) {
+                                val vSlot = vr * 9 + vc
+                                val vChar = layout[vr][vc].toString()
+                                if (buttons.getConfigurationSection(vChar)?.getString("type") == "GUILD_VAULTS") {
+                                    if (slot == vSlot) {
+                                        val item = buildVaultItem(player, vaultCounter, unlockedCount, btnSection)
+                                        inv.setItem(slot, item)
+                                    }
+                                    vaultCounter++
+                                }
+                            }
+                        }
+                    }
+                    "GUILD_UPGRADE" -> {
+                        // 实时获取升级数据
+                        val guildId = plugin.playerGuildCache[player.uniqueId]
+                        if (guildId != null) {
+                            val guildData = plugin.dbManager.getGuildData(guildId)
+                            if (guildData != null) {
+                                val allLevelKeys = plugin.levelsConfig.getConfigurationSection("levels")?.getKeys(false)?.toList()
+                                    ?.mapNotNull { it.toIntOrNull() }?.sorted() ?: emptyList()
+                                val listSlots = mutableListOf<Int>()
+                                for (ur in layout.indices) {
+                                    for (uc in layout[ur].indices) {
+                                        if (buttons.getConfigurationSection(layout[ur][uc].toString())?.getString("type") == "GUILD_UPGRADE") {
+                                            listSlots.add(ur * 9 + uc)
+                                        }
+                                    }
+                                }
+                                val itemsPerPage = listSlots.size
+                                val currentPageLevels = allLevelKeys.drop(holder.currentPage * itemsPerPage).take(itemsPerPage)
+                                val relativeIdx = listSlots.indexOf(slot)
+                                if (relativeIdx != -1 && relativeIdx < currentPageLevels.size) {
+                                    val targetLevel = currentPageLevels[relativeIdx]
+                                    val item = buildUpgradeItem(btnSection, targetLevel, guildData, player)
+                                    inv.setItem(slot, item)
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        // 普通按钮（变量替换）
+                        val item = buildNormalItem(btnSection, holder, 1, player)
+                        inv.setItem(slot, item)
+                    }
+                }
             }
         }
     }

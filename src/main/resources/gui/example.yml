@@ -1,0 +1,146 @@
+# 综合测试菜单（条件判断 + 按钮刷新）
+title: "§e综合测试菜单"
+layout:
+  - "123456789"
+  - "abcdefghi"
+
+button:
+  "1":
+    display:
+      material: PAPER
+      name: '&a&& 与运算测试'
+      lore:
+        - '&7条件: %player_level% >= 0 && %player_level% < 10'
+        - '&7你的等级应该在 0~10 之间'
+        - '&e当前等级: %player_level%'
+    actions:
+      left:
+        - condition: "%player_level% >= 0 && %player_level% < 10"
+          actions:
+            - 'tell: &a✓ 条件满足！你的等级在 0~10 之间'
+          deny:
+            - 'tell: &c✗ 条件不满足！你的等级不在 0~10 之间'
+
+  "2":
+    display:
+      material: PAPER
+      name: '&b|| 或运算测试'
+      lore:
+        - '&7条件: %player_level% < 5 || %player_level% >= 20'
+        - '&7你的等级应该 < 5 或 >= 20'
+        - '&e当前等级: %player_level%'
+    actions:
+      left:
+        - condition: "%player_level% < 5 || %player_level% >= 20"
+          actions:
+            - 'tell: &a✓ 条件满足！你的等级 < 5 或 >= 20'
+          deny:
+            - 'tell: &c✗ 条件不满足！你的等级在 5~19 之间'
+
+  "3":
+    display:
+      material: PAPER
+      name: '&c复杂条件测试'
+      lore:
+        - '&7条件: %player_level% >= 10 && %player_level% < 20 && %player_health% >= 10'
+        - '&7等级 10~19 且 生命值 >= 10'
+        - '&e当前等级: %player_level%'
+        - '&e当前生命: %player_health%'
+    actions:
+      left:
+        - condition: "%player_level% >= 10 && %player_level% < 20 && %player_health% >= 10"
+          actions:
+            - 'tell: &a✓ 复杂条件满足！'
+          deny:
+            - 'tell: &c✗ 复杂条件不满足！'
+
+  "4":
+    display:
+      material: PAPER
+      name: '&d优先级测试'
+      lore:
+        - '&7条件: %player_level% < 5 || %player_level% >= 20 && %player_health% >= 10'
+        - '&7解析: (等级 < 5) 或 (等级 >= 20 且 生命 >= 10)'
+        - '&e当前等级: %player_level%'
+        - '&e当前生命: %player_health%'
+    actions:
+      left:
+        - condition: "%player_level% < 5 || %player_level% >= 20 && %player_health% >= 10"
+          actions:
+            - 'tell: &a✓ 优先级测试通过！'
+          deny:
+            - 'tell: &c✗ 优先级测试失败！'
+
+  "5":
+    display:
+      material: PAPER
+      name: '&e括号测试'
+      lore:
+        - '&7条件: (%player_level% >= 10 || %player_level% < 5) && %player_health% >= 10'
+        - '&7解析: (等级 >= 10 或 等级 < 5) 且 生命 >= 10'
+        - '&e当前等级: %player_level%'
+        - '&e当前生命: %player_health%'
+    actions:
+      left:
+        - condition: "(%player_level% >= 10 || %player_level% < 5) && %player_health% >= 10"
+          actions:
+            - 'tell: &a✓ 括号测试通过！'
+          deny:
+            - 'tell: &c✗ 括号测试失败！'
+
+  "6":
+    display:
+      material: BELL
+      name: '&a时间按钮（20 tick 刷新）'
+      lore:
+        - '&7每 20 tick 刷新一次显示'
+        - '&7当前时间: %server_time_HH:mm:ss%'
+    update: 20
+    actions:
+      left:
+        - 'tell: &a时间按钮被点击！'
+        
+  "7":
+    update: 40
+    display:
+      material: CLOCK
+      name: '&b慢速刷新（40 tick）'
+      lore:
+        - '&7每 40 tick 刷新一次'
+        - '&7当前时间: %server_time_HH:mm:ss%'
+        - '&7日期: %server_time_YYYY年MM月DD日%'
+    actions:
+      left:
+        - 'tell: &b点击了慢速刷新按钮'
+
+  "8":
+    update: 10
+    display:
+      material: WATCH
+      name: '&c快速刷新（10 tick）'
+      lore:
+        - '&7每 10 tick 刷新一次'
+        - '&7当前时间: %server_time_HH:mm:ss%'
+    actions:
+      left:
+        - 'tell: &c点击了快速刷新按钮'
+
+  "9":
+    display:
+      material: PAPER
+      name: '&e等级显示（无刷新）'
+      lore:
+        - '&7这个按钮没有 update 配置'
+        - '&7所以不会自动刷新'
+        - '&e当前等级: %player_level%'
+    actions:
+      left:
+        - 'tell: &e点击了等级显示按钮'
+
+  "x":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c关闭菜单'
+    actions:
+      left:
+        - 'close'
