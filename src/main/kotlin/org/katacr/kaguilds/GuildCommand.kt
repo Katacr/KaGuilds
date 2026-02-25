@@ -41,66 +41,69 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 sender.sendMessage(lang.get("no-permission"))
                 return true
             }
-            plugin.reloadPlugin()
-            sender.sendMessage(lang.get("reload-success"))
+            plugin.reloadPlugin(sender)
             return true
         }
 
-        // 3. 检查执行者是否是玩家
-        if (sender !is Player) {
-            sender.sendMessage(lang.get("player-only"))
-            return true
+        // 3. 检查执行者是否是玩家（admin 允许控制台执行）
+        if (subCommand != "admin") {
+            if (sender !is Player) {
+                sender.sendMessage(lang.get("player-only"))
+                return true
+            }
         }
 
         // 4. 检查玩家是否有公会
         if (!whiteList.contains(subCommand)) {
+            val player = sender as Player
             // 尝试从缓存或数据库获取玩家公会 ID
-            val guildId = plugin.playerGuildCache[sender.uniqueId] ?: plugin.dbManager.getGuildIdByPlayer(sender.uniqueId)
+            val guildId = plugin.playerGuildCache[player.uniqueId] ?: plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
 
             if (guildId == null) {
-                sender.sendMessage(lang.get("error-not-has-guild"))
+                player.sendMessage(lang.get("error-not-has-guild"))
                 return true
             } else {
                 // 顺便回填缓存，防止下次还要查数据库
-                plugin.playerGuildCache[sender.uniqueId] = guildId
+                plugin.playerGuildCache[player.uniqueId] = guildId
             }
         }
-        // 3. 处理 /kg 子命令
+        // 5. 处理 /kg 子命令
         when (subCommand) {
-            "info" -> handleInfo(sender)
-            "create" -> handleCreate(sender, args)
-            "invite" -> handleInvite(sender, args)
-            "join" -> handleJoin(sender, args)
-            "requests" -> handleRequests(sender)
-            "accept" -> handleAccept(sender, args)
-            "deny" -> handleDeny(sender, args)
-            "promote" -> handleRoleChange(sender, args, "ADMIN", lang.get("role-admin"))
-            "demote" -> handleRoleChange(sender, args, "MEMBER", lang.get("role-member"))
-            "leave" -> handleLeave(sender)
-            "delete" -> handleDelete(sender)
-            "kick" -> handleKick(sender, args)
-            "chat" -> handleChat(sender, args)
-            "bank" -> handleBank(sender, args)
-            "yes" -> handleYes(sender)
-            "no" -> handleNo(sender)
-            "settp" -> handleSetTp(sender)
-            "tp" -> handleTp(sender)
-            "rename" -> handleRename(sender, args)
-            "buff" -> handleBuff(sender, args)
-            "confirm" -> handleConfirm(sender)
+            "info" -> handleInfo(sender as Player)
+            "create" -> handleCreate(sender as Player, args)
+            "invite" -> handleInvite(sender as Player, args)
+            "join" -> handleJoin(sender as Player, args)
+            "requests" -> handleRequests(sender as Player)
+            "accept" -> handleAccept(sender as Player, args)
+            "deny" -> handleDeny(sender as Player, args)
+            "promote" -> handleRoleChange(sender as Player, args, "ADMIN", lang.get("role-admin"))
+            "demote" -> handleRoleChange(sender as Player, args, "MEMBER", lang.get("role-member"))
+            "leave" -> handleLeave(sender as Player)
+            "delete" -> handleDelete(sender as Player)
+            "kick" -> handleKick(sender as Player, args)
+            "chat" -> handleChat(sender as Player, args)
+            "bank" -> handleBank(sender as Player, args)
+            "yes" -> handleYes(sender as Player)
+            "no" -> handleNo(sender as Player)
+            "settp" -> handleSetTp(sender as Player)
+            "tp" -> handleTp(sender as Player)
+            "rename" -> handleRename(sender as Player, args)
+            "buff" -> handleBuff(sender as Player, args)
+            "confirm" -> handleConfirm(sender as Player)
             "admin" -> handleAdmin(sender, args)
-            "transfer" -> handleTransfer(sender, args)
-            "vault" -> handleVault(sender, args)
-            "seticon" -> handleSetIcon(sender)
-            "motd" -> handleMotd(sender, args)
-            "upgrade" -> handleUpgrade(sender)
-            "pvp" -> handlePvP(sender, args)
+            "transfer" -> handleTransfer(sender as Player, args)
+            "vault" -> handleVault(sender as Player, args)
+            "seticon" -> handleSetIcon(sender as Player)
+            "motd" -> handleMotd(sender as Player, args)
+            "upgrade" -> handleUpgrade(sender as Player)
+            "pvp" -> handlePvP(sender as Player, args)
             "menu" -> {
-                if (!sender.hasPermission("kaguilds.use") && !sender.hasPermission("kaguilds.command.menu")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                val player = sender as Player
+                if (!player.hasPermission("kaguilds.use") && !player.hasPermission("kaguilds.command.menu")) {
+                    player.sendMessage(lang.get("no-permission"))
                     return true
                 }
-                plugin.menuManager.openMenu(sender, "main_menu")
+                plugin.menuManager.openMenu(player, "main_menu")
                 return true
             }
 
@@ -1254,13 +1257,18 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     return
                 }
 
+                if (sender !is Player) {
+                    sender.sendMessage("§c此指令需要在游戏内由玩家执行！")
+                    return
+                }
+
                 val guildId = args[2].replace("#", "").toIntOrNull()
                     ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
                 val index = if (args.size > 3) args[3].toIntOrNull() ?: 1 else 1
 
                 // 调用 Service 层专门给 admin 用的方法
-                plugin.guildService.adminOpenVault(sender as Player, guildId, index)
+                plugin.guildService.adminOpenVault(sender, guildId, index)
             }
             "unlockall" -> {
                 if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.unlockall")) {
@@ -1321,9 +1329,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     return
                 }
 
+                if (sender !is Player) {
+                    sender.sendMessage("§c此指令需要在游戏内由玩家执行！")
+                    return
+                }
+
                 val menuName = args[2]
-                val player = sender as? Player ?: return
-                plugin.menuManager.openMenu(player, menuName)
+                plugin.menuManager.openMenu(sender, menuName)
             }
             "arena" -> {
                 if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.arena")) {
@@ -1336,8 +1348,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     return
                 }
 
-                val player = sender as? Player ?: return
-                val loc = player.location
+                if (sender !is Player) {
+                    sender.sendMessage("§c此指令需要在游戏内由玩家执行！")
+                    return
+                }
+
+                val loc = sender.location
                 val arena = plugin.arenaManager.arena
 
                 when (action) {
@@ -1346,14 +1362,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         when (index) {
                             "1" -> {
                                 arena.pos1 = loc
-                                player.sendMessage(lang.get("admin-arena-set-pos1"))
+                                sender.sendMessage(lang.get("admin-arena-set-pos1"))
                             }
                             "2" -> {
                                 arena.pos2 = loc
-                                player.sendMessage(lang.get("admin-arena-set-pos2"))
+                                sender.sendMessage(lang.get("admin-arena-set-pos2"))
                             }
                             else -> {
-                                player.sendMessage(lang.get("admin-arena-setpos-usage"))
+                                sender.sendMessage(lang.get("admin-arena-setpos-usage"))
                                 return
                             }
                         }
@@ -1364,14 +1380,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         when (team) {
                             "red" -> {
                                 arena.redSpawn = loc
-                                player.sendMessage(lang.get("admin-arena-set-redspawn"))
+                                sender.sendMessage(lang.get("admin-arena-set-redspawn"))
                             }
                             "blue" -> {
                                 arena.blueSpawn = loc
-                                player.sendMessage(lang.get("admin-arena-set-bluespawn"))
+                                sender.sendMessage(lang.get("admin-arena-set-bluespawn"))
                             }
                             else -> {
-                                player.sendMessage(lang.get("admin-arena-setspawn-usage"))
+                                sender.sendMessage(lang.get("admin-arena-setspawn-usage"))
                                 return
                             }
                         }
@@ -1380,13 +1396,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "setkit" -> {
                         val team = args.getOrNull(3)?.lowercase()
                         if (team != "red" && team != "blue") {
-                            player.sendMessage(lang.get("admin-arena-setkit-usage"))
+                            sender.sendMessage(lang.get("admin-arena-setkit-usage"))
                             return
                         }
 
-                        plugin.arenaManager.saveKit(player, team)
+                        plugin.arenaManager.saveKit(sender, team)
                         val teamDisplay = if (team == "red") lang.get("arena-pvp-red-team-name") else lang.get("arena-pvp-blue-team-name")
-                        player.sendMessage(lang.get("admin-arena-set-kit", "team" to teamDisplay))
+                        sender.sendMessage(lang.get("admin-arena-set-kit", "team" to teamDisplay))
                         return
                     }
 
@@ -1394,16 +1410,16 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         val t = lang.get("admin-arena-info-set")
                         val f = lang.get("admin-arena-info-unset")
 
-                        player.sendMessage(lang.get("admin-arena-info-header"))
-                        player.sendMessage("${lang.get("admin-arena-info-pos1")} ${if (arena.pos1 != null) t else f}")
-                        player.sendMessage("${lang.get("admin-arena-info-pos2")} ${if (arena.pos2 != null) t else f}")
-                        player.sendMessage("${lang.get("admin-arena-info-redspawn")} ${if (arena.redSpawn != null) t else f}")
-                        player.sendMessage("${lang.get("admin-arena-info-bluespawn")} ${if (arena.blueSpawn != null) t else f}")
+                        sender.sendMessage(lang.get("admin-arena-info-header"))
+                        sender.sendMessage("${lang.get("admin-arena-info-pos1")} ${if (arena.pos1 != null) t else f}")
+                        sender.sendMessage("${lang.get("admin-arena-info-pos2")} ${if (arena.pos2 != null) t else f}")
+                        sender.sendMessage("${lang.get("admin-arena-info-redspawn")} ${if (arena.redSpawn != null) t else f}")
+                        sender.sendMessage("${lang.get("admin-arena-info-bluespawn")} ${if (arena.blueSpawn != null) t else f}")
 
                         val redKitStatus = if (plugin.arenaManager.redKitContents != null) t else f
                         val blueKitStatus = if (plugin.arenaManager.blueKitContents != null) t else f
-                        player.sendMessage("${lang.get("admin-arena-info-redkit")} $redKitStatus")
-                        player.sendMessage("${lang.get("admin-arena-info-bluekit")} $blueKitStatus")
+                        sender.sendMessage("${lang.get("admin-arena-info-redkit")} $redKitStatus")
+                        sender.sendMessage("${lang.get("admin-arena-info-bluekit")} $blueKitStatus")
                         return
                     }
 

@@ -10,7 +10,6 @@ import org.bukkit.ChatColor
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
-import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.meta.SkullMeta
 import org.bukkit.persistence.PersistentDataType
 import org.katacr.kaguilds.listener.GuildMenuHolder
@@ -942,7 +941,6 @@ class MenuManager(private val plugin: KaGuilds) {
 
 
     fun reload() {
-        val lang = plugin.langManager
         menuCache.clear()
         val guiFolder = File(plugin.dataFolder, "gui")
         if (!guiFolder.exists()) guiFolder.mkdirs()

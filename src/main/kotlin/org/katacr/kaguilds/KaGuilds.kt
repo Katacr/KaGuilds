@@ -5,6 +5,7 @@ import net.byteflux.libby.Library
 import net.milkbowl.vault.economy.Economy
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.SingleLineChart
+import org.bukkit.command.CommandSender
 import org.bukkit.configuration.file.FileConfiguration
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.RegisteredServiceProvider
@@ -172,13 +173,14 @@ class KaGuilds : JavaPlugin() {
     /**
      * 重载插件
      */
-    fun reloadPlugin() {
+    fun reloadPlugin(sender: CommandSender) {
         reloadConfig()
         loadGuiMenus()
         loadBuffsConfig()
         loadLevelsConfig()
         langManager.load()
         menuManager.reload()
+        sender.sendMessage(langManager.get("reload-success"))
     }
 
     /**
