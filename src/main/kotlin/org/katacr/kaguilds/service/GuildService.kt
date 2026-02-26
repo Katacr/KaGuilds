@@ -10,6 +10,7 @@ import org.bukkit.scheduler.BukkitTask
 import org.katacr.kaguilds.listener.VaultHolder
 import org.katacr.kaguilds.util.SerializationUtil
 import java.util.UUID
+import org.katacr.kaguilds.util.MessageUtil
 
 class GuildService(private val plugin: KaGuilds) {
     data class GuildInfo(
@@ -286,8 +287,28 @@ class GuildService(private val plugin: KaGuilds) {
 
                 // 存入邀请缓存并通知
                 plugin.inviteCache[targetPlayer.uniqueId] = guildId
-                targetPlayer.sendMessage(plugin.langManager.get("invite-received-target",
+
+                val lang = plugin.langManager
+                val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("invite-received-target",
                     "player" to sender.name, "guild" to guildData.name))
+
+                val acceptBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                    text = lang.get("invite-accept-btn"),
+                    hoverText = lang.get("invite-accept-btn-hover"),
+                    command = "/kg yes"
+                )
+                val space = org.katacr.kaguilds.util.MessageUtil.createText(" ")
+                val denyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                    text = lang.get("invite-deny-btn"),
+                    hoverText = lang.get("invite-deny-btn-hover"),
+                    command = "/kg no"
+                )
+
+                msg.addExtra(acceptBtn)
+                msg.addExtra(space)
+                msg.addExtra(denyBtn)
+
+                targetPlayer.spigot().sendMessage(msg)
                 callback(OperationResult.Success)
             }
         })
@@ -347,6 +368,7 @@ class GuildService(private val plugin: KaGuilds) {
      * 内部工具：发送公会通知（兼容单服/跨服）
      */
     private fun dispatchGuildNotification(targetGuildId: Int, subChannel: String, vararg data: Any) {
+        val lang = plugin.langManager
         val isProxy = plugin.config.getBoolean("proxy", false)
 
         if (isProxy) {
@@ -367,9 +389,14 @@ class GuildService(private val plugin: KaGuilds) {
             // --- 单服模式：直接在当前服务器内查找并发送 ---
             when (subChannel) {
                 "NotifyRequest" -> {
-                    val guildName = data[1] as String
                     val applicantName = data[2] as String
-                    val msg = plugin.langManager.get("notify-new-request", "player" to applicantName, "guild" to guildName)
+                    val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
+
+                    val viewBtn = MessageUtil.createClickableText(
+                        text = lang.get("notify-view-btn"),
+                        hoverText = lang.get("notify-view-btn-hover"),
+                        command = "/kg requests"
+                    )
 
                     plugin.server.onlinePlayers.forEach { p ->
                         if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
@@ -377,7 +404,8 @@ class GuildService(private val plugin: KaGuilds) {
                             plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                                 val role = plugin.dbManager.getPlayerRole(p.uniqueId)
                                 if (role == "OWNER" || role == "ADMIN") {
-                                    p.sendMessage(msg)
+                                    msg.addExtra(viewBtn)
+                                    p.spigot().sendMessage(msg)
                                     p.playSound(p.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
                                 }
                             })
@@ -1712,21 +1740,25 @@ class GuildService(private val plugin: KaGuilds) {
             // 1. 使用 isStaff 方法检查权限
             if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) return@Runnable
 
-            // 2. 获取该公会的详细申请列表
-            val requests = plugin.dbManager.getDetailedRequests(guildId)
+            // 2. 获取该公会的申请列表
+            val requests = plugin.dbManager.getRequests(guildId)
             if (requests.isEmpty()) return@Runnable
 
-            // 3. 获取公会数据（用于显示公会名）
-            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+            val num = requests.size
 
-            // 4. 回到主线程发送消息
+            // 3. 回到主线程发送消息
             plugin.server.scheduler.runTask(plugin, Runnable {
-                requests.forEach { (playerName, _, _) ->
-                    val msg = plugin.langManager.get("notify-new-request")
-                        .replace("%player%", playerName)
-                        .replace("%guild%", guildData.name)
-                    player.sendMessage(msg)
-                }
+                val lang = plugin.langManager
+                val msg = MessageUtil.createText(lang.get("notify-pending-requests", "num" to num.toString()))
+
+                val viewBtn = MessageUtil.createClickableText(
+                    text = lang.get("notify-view-btn"),
+                    hoverText = lang.get("notify-view-btn-hover"),
+                    command = "/kg requests"
+                )
+
+                msg.addExtra(viewBtn)
+                player.spigot().sendMessage(msg)
             })
         })
     }

@@ -13,7 +13,6 @@ guild:
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
   motd: "欢迎加入我的公会"
   icon: "SHIELD"
-  buff-time: 90 # 公会buff时间(秒)
   teleport: # 传送设置
     disabled-worlds: # 禁止设置传送点的世界
       - "world_nether"
@@ -27,8 +26,10 @@ guild:
     pvp-time: 600 # 公会战游戏时间(秒)
     kit: true # 是否启用套装
     reward-command:
-      - 'kg admin bank {id} add 1000' # 公会战奖励,{id}为胜利公会id
-      - 'kg admin exp {id} add 500'
+      - 'kg admin bank {win_id} add 1000' # 公会战奖励,{win_id}为胜利公会id
+      - 'kg admin exp {win_id} add 500'
+      - 'kg admin bank {lose_id} add 100' # 公会战奖励,{lose_id}为战败公会id
+      - 'kg admin exp {lose_id} add 50'
 
 database:
   # 数据库类型: MySQL 或 SQLite

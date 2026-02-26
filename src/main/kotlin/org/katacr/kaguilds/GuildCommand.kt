@@ -601,7 +601,26 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             } else {
                 requests.forEach { (uuid, _) ->
                     val requesterName = plugin.server.getOfflinePlayer(uuid).name ?: "Unknown"
-                    player.sendMessage(lang.get("requests-format", "name" to requesterName))
+
+                    val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("requests-format", "name" to requesterName))
+
+                    val acceptBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                        text = lang.get("requests-accept-btn"),
+                        hoverText = lang.get("requests-accept-btn-hover", "name" to requesterName),
+                        command = "/kg accept $requesterName"
+                    )
+                    val space = org.katacr.kaguilds.util.MessageUtil.createText(" ")
+                    val denyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                        text = lang.get("requests-deny-btn"),
+                        hoverText = lang.get("requests-deny-btn-hover", "name" to requesterName),
+                        command = "/kg deny $requesterName"
+                    )
+
+                    msg.addExtra(acceptBtn)
+                    msg.addExtra(space)
+                    msg.addExtra(denyBtn)
+
+                    player.spigot().sendMessage(msg)
                 }
             }
             player.sendMessage(lang.get("requests-footer"))
@@ -1670,7 +1689,17 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     val senderName = plugin.dbManager.getGuildData(senderId)?.name ?: "Opponent"
 
                     match?.smartBroadcast(lang.get("arena-pvp-accept-broadcast", "player" to player.name, "sender" to senderName))
-                    match?.smartBroadcast(lang.get("arena-pvp-ready-hint"))
+
+                    val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("arena-pvp-ready-hint"))
+
+                    val readyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                        text = lang.get("arena-pvp-ready-btn"),
+                        hoverText = lang.get("arena-pvp-ready-btn-hover"),
+                        command = "/kg pvp ready"
+                    )
+
+                    msg.addExtra(readyBtn)
+                    match?.smartBroadcastText(msg)
                 } else {
                     player.sendMessage(lang.get("arena-pvp-error-no-invite"))
                 }
@@ -1702,7 +1731,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 val arena = plugin.arenaManager.arena
                 if (arena.redSpawn == null || arena.blueSpawn == null) {
-                    player.sendMessage(lang.get("arena-arena-pvp-no-spawn"))
+                    player.sendMessage(lang.get("arena-pvp-no-spawn"))
                     return
                 }
 

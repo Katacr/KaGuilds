@@ -3,6 +3,7 @@ package org.katacr.kaguilds
 import com.google.common.io.ByteStreams
 import org.bukkit.entity.Player
 import org.bukkit.plugin.messaging.PluginMessageListener
+import org.katacr.kaguilds.util.MessageUtil
 import java.util.UUID
 import kotlin.collections.forEach
 
@@ -70,7 +71,14 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val targetGuildId = `in`.readInt()
                 val applicantName = `in`.readUTF()
 
-                val notifyMsg = plugin.langManager.get("request-notify", "player" to applicantName)
+                val lang = plugin.langManager
+                val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
+
+                val viewBtn = MessageUtil.createClickableText(
+                    text = lang.get("notify-view-btn"),
+                    hoverText = lang.get("notify-view-btn-hover"),
+                    command = "/kg requests"
+                )
 
                 // 找到本服所有属于该公会且具有管理权限的玩家
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
@@ -79,7 +87,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         // 异步检查权限，或者如果你把权限也缓存了会更快
                         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                             if (plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
-                                onlinePlayer.sendMessage(notifyMsg)
+                                msg.addExtra(viewBtn)
+                                player.spigot().sendMessage(msg)
                             }
                         })
                     }
@@ -107,9 +116,27 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
 
                             // 2. 发送提示
                             plugin.server.scheduler.runTask(plugin, Runnable {
-                                val msg = plugin.langManager.get("invite-received-target",
-                                    "player" to senderName, "guild" to guildName)
-                                targetPlayer.sendMessage(msg)
+                                val lang = plugin.langManager
+                                val msg = MessageUtil.createText(lang.get("invite-received-target",
+                                    "player" to senderName, "guild" to guildName))
+
+                                val acceptBtn = MessageUtil.createClickableText(
+                                    text = lang.get("invite-accept-btn"),
+                                    hoverText = lang.get("invite-accept-btn-hover"),
+                                    command = "/kg yes"
+                                )
+                                val space = MessageUtil.createText(" ")
+                                val denyBtn = MessageUtil.createClickableText(
+                                    text = lang.get("invite-deny-btn"),
+                                    hoverText = lang.get("invite-deny-btn-hover"),
+                                    command = "/kg no"
+                                )
+
+                                msg.addExtra(acceptBtn)
+                                msg.addExtra(space)
+                                msg.addExtra(denyBtn)
+
+                                targetPlayer.spigot().sendMessage(msg)
                                 targetPlayer.playSound(targetPlayer.location, org.bukkit.Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1f)
                             })
 
@@ -126,10 +153,16 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "NotifyRequest" -> {
                 val targetId = `in`.readInt()
-                val gName = `in`.readUTF()
                 val appName = `in`.readUTF()
 
-                val msg = plugin.langManager.get("notify-new-request", "player" to appName, "guild" to gName)
+                val lang = plugin.langManager
+                val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to appName))
+
+                val viewBtn = MessageUtil.createClickableText(
+                    text = lang.get("notify-view-btn"),
+                    hoverText = lang.get("notify-view-btn-hover"),
+                    command = "/kg requests"
+                )
 
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     // 先查缓存确认公会
@@ -139,7 +172,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                             val role = plugin.dbManager.getPlayerRole(onlinePlayer.uniqueId)
                             if (role == "OWNER" || role == "ADMIN") {
                                 plugin.server.scheduler.runTask(plugin, Runnable {
-                                    onlinePlayer.sendMessage(msg)
+                                    msg.addExtra(viewBtn)
+                                    player.spigot().sendMessage(msg)
                                     onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
                                 })
                             }

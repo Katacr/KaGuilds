@@ -14,7 +14,7 @@ commands:
 permissions:
   kaguilds.use:
     description: 允许玩家使用公会全部功能
-    default: false
+    default: op
   kaguilds.admin:
     description: 允许玩家使用重载等管理指令
     default: op

@@ -6,6 +6,7 @@ import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.KaGuilds
+import org.katacr.kaguilds.util.MessageUtil
 import java.util.UUID
 
 class PvPManager(private val plugin: KaGuilds) {
@@ -40,18 +41,24 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     fun notifyTargetGuild(targetGuildId: Int, senderGuildName: String) {
         val lang = plugin.langManager
-        val msg = net.md_5.bungee.api.chat.TextComponent(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
+        val msg = MessageUtil.createText(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
 
-        val acceptBtn = net.md_5.bungee.api.chat.TextComponent(lang.get("arena-pvp-accept-btn"))
-        acceptBtn.clickEvent = net.md_5.bungee.api.chat.ClickEvent(
-            net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/kg pvp accept"
+        val acceptBtn = MessageUtil.createClickableText(
+            text = lang.get("arena-pvp-accept-btn"),
+            hoverText = lang.get("arena-pvp-accept-btn-hover"),
+            command = "/kg pvp accept"
         )
-        val hoverText = net.md_5.bungee.api.chat.hover.content.Text(lang.get("arena-pvp-accept-btn-hover"))
-        acceptBtn.hoverEvent = net.md_5.bungee.api.chat.HoverEvent(
-            net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-            hoverText
+        val space = MessageUtil.createText(" ")
+        val denyBtn = MessageUtil.createClickableText(
+            text = lang.get("arena-pvp-deny-btn"),
+            hoverText = lang.get("arena-pvp-deny-btn-hover"),
+            command = "/kg pvp deny"
         )
+
         msg.addExtra(acceptBtn)
+        msg.addExtra(space)
+        msg.addExtra(denyBtn)
+
         plugin.server.onlinePlayers.forEach { onlinePlayer ->
             val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
             if (playerGuildId == targetGuildId) {
@@ -156,7 +163,8 @@ class PvPManager(private val plugin: KaGuilds) {
 
                 // 仅对参赛双方广播倒计时，减少全服骚扰
                 if (timeLeft % 30 == 0 || (timeLeft in 1..10)) {
-                    m.smartBroadcast(lang.get("arena-pvp-ready-countdown", "time" to timeLeft.toString()))
+                    val msg = lang.get("arena-pvp-ready-countdown", "time" to timeLeft.toString())
+                    m.sendPvPTitle(msg)
                 }
 
                 timeLeft--
@@ -349,9 +357,6 @@ class PvPManager(private val plugin: KaGuilds) {
             })
 
         } else {
-            // 准备阶段取消，不计入统计，仅执行退款
-            match.smartBroadcast(lang.get("arena-pvp-not-enough-players"))
-
             // 退还公会挑战金
             val fee = plugin.config.getDouble("balance.pvp", 300.0)
             if (fee > 0) {
@@ -416,14 +421,14 @@ class PvPManager(private val plugin: KaGuilds) {
                         updateGuildStats(blueId, "losses")
                         // 奖励指令通常涉及玩家操作，建议回主线程执行或确保指令支持异步
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
-                            executeRewardCommands(redId)
+                            executeRewardCommands(redId, blueId)
                         })
                     }
                     blueId -> {
                         updateGuildStats(blueId, "wins")
                         updateGuildStats(redId, "losses")
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
-                            executeRewardCommands(blueId)
+                            executeRewardCommands(blueId, redId)
                         })
                     }
                     else -> {
@@ -457,10 +462,11 @@ class PvPManager(private val plugin: KaGuilds) {
     /**
      * 辅助方法：执行奖励命令
      */
-    private fun executeRewardCommands(guildId: Int) {
+    private fun executeRewardCommands(winId: Int, loseId: Int) {
         val commands = plugin.config.getStringList("guild.arena.reward-command")
         commands.forEach { cmd ->
-            val finalCmd = cmd.replace("{id}", guildId.toString())
+            var finalCmd = cmd.replace("{win_id}", winId.toString())
+            finalCmd = finalCmd.replace("{lose_id}", loseId.toString())
             plugin.server.dispatchCommand(plugin.server.consoleSender, finalCmd)
         }
     }
@@ -613,19 +619,6 @@ data class ActiveMatch(
     var isStarted: Boolean = false,
     var totalTime: Int = 120
 ) {
-    /**
-     * 向所有参与本场战斗的玩家发送消息
-     */
-    fun broadcast(message: String) {
-        // 获取插件实例以访问服务器方法
-        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds
-
-        players.forEach { uuid ->
-            val player = plugin?.server?.getPlayer(uuid)
-            // 只有玩家在线时才发送，防止报错
-            player?.sendMessage(message)
-        }
-    }
 
 
     fun smartBroadcast(message: String) {
@@ -636,6 +629,30 @@ data class ActiveMatch(
             // 只有属于参赛两方的玩家才会收到消息
             if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
                 onlinePlayer.sendMessage(message)
+            }
+        }
+    }
+
+    fun smartBroadcastText(component: net.md_5.bungee.api.chat.BaseComponent) {
+        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
+
+        plugin.server.onlinePlayers.forEach { onlinePlayer ->
+            val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+            // 只有属于参赛两方的玩家才会收到消息
+            if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
+                onlinePlayer.spigot().sendMessage(component)
+            }
+        }
+    }
+
+    fun sendPvPTitle(title: String) {
+        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
+
+        plugin.server.onlinePlayers.forEach { onlinePlayer ->
+            val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+            // 只有属于参赛两方的玩家才会收到 Title
+            if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
+                onlinePlayer.sendTitle("", title, 10, 70, 20)
             }
         }
     }
