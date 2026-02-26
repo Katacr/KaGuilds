@@ -289,16 +289,16 @@ class GuildService(private val plugin: KaGuilds) {
                 plugin.inviteCache[targetPlayer.uniqueId] = guildId
 
                 val lang = plugin.langManager
-                val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("invite-received-target",
+                val msg = MessageUtil.createText(lang.get("invite-received-target",
                     "player" to sender.name, "guild" to guildData.name))
 
-                val acceptBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                val acceptBtn = MessageUtil.createClickableText(
                     text = lang.get("invite-accept-btn"),
                     hoverText = lang.get("invite-accept-btn-hover"),
                     command = "/kg yes"
                 )
-                val space = org.katacr.kaguilds.util.MessageUtil.createText(" ")
-                val denyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                val space = MessageUtil.createText(" ")
+                val denyBtn = MessageUtil.createClickableText(
                     text = lang.get("invite-deny-btn"),
                     hoverText = lang.get("invite-deny-btn-hover"),
                     command = "/kg no"

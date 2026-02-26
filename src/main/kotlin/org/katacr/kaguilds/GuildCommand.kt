@@ -9,6 +9,7 @@ import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.service.OperationResult
 import org.katacr.kaguilds.service.GuildService
+import org.katacr.kaguilds.util.MessageUtil
 import kotlin.math.ceil
 import kotlin.math.min
 
@@ -602,15 +603,15 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 requests.forEach { (uuid, _) ->
                     val requesterName = plugin.server.getOfflinePlayer(uuid).name ?: "Unknown"
 
-                    val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("requests-format", "name" to requesterName))
+                    val msg = MessageUtil.createText(lang.get("requests-format", "name" to requesterName))
 
-                    val acceptBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                    val acceptBtn = MessageUtil.createClickableText(
                         text = lang.get("requests-accept-btn"),
                         hoverText = lang.get("requests-accept-btn-hover", "name" to requesterName),
                         command = "/kg accept $requesterName"
                     )
-                    val space = org.katacr.kaguilds.util.MessageUtil.createText(" ")
-                    val denyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                    val space = MessageUtil.createText(" ")
+                    val denyBtn = MessageUtil.createClickableText(
                         text = lang.get("requests-deny-btn"),
                         hoverText = lang.get("requests-deny-btn-hover", "name" to requesterName),
                         command = "/kg deny $requesterName"
@@ -1690,9 +1691,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                     match?.smartBroadcast(lang.get("arena-pvp-accept-broadcast", "player" to player.name, "sender" to senderName))
 
-                    val msg = org.katacr.kaguilds.util.MessageUtil.createText(lang.get("arena-pvp-ready-hint"))
+                    val msg = MessageUtil.createText(lang.get("arena-pvp-ready-hint"))
 
-                    val readyBtn = org.katacr.kaguilds.util.MessageUtil.createClickableText(
+                    val readyBtn = MessageUtil.createClickableText(
                         text = lang.get("arena-pvp-ready-btn"),
                         hoverText = lang.get("arena-pvp-ready-btn-hover"),
                         command = "/kg pvp ready"

@@ -25,7 +25,7 @@ guild:
     ready-time: 120 # 公会战准备时间(秒)
     pvp-time: 600 # 公会战游戏时间(秒)
     kit: true # 是否启用套装
-    reward-command:
+    reward-command: # 公会战奖励命令(控制台执行)
       - 'kg admin bank {win_id} add 1000' # 公会战奖励,{win_id}为胜利公会id
       - 'kg admin exp {win_id} add 500'
       - 'kg admin bank {lose_id} add 100' # 公会战奖励,{lose_id}为战败公会id
