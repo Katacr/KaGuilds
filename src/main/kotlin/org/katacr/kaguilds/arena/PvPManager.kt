@@ -70,12 +70,18 @@ class PvPManager(private val plugin: KaGuilds) {
     }
 
     /**
-     * 保存玩家背包快照并清空
+     * 保存玩家背包快照（不自动清空）
      */
     fun takeSnapshot(player: Player) {
         // 深度备份当前背包
-        val lang = plugin.langManager
         inventorySnapshots[player.uniqueId] = player.inventory.contents.clone()
+    }
+
+    /**
+     * 清空玩家背包并发送提示
+     */
+    fun clearInventory(player: Player) {
+        val lang = plugin.langManager
         player.inventory.clear()
         player.sendMessage(lang.get("arena-pvp-save-inventory"))
     }
@@ -216,6 +222,8 @@ class PvPManager(private val plugin: KaGuilds) {
         val blueKit = plugin.arenaManager.blueKitContents
 
         // 6. 处理参战玩家状态
+        val useKit = plugin.config.getBoolean("guild.arena.kit", true)
+
         participants.forEach { player ->
             val playerGuildId = plugin.playerGuildCache[player.uniqueId]
             val isRedTeam = (playerGuildId == match.redGuildId)
@@ -226,33 +234,35 @@ class PvPManager(private val plugin: KaGuilds) {
             player.fireTicks = 0
             player.activePotionEffects.clear()
 
-            // B. 保存原本背包并清空
+            // B. 保存原本背包
             takeSnapshot(player)
-            player.inventory.clear()
 
-            // C. 传送并设置模式
+            // C. 如果使用预设套装，清空背包并发放套装
+            if (useKit) {
+                player.inventory.clear()
+                val targetKit = if (isRedTeam) redKit else blueKit
+
+                if (targetKit != null) {
+                    // 填充主背包 (0-35)
+                    for (i in 0 until 36) {
+                        if (i < targetKit.size) player.inventory.setItem(i, targetKit[i]?.clone())
+                    }
+                    // 填充盔甲 (36-39)
+                    if (targetKit.size >= 40) {
+                        val armor = targetKit.sliceArray(36..39).map { it?.clone() }.toTypedArray()
+                        player.inventory.armorContents = armor
+                    }
+                    // 填充副手 (40)
+                    if (targetKit.size >= 41) {
+                        player.inventory.setItemInOffHand(targetKit[40]?.clone())
+                    }
+                }
+            }
+
+            // D. 传送并设置模式
             val spawn = if (isRedTeam) plugin.arenaManager.arena.redSpawn else plugin.arenaManager.arena.blueSpawn
             spawn?.let { player.teleport(it) }
             player.gameMode = GameMode.ADVENTURE
-
-            // D. 根据阵营发放对应套装
-            val targetKit = if (isRedTeam) redKit else blueKit
-
-            if (targetKit != null && plugin.config.getBoolean("guild.arena.kit", true)) {
-                // 填充主背包 (0-35)
-                for (i in 0 until 36) {
-                    if (i < targetKit.size) player.inventory.setItem(i, targetKit[i]?.clone())
-                }
-                // 填充盔甲 (36-39)
-                if (targetKit.size >= 40) {
-                    val armor = targetKit.sliceArray(36..39).map { it?.clone() }.toTypedArray()
-                    player.inventory.armorContents = armor
-                }
-                // 填充副手 (40)
-                if (targetKit.size >= 41) {
-                    player.inventory.setItemInOffHand(targetKit[40]?.clone())
-                }
-            }
 
             player.updateInventory()
             player.sendMessage(lang.get("arena-pvp-start-msg"))

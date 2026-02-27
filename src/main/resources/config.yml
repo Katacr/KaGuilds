@@ -20,9 +20,9 @@ guild:
     cooldown: 3 # 传送时间(秒)
   arena:
     cooldown: 300 # 公会战冷却时间(秒)
-    min-players: 2 # 队伍最小人数
-    max-players: 10 # 队伍最大人数
-    ready-time: 120 # 公会战准备时间(秒)
+    min-players: 2 # 单方队伍最小人数
+    max-players: 5 # 单方队伍最大人数
+    ready-time: 30 # 公会战准备时间(秒)
     pvp-time: 600 # 公会战游戏时间(秒)
     kit: true # 是否启用套装
     reward-command: # 公会战奖励命令(控制台执行)
