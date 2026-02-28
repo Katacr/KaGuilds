@@ -5,6 +5,7 @@ import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
+import org.bukkit.Bukkit.getPluginManager
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.util.MessageUtil
 import java.util.UUID
@@ -25,6 +26,9 @@ class PvPManager(private val plugin: KaGuilds) {
     // 记录玩家的背包快照，用于战斗结束时恢复
     private val inventorySnapshots = mutableMapOf<UUID, Array<org.bukkit.inventory.ItemStack?>>()
 
+    // 记录公会上次战斗时间，用于冷却检查：公会ID -> 时间戳
+    private val guildBattleCooldown = mutableMapOf<Int, Long>()
+
     /**
      * 发起挑战
      */
@@ -34,6 +38,22 @@ class PvPManager(private val plugin: KaGuilds) {
         pendingInvites[targetGuildId] = senderGuildId
         inviteTimestamp[targetGuildId] = System.currentTimeMillis()
         return true
+    }
+
+    /**
+     * 检查公会的战斗冷却
+     * @return 剩余冷却时间(秒),如果在冷却中; 0 如果不在冷却中
+     */
+    fun checkCooldown(guildId: Int): Int {
+        val cooldown = plugin.config.getInt("guild.arena.cooldown", 300) * 1000L
+        val currentTime = System.currentTimeMillis()
+        val lastBattle = guildBattleCooldown[guildId]
+
+        return if (lastBattle != null && currentTime - lastBattle < cooldown) {
+            ((cooldown - (currentTime - lastBattle)) / 1000).toInt()
+        } else {
+            0
+        }
     }
 
     /**
@@ -75,15 +95,6 @@ class PvPManager(private val plugin: KaGuilds) {
     fun takeSnapshot(player: Player) {
         // 深度备份当前背包
         inventorySnapshots[player.uniqueId] = player.inventory.contents.clone()
-    }
-
-    /**
-     * 清空玩家背包并发送提示
-     */
-    fun clearInventory(player: Player) {
-        val lang = plugin.langManager
-        player.inventory.clear()
-        player.sendMessage(lang.get("arena-pvp-save-inventory"))
     }
 
     /**
@@ -189,12 +200,12 @@ class PvPManager(private val plugin: KaGuilds) {
         val participants = match.players.mapNotNull { plugin.server.getPlayer(it) }.filter { it.isOnline }
         match.players.retainAll(participants.map { it.uniqueId }.toSet())
 
-        // 2. 检查人数：确保两边都至少有一人且满足最小总人数
+        // 2. 检查人数：确保两边都满足最小人数要求
         val minPlayers = plugin.config.getInt("guild.arena.min-players", 2)
         val redGroup = participants.filter { plugin.playerGuildCache[it.uniqueId] == match.redGuildId }
         val blueGroup = participants.filter { plugin.playerGuildCache[it.uniqueId] == match.blueGuildId }
 
-        if (participants.size < minPlayers || redGroup.isEmpty() || blueGroup.isEmpty()) {
+        if (redGroup.size < minPlayers || blueGroup.size < minPlayers) {
             match.smartBroadcast(lang.get("arena-pvp-not-enough-players"))
             stopBattle(null)
             return
@@ -365,6 +376,11 @@ class PvPManager(private val plugin: KaGuilds) {
             org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
                 processMatchResults(match, winnerId)
             })
+
+            // 更新双方公会的战斗冷却时间
+            val currentTime = System.currentTimeMillis()
+            guildBattleCooldown[match.redGuildId] = currentTime
+            guildBattleCooldown[match.blueGuildId] = currentTime
 
         } else {
             // 退还公会挑战金
@@ -630,40 +646,30 @@ data class ActiveMatch(
     var totalTime: Int = 120
 ) {
 
-
-    fun smartBroadcast(message: String) {
-        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
+    /**
+     * 核心广播方法：向参赛双方公会玩家发送消息
+     */
+    private fun broadcastToParticipants(action: (Player) -> Unit) {
+        val plugin = getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
 
         plugin.server.onlinePlayers.forEach { onlinePlayer ->
             val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
             // 只有属于参赛两方的玩家才会收到消息
             if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
-                onlinePlayer.sendMessage(message)
+                action(onlinePlayer)
             }
         }
+    }
+
+    fun smartBroadcast(message: String) {
+        broadcastToParticipants { player -> player.sendMessage(message) }
     }
 
     fun smartBroadcastText(component: net.md_5.bungee.api.chat.BaseComponent) {
-        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
-
-        plugin.server.onlinePlayers.forEach { onlinePlayer ->
-            val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
-            // 只有属于参赛两方的玩家才会收到消息
-            if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
-                onlinePlayer.spigot().sendMessage(component)
-            }
-        }
+        broadcastToParticipants { player -> player.spigot().sendMessage(component) }
     }
 
     fun sendPvPTitle(title: String) {
-        val plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("KaGuilds") as? KaGuilds ?: return
-
-        plugin.server.onlinePlayers.forEach { onlinePlayer ->
-            val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
-            // 只有属于参赛两方的玩家才会收到 Title
-            if (playerGuildId == redGuildId || playerGuildId == blueGuildId) {
-                onlinePlayer.sendTitle("", title, 10, 70, 20)
-            }
-        }
+        broadcastToParticipants { player -> player.sendTitle("", title, 10, 70, 20) }
     }
 }

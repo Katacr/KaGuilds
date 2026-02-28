@@ -1,0 +1,29 @@
+title: "当前未加入公会"  # 标题
+
+Layout:   # 虚拟布局
+  - '#########'
+  - '         '
+  - '   1 2   '
+  - '         '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: '边框板'
+  "1":
+    display:
+      material: BOOK
+      name: '&a创建公会'
+    actions:
+      left:
+        - 'command: kg create'  # 直接执行，无需条件
+        - 'close'
+  "2":
+    display:
+      material: PAPER
+      name: '&a公会列表'
+    actions:
+      left:
+        - 'open: guilds_list'
