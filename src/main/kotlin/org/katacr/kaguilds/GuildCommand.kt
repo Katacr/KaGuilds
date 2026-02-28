@@ -1022,8 +1022,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         when (args[1].lowercase()) {
             "rename" -> {
                 // 格式: /kg admin rename #ID [新名称]
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.rename")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "rename")) {
                     return
                 }
                 if (args.size < 4) {
@@ -1066,8 +1065,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "delete" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.delete")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "delete")) {
                     return
                 }
                 if (args.size < 3) {
@@ -1089,8 +1087,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "info" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.info")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "info")) {
                     return
                 }
                 if (args.size < 3) {
@@ -1121,8 +1118,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "bank" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.bank")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "bank")) {
                     return
                 }
                 if (args.size < 4) {
@@ -1185,8 +1181,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "transfer" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.transfer")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "transfer")) {
                     return
                 }
                 val lang = plugin.langManager
@@ -1203,8 +1198,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "kick" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.kick")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "kick")) {
                     return
                 }
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-kick-usage"))
@@ -1220,8 +1214,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "join" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.join")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "join")) {
                     return
                 }
                 if (args.size < 4) return sender.sendMessage(lang.get("admin-join-usage"))
@@ -1241,8 +1234,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "vault" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.vault")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "vault")) {
                     return
                 }
                 // 格式: /kg admin vault #ID [编号]
@@ -1265,8 +1257,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.guildService.adminOpenVault(sender, guildId, index)
             }
             "unlockall" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.unlockall")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "unlockall")) {
                     return
                 }
                 // 用法: /kg admin unlockall
@@ -1275,8 +1266,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 sender.sendMessage(lang.get("admin-unlockall-success"))
             }
             "setlevel"-> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.setlevel")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "setlevel")) {
                     return
                 }
                 val targetId = args[2].replace("#", "").toIntOrNull() ?: return
@@ -1298,8 +1288,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
             "exp" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.exp")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "exp")) {
                     return
                 }
                 // /kg admin exp #1 add 100
@@ -1314,8 +1303,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
             "open" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.open")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "open")) {
                     return
                 }
                 if (args.size < 3) {
@@ -1332,8 +1320,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 plugin.menuManager.openMenu(sender, menuName)
             }
             "arena" -> {
-                if (!sender.hasPermission("kaguilds.admin") && !sender.hasPermission("kaguilds.admin.arena")) {
-                    sender.sendMessage(lang.get("no-permission"))
+                if (!checkAdminPermission(sender, "arena")) {
                     return
                 }
                 val action = args.getOrNull(2)?.lowercase()
@@ -1926,6 +1913,23 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         if (command != null && player.hasPermission("kaguilds.command.$command")) return true
 
         player.sendMessage(lang.get("no-permission"))
+        return false
+    }
+
+    /**
+     * 辅助方法：检查管理员权限
+     * @param sender 要检查的发送者（可以是玩家或控制台）
+     * @param action admin 子指令名称（可选），如果提供则检查 kaguilds.admin.{action} 权限
+     * @return 是否有权限
+     */
+    private fun checkAdminPermission(sender: CommandSender, action: String? = null): Boolean {
+        val lang = plugin.langManager
+
+        if (sender.hasPermission("kaguilds.admin")) return true
+
+        if (action != null && sender.hasPermission("kaguilds.admin.$action")) return true
+
+        sender.sendMessage(lang.get("no-permission"))
         return false
     }
 }
