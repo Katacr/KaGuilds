@@ -14,6 +14,7 @@ import org.katacr.kaguilds.arena.ArenaManager
 import org.katacr.kaguilds.arena.PvPManager
 import org.katacr.kaguilds.listener.*
 import org.katacr.kaguilds.service.GuildService
+import org.katacr.kaguilds.service.TaskManager
 import java.io.File
 import java.util.*
 
@@ -26,11 +27,13 @@ class KaGuilds : JavaPlugin() {
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
+    lateinit var taskManager: TaskManager
     lateinit var menuManager: MenuManager
     lateinit var arenaManager: ArenaManager
     lateinit var pvpManager: PvPManager
     lateinit var buffsConfig: FileConfiguration
     lateinit var levelsConfig: FileConfiguration
+    lateinit var tasksConfig: FileConfiguration
     val guiMenuFiles = mutableListOf<String>()
 
     /**
@@ -85,6 +88,7 @@ class KaGuilds : JavaPlugin() {
         loadGuiMenus()
         loadBuffsConfig()
         loadLevelsConfig()
+        loadTasksConfig()
         menuManager = MenuManager(this)
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
@@ -102,6 +106,8 @@ class KaGuilds : JavaPlugin() {
 
         // 4. 服务层与指令注册
         guildService = GuildService(this)
+        taskManager = TaskManager(this)
+        taskManager.initialize()
         setupCommands()
         setupListeners()
 
@@ -141,6 +147,7 @@ class KaGuilds : JavaPlugin() {
         pm.registerEvents(NotifyListener(this), this)
         pm.registerEvents(PvPListener(this), this)
         pm.registerEvents(GuildListener(this), this)
+        pm.registerEvents(TaskListener(this), this)
     }
 
     /**
@@ -178,6 +185,8 @@ class KaGuilds : JavaPlugin() {
         loadGuiMenus()
         loadBuffsConfig()
         loadLevelsConfig()
+        loadTasksConfig()
+        taskManager.reload()
         langManager.load()
         menuManager.reload()
         sender.sendMessage(langManager.get("reload-success"))
@@ -203,6 +212,17 @@ class KaGuilds : JavaPlugin() {
             saveResource("levels.yml", false)
         }
         levelsConfig = YamlConfiguration.loadConfiguration(levelsFile)
+    }
+
+    /**
+     * 加载 Tasks 配置文件
+     */
+    private fun loadTasksConfig() {
+        val tasksFile = File(dataFolder, "task.yml")
+        if (!tasksFile.exists()) {
+            saveResource("task.yml", false)
+        }
+        tasksConfig = YamlConfiguration.loadConfiguration(tasksFile)
     }
 
     /**

@@ -467,7 +467,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 sender.sendMessage(lang.get("only-owner-can-manage"))
                 return@Runnable
             }
-            val targetOffline = plugin.server.getOfflinePlayer(targetName)
+            // 先获取目标玩家的 UUID
+            val targetUuid = plugin.dbManager.getPlayerUuid(targetName)
+            if (targetUuid == null) {
+                sender.sendMessage(lang.get("target-not-member", "name" to targetName))
+                return@Runnable
+            }
+            val targetOffline = plugin.server.getOfflinePlayer(targetUuid)
             val currentRole = plugin.dbManager.getRoleInGuild(guildId, targetOffline.uniqueId)
             when (currentRole) {
                 null -> sender.sendMessage(lang.get("target-not-member", "name" to targetName))
@@ -1413,6 +1419,81 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 // 只要有坐标位置的修改就立即保存配置文件
                 plugin.arenaManager.saveArena()
             }
+            "task" -> {
+                if (!checkAdminPermission(sender, "task")) {
+                    return
+                }
+                // 格式: /kg admin task #ID task_key see
+                if (args.size < 5) {
+                    sender.sendMessage(lang.get("admin-task-usage"))
+                    return
+                }
+
+                val idStr = args[2].replace("#", "")
+                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
+
+                val taskKey = args[3]
+                val action = args[4].lowercase()
+
+                when (action) {
+                    "see" -> {
+                        // 查看任务详情
+                        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                            val taskDef = plugin.taskManager.getTaskDefinition(taskKey)
+
+                            if (taskDef == null) {
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    sender.sendMessage("§c任务不存在: $taskKey")
+                                })
+                                return@Runnable
+                            }
+
+                            val (globalProgress, dailyProgress) = plugin.dbManager.getAllGuildTaskProgress(guildId)
+
+                            plugin.server.scheduler.runTask(plugin, Runnable {
+                                sender.sendMessage("§6========== 任务详情 ==========")
+                                sender.sendMessage("§e任务标识: §f${taskDef.key}")
+                                sender.sendMessage("§e任务名称: §f${taskDef.name}")
+                                sender.sendMessage("§e任务类型: §f${taskDef.type}")
+                                sender.sendMessage("§e事件类型: §f${taskDef.eventType}")
+                                sender.sendMessage("§e目标类型: §f${taskDef.target}")
+                                sender.sendMessage("§e目标数量: §f${taskDef.amount}")
+
+                                if (taskDef.type == "global") {
+                                    // 全局任务：显示公会总进度
+                                    val progress = globalProgress[taskKey]
+                                    sender.sendMessage("§e当前进度: ${if (progress != null) "§a${progress.progress}" else "§c0"} / ${taskDef.amount}")
+                                    sender.sendMessage("§e完成状态: ${if (progress?.completed == true) "§a已完成" else "§c未完成"}")
+                                    sender.sendMessage("§e最后日期: ${if (progress?.lastDate != null) "§a${progress.lastDate}" else "§c无数据"}")
+                                } else {
+                                    // 每日任务：显示每个玩家的进度
+                                    val playerProgress = dailyProgress.filter { it.taskKey == taskKey }
+                                    if (playerProgress.isEmpty()) {
+                                        sender.sendMessage("§e当前进度: §c暂无玩家完成该任务")
+                                    } else {
+                                        sender.sendMessage("§e玩家进度详情:")
+                                        playerProgress.forEach { p ->
+                                            val playerName = p.playerUuid?.let { plugin.server.getOfflinePlayer(it) }?.name ?: "未知玩家"
+                                            val status = if (p.completed) "§a已完成" else "§c未完成"
+                                            sender.sendMessage("  §7- §f${playerName}: §a${p.progress}/${taskDef.amount} $status")
+                                        }
+                                    }
+                                }
+
+                                sender.sendMessage("§7任务描述:")
+                                taskDef.lore.forEach { sender.sendMessage("  $it") }
+
+                                sender.sendMessage("§7任务奖励:")
+                                taskDef.actions.forEach { sender.sendMessage("  §f$it") }
+                                sender.sendMessage("§6================================")
+                            })
+                        })
+                    }
+                    else -> {
+                        sender.sendMessage(lang.get("admin-task-usage"))
+                    }
+                }
+            }
 
             else -> sender.sendMessage(lang.get("admin-usage"))
         }
@@ -1765,7 +1846,8 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val list = when (sub) {
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open")
+                        // 在此处添加 task 子指令
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
@@ -1781,31 +1863,41 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val adminAction = args[1].lowercase()
 
                 if (sub == "admin") {
-                    // 特殊处理没有公会ID参数的指令
-                    if (adminAction == "arena") {
-                        return filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
-                    }
-                    if (adminAction == "unlockall") return emptyList()
-                    if (adminAction == "open") {
-                        return filterList(plugin.guiMenuFiles, args[2])
-                    }
+                    if (!sender.hasPermission("kaguilds.admin")) return emptyList()
 
-                    // 其他 admin 指令此处均为 [公会ID]，提示输入 #
-                    return filterList(listOf("#"), args[2])
+                    return when (adminAction) {
+                        "arena" -> filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
+                        "unlockall" -> emptyList()
+                        "open" -> filterList(plugin.guiMenuFiles, args[2])
+                        "task" -> filterList(listOf("<公会ID>"), args[2]) // 提示输入公会ID
+                        else -> filterList(listOf("#"), args[2]) // 其他指令提示 ID
+                    }
                 }
 
                 if (sub == "pvp" && adminAction == "start") return null
                 emptyList()
             }
 
-            4 -> handleAdminTab(args)
+            4 -> {
+                val sub = args[0].lowercase()
+                val adminAction = args[1].lowercase()
+
+                if (sub == "admin" && adminAction == "task") {
+                    // 重点：在此处实现 TaskKey 的补全
+                    val taskKeys = plugin.taskManager.getTaskDefinitions().keys.toList()
+                    return filterList(taskKeys, args[3])
+                }
+
+                // 原有的其他 admin 补全逻辑
+                handleAdminTab(args)
+            }
 
             5 -> {
-                // 处理五段式指令的最后一位数值或玩家名
                 val sub = args[0].lowercase()
                 val adminAction = args[1].lowercase()
                 if (sub == "admin") {
                     when (adminAction) {
+                        "task" -> return filterList(listOf("see"), args[4])
                         "bank", "exp" -> return filterList(listOf("<数值>"), args[4])
                         "transfer", "kick", "join" -> return null // 补全玩家名
                     }

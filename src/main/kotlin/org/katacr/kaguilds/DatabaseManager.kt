@@ -4,11 +4,13 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import java.sql.Connection
 import java.sql.Statement
-import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.ceil
 
 class DatabaseManager(val plugin: KaGuilds) {
     var dataSource: HikariDataSource? = null
+    private val taskDateFormat = SimpleDateFormat("yyyy-MM-dd")
     /**
      * 初始化数据库
      */
@@ -21,7 +23,6 @@ class DatabaseManager(val plugin: KaGuilds) {
             config.jdbcUrl = "jdbc:mysql://${plugin.config.getString("database.host")}:${plugin.config.getInt("database.port")}/${plugin.config.getString("database.db")}"
             config.username = plugin.config.getString("database.user")
             config.password = plugin.config.getString("database.password")
-            // MySQL 建议加上这行来确保驱动正常
             config.driverClassName = "com.mysql.cj.jdbc.Driver"
         } else {
             val file = plugin.dataFolder.resolve("storage.db")
@@ -41,8 +42,12 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 创建数据库表
      */
     private fun createTables() {
-        val isMySQL = plugin.config.getString("database.type", "sqlite").equals("mysql", true)
-        val autoIncrement = if (isMySQL) "AUTO_INCREMENT" else "AUTOINCREMENT"
+        val dbType = plugin.config.getString("database.type", "sqlite") ?: "sqlite"
+        val isMySQL = dbType.equals("mysql", ignoreCase = true)
+
+        // 修正：SQLite 只要 INTEGER PRIMARY KEY 就会自增，不需要 AUTOINCREMENT 关键字（除非有特殊需求）
+        // MySQL 则必须显式指定 AUTO_INCREMENT
+        val autoIncrement = if (isMySQL) "AUTO_INCREMENT" else ""
 
         connection.use { conn ->
             val statement = conn.createStatement()
@@ -122,7 +127,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                 id INTEGER PRIMARY KEY $autoIncrement,
                 red_guild_id INT NOT NULL,
                 blue_guild_id INT NOT NULL,
-                winner_guild_id INT, 
+                winner_guild_id INT,
                 red_score INT DEFAULT 0,
                 blue_score INT DEFAULT 0,
                 start_time BIGINT,
@@ -130,6 +135,23 @@ class DatabaseManager(val plugin: KaGuilds) {
             )
         """)
 
+            // 7. 公会任务进度表
+            statement.execute("""
+            CREATE TABLE IF NOT EXISTS guild_task_progress (
+                id INTEGER PRIMARY KEY $autoIncrement,
+                guild_id INT NOT NULL,
+                task_key VARCHAR(64) NOT NULL,
+                player_uuid VARCHAR(36) NOT NULL,
+                progress INT NOT NULL DEFAULT 0,
+                target INT NOT NULL DEFAULT 0,
+                completed BOOLEAN NOT NULL DEFAULT 0,
+                last_date VARCHAR(10) DEFAULT NULL,
+                CONSTRAINT uk_guild_task_player UNIQUE(guild_id, task_key, player_uuid)
+            )
+        """)
+            if (isMySQL) {
+                statement.execute("ALTER TABLE guild_task_progress ENGINE = InnoDB")
+            }
         }
     }
 
@@ -1194,4 +1216,303 @@ class DatabaseManager(val plugin: KaGuilds) {
         val role: String,
         val joinTime: Long
     )
+
+    // 公会任务进度数据模型
+    data class GuildTaskProgress(
+        val id: Int,
+        val guildId: Int,
+        val taskKey: String,
+        val playerUuid: UUID?,
+        val progress: Int,
+        val target: Int,
+        val completed: Boolean,
+        val lastDate: String?
+    )
+
+    /**
+     * 根据玩家名获取 UUID（用于任务系统）
+     */
+    fun getPlayerUuid(playerName: String): UUID? {
+        // 先尝试从在线玩家获取
+        val onlinePlayer = plugin.server.getPlayer(playerName)
+        if (onlinePlayer != null) return onlinePlayer.uniqueId
+
+        // 从数据库成员表中查询
+        val sql = "SELECT player_uuid FROM guild_members WHERE player_name = ? LIMIT 1"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, playerName)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        UUID.fromString(rs.getString("player_uuid"))
+                    } else {
+                        null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("通过玩家名获取UUID失败 ($playerName): ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 获取公会任务进度
+     * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
+     */
+    fun getGuildTaskProgress(guildId: Int, taskKey: String, playerUuid: UUID? = null): GuildTaskProgress? {
+        val sql = "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND (player_uuid = ? OR player_uuid IS NULL)"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, taskKey)
+                    if (playerUuid != null) {
+                        ps.setString(3, playerUuid.toString())
+                    } else {
+                        ps.setNull(3, java.sql.Types.VARCHAR)
+                    }
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        GuildTaskProgress(
+                            id = rs.getInt("id"),
+                            guildId = rs.getInt("guild_id"),
+                            taskKey = rs.getString("task_key"),
+                            playerUuid = rs.getString("player_uuid")?.let { UUID.fromString(it) },
+                            progress = rs.getInt("progress"),
+                            target = rs.getInt("target"),
+                            completed = rs.getInt("completed") == 1,
+                            lastDate = rs.getString("last_date")
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("获取任务进度时出错: ${e.message}")
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * 获取公会所有任务进度（全局任务和每日任务分开）
+     * @return Pair<全局任务Map, 每日任务List>
+     */
+    fun getAllGuildTaskProgress(guildId: Int): Pair<Map<String, GuildTaskProgress>, List<GuildTaskProgress>> {
+        val globalProgressMap = mutableMapOf<String, GuildTaskProgress>()
+        val dailyProgressList = mutableListOf<GuildTaskProgress>()
+        val sql = "SELECT * FROM guild_task_progress WHERE guild_id = ?"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        val progress = GuildTaskProgress(
+                            id = rs.getInt("id"),
+                            guildId = rs.getInt("guild_id"),
+                            taskKey = rs.getString("task_key"),
+                            playerUuid = rs.getString("player_uuid")?.let { UUID.fromString(it) },
+                            progress = rs.getInt("progress"),
+                            target = rs.getInt("target"),
+                            completed = rs.getInt("completed") == 1,
+                            lastDate = rs.getString("last_date")
+                        )
+                        // 全局任务：player_uuid 为 null
+                        if (progress.playerUuid == null) {
+                            globalProgressMap[progress.taskKey] = progress
+                        } else {
+                            dailyProgressList.add(progress)
+                        }
+                    }
+                }
+            }
+            Pair(globalProgressMap, dailyProgressList)
+        } catch (e: Exception) {
+            plugin.logger.severe("获取所有任务进度时出错: ${e.message}")
+            e.printStackTrace()
+            Pair(emptyMap(), emptyList())
+        }
+    }
+
+    /**
+     * 增加任务进度（带日期检查）
+     * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
+     */
+    fun incrementTaskProgress(guildId: Int, taskKey: String, playerUuid: UUID? = null, increment: Int = 1, target: Int = 0): GuildTaskProgress? {
+        val today = taskDateFormat.format(Date())
+        val existingProgress = getGuildTaskProgress(guildId, taskKey, playerUuid)
+
+        return try {
+            connection.use { conn ->
+                conn.autoCommit = false
+                try {
+                    if (existingProgress != null) {
+                        // 检查是否是新的一天
+                        val isNewDay = existingProgress.lastDate != today
+
+                        // 检查是否已完成
+                        if (existingProgress.completed && existingProgress.progress >= existingProgress.target && !isNewDay) {
+                            return existingProgress
+                        }
+
+                        // 如果是新一天，重置进度
+                        val newProgress = if (isNewDay) {
+                            increment
+                        } else {
+                            minOf(existingProgress.progress + increment, target)
+                        }
+                        val isCompleted = newProgress >= target
+
+                        val updateSql = "UPDATE guild_task_progress SET progress = ?, completed = ?, last_date = ? WHERE id = ?"
+                        conn.prepareStatement(updateSql).use { ps ->
+                            ps.setInt(1, newProgress)
+                            ps.setInt(2, if (isCompleted) 1 else 0)
+                            ps.setString(3, today)
+                            ps.setInt(4, existingProgress.id)
+                            ps.executeUpdate()
+                        }
+
+                        conn.commit()
+                        return existingProgress.copy(progress = newProgress, completed = isCompleted, lastDate = today)
+                    } else {
+                        // 创建新进度记录
+                        val isCompleted = increment >= target
+                        val insertSql = """
+                            INSERT INTO guild_task_progress (guild_id, task_key, player_uuid, progress, target, completed, last_date)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent()
+
+                        val insertedId = conn.prepareStatement(insertSql).use { ps ->
+                            ps.setInt(1, guildId)
+                            ps.setString(2, taskKey)
+                            if (playerUuid != null) {
+                                ps.setString(3, playerUuid.toString())
+                            } else {
+                                ps.setNull(3, java.sql.Types.VARCHAR)
+                            }
+                            ps.setInt(4, increment)
+                            ps.setInt(5, target)
+                            ps.setInt(6, if (isCompleted) 1 else 0)
+                            ps.setString(7, today)
+                            ps.executeUpdate()
+
+                            val generatedKeys = ps.generatedKeys
+                            if (generatedKeys.next()) generatedKeys.getInt(1) else -1
+                        }
+
+                        conn.commit()
+                        return GuildTaskProgress(
+                            id = insertedId,
+                            guildId = guildId,
+                            taskKey = taskKey,
+                            playerUuid = playerUuid,
+                            progress = increment,
+                            target = target,
+                            completed = isCompleted,
+                            lastDate = today
+                        )
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
+                } finally {
+                    conn.autoCommit = true
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("增加任务进度时出错: ${e.message}")
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * 重置任务进度
+     * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
+     */
+    fun resetTaskProgress(guildId: Int, taskKey: String, playerUuid: UUID? = null): Boolean {
+        val today = taskDateFormat.format(Date())
+        val sql = if (playerUuid != null) {
+            "UPDATE guild_task_progress SET progress = 0, completed = 0, last_date = ? WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
+        } else {
+            "UPDATE guild_task_progress SET progress = 0, completed = 0, last_date = ? WHERE guild_id = ? AND task_key = ? AND player_uuid IS NULL"
+        }
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, today)
+                    ps.setInt(2, guildId)
+                    ps.setString(3, taskKey)
+                    if (playerUuid != null) {
+                        ps.setString(4, playerUuid.toString())
+                    }
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("重置任务进度时出错: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 标记任务为已完成（用于手动完成）
+     * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
+     */
+    fun completeTask(guildId: Int, taskKey: String, playerUuid: UUID? = null): Boolean {
+        val sql = if (playerUuid != null) {
+            "UPDATE guild_task_progress SET completed = 1 WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
+        } else {
+            "UPDATE guild_task_progress SET completed = 1 WHERE guild_id = ? AND task_key = ? AND player_uuid IS NULL"
+        }
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, taskKey)
+                    if (playerUuid != null) {
+                        ps.setString(3, playerUuid.toString())
+                    }
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("标记任务完成时出错: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+    /**
+     * 获取指定公会或玩家在当天已完成的任务Key列表
+     * @param playerUuid 传入null则查询公会全局任务，传入UUID则查询个人每日任务
+     */
+    fun getCompletedTaskKeys(guildId: Int, playerUuid: UUID? = null): Set<String> {
+        val today = taskDateFormat.format(Date())
+        val uuidStr = playerUuid?.toString() ?: "GLOBAL"
+        val completedKeys = mutableSetOf<String>()
+
+        val sql = "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid = ? AND last_date = ? AND completed = 1"
+
+        try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, uuidStr)
+                    ps.setString(3, today)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        completedKeys.add(rs.getString("task_key"))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.severe("获取已完成任务缓存失败: ${e.message}")
+        }
+        return completedKeys
+    }
 }

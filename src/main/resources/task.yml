@@ -1,0 +1,110 @@
+tasks:
+  global_1:  # 任务标识符
+    name: "§a累计任务: 公会战斗" # 任务名称
+    type: "global" # global:全局任务, daily:每日任务
+    event:
+      type: "kill_mobs" # 任务事件
+      target: "zombie" # 任务目标
+      amount: 100 # 任务目标数量
+    lore: # 任务描述
+      - "§7描述: 公会全体成员累计击杀100个僵尸"
+      - "§7奖励: §e80经验 §7100金币"
+    actions: # 任务完成后执行的指令动作,可以调用该插件内菜单组件的方法
+      - "console: movey give %player_name% 100"
+      - "console: kg admin exp %kaguilds_id% add 80"
+  daily_1:  # 任务标识符
+    name: "§a每日任务: 上线" # 任务名称
+    type: "daily" # global:全局任务, daily:每日任务
+    event:
+      type: "login" # 任务事件
+      target: "*" # 任务目标(*代表无需目标或任意目标)
+      amount: 1 # 任务目标数量
+    lore: # 任务描述
+      - "§7描述: 每日上线游玩服务器"
+      - "§7奖励: §e10经验 "
+    actions: # 任务完成后执行的指令动作,可以调用该插件内菜单组件的方法
+      - "console: kg admin exp %kaguilds_id% add 10"
+
+  # 钓鱼任务示例
+  fishing_daily:
+    name: "§a每日任务: 渔夫"
+    type: "daily"
+    event:
+      type: "fishing"
+      target: "*"
+      amount: 10
+    lore:
+      - "§7描述: 每日钓鱼10次"
+      - "§7奖励: §e20经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 20"
+
+  # 挤奶任务示例
+  milk_daily:
+    name: "§a每日任务: 牧场主"
+    type: "daily"
+    event:
+      type: "milk"
+      target: "cow"
+      amount: 5
+    lore:
+      - "§7描述: 每日给奶牛挤奶5次"
+      - "§7奖励: §e15经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 15"
+
+  # 剪羊毛任务示例
+  shear_daily:
+    name: "§a每日任务: 理发师"
+    type: "daily"
+    event:
+      type: "shear"
+      target: "sheep"
+      amount: 10
+    lore:
+      - "§7描述: 每日剪羊毛10次"
+      - "§7奖励: §e15经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 15"
+
+  # 村民交易任务示例
+  trade_global:
+    name: "§a累计任务: 商人"
+    type: "global"
+    event:
+      type: "trade_villager"
+      target: "*"
+      amount: 50
+    lore:
+      - "§7描述: 公会成员累计与村民交易50次"
+      - "§7奖励: §e100经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 100"
+
+  # 食用食物任务示例
+  eat_daily:
+    name: "§a每日任务: 美食家"
+    type: "daily"
+    event:
+      type: "eat_food"
+      target: "cooked_beef"
+      amount: 5
+    lore:
+      - "§7描述: 每日食用牛排5次"
+      - "§7奖励: §e10经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 10"
+
+  # 催化农作物任务示例
+  bonemeal_daily:
+    name: "§a每日任务: 农夫"
+    type: "daily"
+    event:
+      type: "bonemeal"
+      target: "wheat"
+      amount: 20
+    lore:
+      - "§7描述: 每日用骨粉催化小麦20次"
+      - "§7奖励: §e20经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 20"

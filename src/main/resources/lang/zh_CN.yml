@@ -317,7 +317,7 @@ confirm-leave: "§e您确定要退出当前公会吗？"
 confirm-hint: "§e若确定，请在 30 秒内输入 §6/kg confirm §e以执行。"
 
 # 管理员指令相关
-admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join|open>"
+admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join|open|task>"
 admin-open-usage: "§c用法: /kg admin open <菜单名称>"
 admin-rename-notify: "§6[公会公告] §e管理员已将公会名称统一修改为 §b%name%§e。"
 admin-delete-usage: "§c用法: /kg admin delete #ID"
@@ -375,6 +375,9 @@ admin-arena-info-bluekit: "§7蓝队套装 : "
 
 admin-arena-info-set: "§a已设置"
 admin-arena-info-unset: "§c未设置"
+
+# 任务系统管理
+admin-task-usage: "§c用法: /kg admin task #ID <任务键> <see>"
 
 # 成员状态通知
 member-join-notify: "§8[§a+§8] §7热烈欢迎 §f%player% §7加入公会！"

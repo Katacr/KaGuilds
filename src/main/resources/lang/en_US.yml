@@ -303,7 +303,7 @@ confirm-leave: "§eAre you sure you want to leave the current guild?"
 confirm-hint: "§eIf confirmed, please type §6/kg confirm §ewithin 30 seconds to execute."
 
 # Admin Command Related
-admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join|open>"
+admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join|open|task>"
 admin-open-usage: "§cUsage: /kg admin open <menu name>"
 admin-rename-notify: "§6[Guild Announcement] §eAdmin has renamed the guild to §b%name%§e."
 admin-delete-usage: "§cUsage: /kg admin delete #ID"
@@ -361,6 +361,9 @@ admin-arena-info-bluekit: "§7Blue Team Kit : "
 
 admin-arena-info-set: "§aSet"
 admin-arena-info-unset: "§cNot set"
+
+# Task System Management
+admin-task-usage: "§cUsage: /kg admin task #ID <task_key> <see>"
 
 # Member Status Notifications
 member-join-notify: "§8[§a+§8] §7Warm welcome to §f%player% §7joining the guild!"
