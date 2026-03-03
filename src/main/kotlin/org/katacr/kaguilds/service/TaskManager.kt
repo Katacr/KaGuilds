@@ -1,23 +1,18 @@
 package org.katacr.kaguilds.service
 
-import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import org.bukkit.configuration.ConfigurationSection
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.util.MessageUtil
-import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * 任务管理器
  * 负责管理公会任务系统的配置、进度跟踪和奖励执行
  */
-class TaskManager(private val plugin: KaGuilds) {
+class TaskManager(val plugin: KaGuilds) {
     private val tasksByType = mutableMapOf<String, MutableList<TaskDefinition>>()
-    private val guildCompletedCache = mutableMapOf<Int, MutableSet<String>>()
-    private val dailyCompletedCache = mutableMapOf<UUID, MutableSet<String>>()
-    private val guildDoneCache = mutableMapOf<Int, MutableSet<String>>()
-    private val dailyDoneCache = mutableMapOf<UUID, MutableSet<String>>()
+    val guildDoneCache = mutableMapOf<Int, MutableSet<String>>()
+    val dailyDoneCache = mutableMapOf<UUID, MutableSet<String>>()
     /**
      * 任务定义数据类
      */
@@ -32,15 +27,13 @@ class TaskManager(private val plugin: KaGuilds) {
         val actions: List<String>  // 完成后执行的动作
     )
 
-    private val taskDefinitions = mutableMapOf<String, TaskDefinition>()
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd")
+    val taskDefinitions = mutableMapOf<String, TaskDefinition>()
 
     /**
      * 初始化任务管理器
      */
     fun initialize() {
         loadTaskDefinitions()
-        plugin.logger.info("任务管理器初始化完成,共加载 ${taskDefinitions.size} 个任务")
     }
 
     /**
@@ -78,8 +71,9 @@ class TaskManager(private val plugin: KaGuilds) {
      * @param player 触发事件的玩家
      * @param eventType 事件类型
      * @param target 目标值(如实体类型、方块类型等)
+     * @param increment 增量值，默认为 1
      */
-    fun handleEvent(player: Player, eventType: String, target: String = "*") {
+    fun handleEvent(player: Player, eventType: String, target: String = "*", increment: Int = 1) {
         val tasks = tasksByType[eventType] ?: return
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
@@ -94,7 +88,7 @@ class TaskManager(private val plugin: KaGuilds) {
             val result = plugin.dbManager.incrementTaskProgress(
                 guildId, task.key,
                 if (task.type == "daily") player.uniqueId else null,
-                1, task.amount
+                increment, task.amount
             )
 
             // 4. 处理完成逻辑
@@ -116,7 +110,7 @@ class TaskManager(private val plugin: KaGuilds) {
     /**
      * 执行任务完成后的动作
      */
-    private fun executeTaskActions(player: Player, guildId: Int, task: TaskDefinition) {
+    internal fun executeTaskActions(player: Player, guildId: Int, task: TaskDefinition) {
         val guildData = plugin.dbManager.getGuildData(guildId) ?: return
 
         for (action in task.actions) {
@@ -129,32 +123,30 @@ class TaskManager(private val plugin: KaGuilds) {
                 val command = parts.drop(1).joinToString(":")
 
                 // 替换变量
-                val processedCommand = command
-                    .replace("%player_name%", player.name)
-                    .replace("%player_uuid%", player.uniqueId.toString())
-                    .replace("%kaguilds_id%", guildId.toString())
-                    .replace("%kaguilds_name%", guildData.name)
+                var processedCommand = command
+                    .replace("{player}", player.name)
+                    .replace("{player_name}", player.name)
+                    .replace("{player_uuid}", player.uniqueId.toString())
+                    .replace("{guild_id}", guildId.toString())
+                    .replace("{guild_name}", guildData.name)
 
-                when (actionType) {
-                    "console" -> {
-                        // 控制台执行指令
-                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand)
-                    }
-                    "player" -> {
-                        // 玩家执行指令
-                        player.performCommand(processedCommand)
-                    }
-                    "message" -> {
-                        // 发送消息给玩家
-                        player.sendMessage(processedCommand)
-                    }
-                    "broadcast" -> {
-                        // 广播消息
-                        Bukkit.broadcastMessage(processedCommand)
-                    }
+                // 处理 PlaceholderAPI 变量
+                if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
+                    processedCommand = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, processedCommand)
                 }
+
+                // 转换为 MenuListener 支持的动作类型
+                val menuListenerAction = when (actionType) {
+                    "console" -> "console:$processedCommand"
+                    "command" -> "command:$processedCommand"
+                    "tell" -> "tell:$processedCommand"
+                    else -> return
+                }
+
+                // 复用 MenuListener 的 executeActionLine 方法
+                plugin.menuListener.executeActionLine(player, menuListenerAction)
             } catch (e: Exception) {
-                plugin.logger.warning("执行任务动作时出错: $action, ${e.message}")
+                plugin.logger.warning(plugin.langManager.get("task-action-error") + ": $action, ${e.message}")
             }
         }
     }
@@ -162,50 +154,15 @@ class TaskManager(private val plugin: KaGuilds) {
     /**
      * 通知玩家任务完成
      */
-    private fun notifyTaskCompletion(player: Player, task: TaskDefinition) {
+    internal fun notifyTaskCompletion(player: Player, task: TaskDefinition) {
         try {
-            val msg = MessageUtil.createText("§a✓ 任务完成: ${task.name}")
+            val message = plugin.langManager.get("task-completed")
+                .replace("%name%", task.name)
+            val msg = MessageUtil.createText(message)
             player.spigot().sendMessage(msg)
             player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
         } catch (e: Exception) {
-            plugin.logger.warning("发送任务完成通知时出错: ${e.message}")
-        }
-    }
-
-    /**
-     * 获取公会的任务进度信息
-     */
-    fun getGuildTaskInfo(guildId: Int): List<Pair<TaskDefinition, Boolean>> {
-        val (globalProgress, dailyProgress) = plugin.dbManager.getAllGuildTaskProgress(guildId)
-        val result = mutableListOf<Pair<TaskDefinition, Boolean>>()
-
-        for ((key, task) in taskDefinitions) {
-            val progress = if (task.type == "global") {
-                globalProgress[key]
-            } else {
-                // 每日任务显示任意一个玩家的进度（或显示总数）
-                dailyProgress.find { it.taskKey == key }
-            }
-            val completed = progress?.completed ?: false
-            val current = progress?.progress ?: 0
-            result.add(task to completed)
-        }
-
-        return result
-    }
-
-    /**
-     * 获取任务进度百分比
-     * @param playerUuid 玩家UUID（每日任务需要）
-     */
-    fun getTaskProgressPercentage(guildId: Int, taskKey: String, playerUuid: UUID? = null): Int {
-        val progress = plugin.dbManager.getGuildTaskProgress(guildId, taskKey, playerUuid)
-        val task = taskDefinitions[taskKey] ?: return 0
-
-        return if (progress != null && task.amount > 0) {
-            (progress.progress * 100 / task.amount).coerceAtMost(100)
-        } else {
-            0
+            plugin.logger.warning(plugin.langManager.get("task-notify-error") + ": ${e.message}")
         }
     }
 
@@ -214,7 +171,7 @@ class TaskManager(private val plugin: KaGuilds) {
      */
     fun reload() {
         loadTaskDefinitions()
-        plugin.logger.info("任务配置已重新加载,共 ${taskDefinitions.size} 个任务")
+        plugin.logger.info("Task configuration reloaded, ${taskDefinitions.size} tasks loaded")
     }
 
     /**
@@ -250,7 +207,7 @@ class TaskManager(private val plugin: KaGuilds) {
     /**
      * 获取所有加载的任务定义
      */
-    fun getTaskDefinitions(): Map<String, TaskDefinition> {
+    fun getAllTaskDefinitions(): Map<String, TaskDefinition> {
         return taskDefinitions
     }
 }

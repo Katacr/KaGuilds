@@ -72,11 +72,11 @@ tasks:
     name: "§a累计任务: 商人"
     type: "global"
     event:
-      type: "trade_villager"
+      type: "trade"
       target: "*"
-      amount: 50
+      amount: 100
     lore:
-      - "§7描述: 公会成员累计与村民交易50次"
+      - "§7描述: &7通过与村民交易获得 &f64 &7个绿宝石"
       - "§7奖励: §e100经验"
     actions:
       - "console: kg admin exp %kaguilds_id% add 100"
@@ -105,6 +105,48 @@ tasks:
       amount: 20
     lore:
       - "§7描述: 每日用骨粉催化小麦20次"
+      - "§7奖励: §e20经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 20"
+
+  # 熔炼金属锭任务示例
+  smelt_iron_global:
+    name: "§a累计任务: 铁匠"
+    type: "global"
+    event:
+      type: "smelt"
+      target: "iron_ingot"
+      amount: 64
+    lore:
+      - "§7描述: 公会成员累计熔炼64个铁锭"
+      - "§7奖励: §e80经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 80"
+
+  # 公会捐赠任务示例（按金额累计）
+  donate_global:
+    name: "§a累计任务: 慷慨之心"
+    type: "global"
+    event:
+      type: "donate"
+      target: "*"
+      amount: 1000
+    lore:
+      - "§7描述: 公会成员累计捐赠1000金币"
+      - "§7奖励: §e100经验"
+    actions:
+      - "console: kg admin exp %kaguilds_id% add 100"
+
+  # 每日捐赠任务
+  donate_daily:
+    name: "§a每日任务: 小额捐赠"
+    type: "daily"
+    event:
+      type: "donate"
+      target: "*"
+      amount: 100
+    lore:
+      - "§7描述: 每日捐赠100金币给公会"
       - "§7奖励: §e20经验"
     actions:
       - "console: kg admin exp %kaguilds_id% add 20"

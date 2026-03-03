@@ -54,7 +54,7 @@ object MessageUtil {
      * @param text 原始文本
      * @return 转换颜色符号后的文本
      */
-    private fun translateColorCodes(text: String): String {
+    fun translateColorCodes(text: String): String {
         return text.replace("&", "§")
     }
 

@@ -27,6 +27,8 @@ class KaGuilds : JavaPlugin() {
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
+    lateinit var taskListener: TaskListener
+    lateinit var menuListener: MenuListener
     lateinit var taskManager: TaskManager
     lateinit var menuManager: MenuManager
     lateinit var arenaManager: ArenaManager
@@ -142,12 +144,14 @@ class KaGuilds : JavaPlugin() {
     // 监听器注册逻辑
     private fun setupListeners() {
         val pm = server.pluginManager
+        menuListener = MenuListener(this)
         pm.registerEvents(VaultListener(this), this)
-        pm.registerEvents(MenuListener(this), this)
+        pm.registerEvents(menuListener, this)
         pm.registerEvents(NotifyListener(this), this)
         pm.registerEvents(PvPListener(this), this)
         pm.registerEvents(GuildListener(this), this)
-        pm.registerEvents(TaskListener(this), this)
+        taskListener = TaskListener(this)
+        pm.registerEvents(taskListener, this)
     }
 
     /**

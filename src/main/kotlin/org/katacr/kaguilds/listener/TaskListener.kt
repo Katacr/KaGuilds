@@ -1,9 +1,6 @@
 package org.katacr.kaguilds.listener
 
 import org.bukkit.Material
-import org.bukkit.Tag
-import org.bukkit.block.data.Ageable
-import org.bukkit.entity.Monster
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -11,14 +8,11 @@ import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockFertilizeEvent
 import org.bukkit.event.entity.EntityDeathEvent
-import org.bukkit.event.entity.EntityTameEvent
-import org.bukkit.event.entity.SheepRegrowWoolEvent
-import org.bukkit.event.inventory.FurnaceSmeltEvent
-import org.bukkit.event.player.PlayerEvent
+import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.inventory.InventoryType
 import org.bukkit.event.player.PlayerFishEvent
 import org.bukkit.event.player.PlayerItemConsumeEvent
 import org.bukkit.event.player.PlayerJoinEvent
-import org.bukkit.inventory.ItemStack
 import org.katacr.kaguilds.KaGuilds
 
 /**
@@ -46,7 +40,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     fun onEntityDeath(event: EntityDeathEvent) {
         if (event.isCancelled) return
         val killer = event.entity.killer ?: return
-        if (killer !is Player) return
 
         // 获取实体类型
         val entityType = event.entity.type.name.lowercase()
@@ -69,43 +62,12 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     }
 
     /**
-     * 处理公会聊天事件
-     * 由 GuildService 调用
-     */
-    fun onGuildChat(player: Player) {
-        plugin.taskManager.handleEvent(player, "chat")
-    }
-
-    /**
      * 处理公会捐赠事件
-     * 由 GuildService 调用
+     * 由 GuildCommand 调用
      */
     fun onGuildDonate(player: Player, amount: Double) {
-        plugin.taskManager.handleEvent(player, "donate", "*")
-    }
-
-    /**
-     * 处理公会战胜利事件
-     * 由 PvPManager 调用
-     */
-    fun onPvPWin(guildId: Int, player: Player) {
-        plugin.taskManager.handleEvent(player, "pvp_win")
-    }
-
-    /**
-     * 处理邀请成员事件
-     * 由 GuildService 调用
-     */
-    fun onInviteMember(player: Player) {
-        plugin.taskManager.handleEvent(player, "invite_member")
-    }
-
-    /**
-     * 处理升级公会事件
-     * 由 GuildService 调用
-     */
-    fun onGuildUpgrade(player: Player) {
-        plugin.taskManager.handleEvent(player, "upgrade")
+        // 捐赠金额作为增量值传递
+        plugin.taskManager.handleEvent(player, "donate", "*", amount.toInt())
     }
 
     /**
@@ -123,21 +85,18 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     }
 
     /**
-     * 挤奶事件
+     * 桶填满事件 (装水、装岩浆、挤奶)
      */
-    @EventHandler(priority = EventPriority.MONITOR)
-    fun onPlayerInteractEntity(event: org.bukkit.event.player.PlayerInteractEntityEvent) {
-        if (event.isCancelled) return
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onBucketFill(event: org.bukkit.event.player.PlayerBucketFillEvent) {
         val player = event.player
+        val itemStack = event.itemStack // 这是填满后的物品
 
-        // 检查是否是挤奶桶
-        val item = event.player.inventory.itemInMainHand
-        if (item.type == Material.MILK_BUCKET) {
-            // 获取实体类型
-            val entity = event.rightClicked
-            val entityType = entity.type.name.lowercase()
-
-            plugin.taskManager.handleEvent(player, "milk", entityType)
+        // 检查填满后是否为奶桶
+        itemStack?.let {
+            if (it.type == Material.MILK_BUCKET) {
+                plugin.taskManager.handleEvent(player, "milk", "cow")
+            }
         }
     }
 
@@ -156,14 +115,54 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     }
 
     /**
-     * 村民交易事件
+     * 优化：村民交易事件 (支持批量交易与按住 Shift)
      */
-    @EventHandler(priority = EventPriority.MONITOR)
-    fun onTradeSelect(event: org.bukkit.event.inventory.TradeSelectEvent) {
-        if (event.isCancelled) return
-        val player = event.view.player as? Player ?: return
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onVillagerTrade(event: InventoryClickEvent) {
+        val player = event.whoClicked as? Player ?: return
+        val inventory = event.inventory as? org.bukkit.inventory.MerchantInventory ?: return
 
-        plugin.taskManager.handleEvent(player, "trade_villager", "*")
+        // 1. 必须是点击了村民交易的产出槽位 (Slot 2)
+        if (event.rawSlot != 2) return
+
+        // 2. 获取当前选择的交易配方
+        val recipe = inventory.selectedRecipe ?: return
+        val resultItem = recipe.result
+        val recipeAmount = resultItem.amount
+
+        // 3. 获取点击动作
+        val isShift = event.isShiftClick
+
+        // 我们需要知道点击前玩家背包里有多少个该物品（用于 Shift 交易计算）
+        val amountBefore = if (isShift) getItemAmount(player, resultItem.type) else 0
+
+        // 4. 延迟 1 刻执行，等待服务器处理完背包数据变更
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            val currentItem = event.currentItem ?: return@Runnable
+
+            val tradeCount = if (isShift) {
+                // Shift 点击逻辑：通过计算背包差值来反推交易次数
+                val amountAfter = getItemAmount(player, resultItem.type)
+                val diff = amountAfter - amountBefore
+                if (diff > 0) diff / recipeAmount else 0
+            } else {
+                // 普通点击：只要光标上拿到了物品，就记为 1 次交易
+                // 或者检查 event.cursor
+                1
+            }
+
+            if (tradeCount > 0) {
+                plugin.taskManager.handleEvent(player, "trade", resultItem.type.name.lowercase(), tradeCount)
+            }
+        })
+    }
+
+    // 辅助方法：获取玩家背包中某种物品的总量
+    private fun getItemAmount(player: Player, material: org.bukkit.Material): Int {
+        return player.inventory.contents
+            .filterNotNull()
+            .filter { it.type == material }
+            .sumOf { it.amount }
     }
 
     /**
@@ -191,5 +190,35 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
 
         // 骨粉确实生效时此事件才会被触发。
         plugin.taskManager.handleEvent(player, "bonemeal", blockType.name.lowercase())
+    }
+
+    /**
+     * 玩家取出熔炼成品
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onInventoryClick(event: InventoryClickEvent) {
+        val player = event.whoClicked as? Player ?: return
+        val inventory = event.inventory
+
+        if (inventory.type != InventoryType.FURNACE &&
+            inventory.type != InventoryType.BLAST_FURNACE &&
+            inventory.type != InventoryType.SMOKER) return
+
+        if (event.rawSlot != 2) return
+
+        val item = event.currentItem ?: return
+        if (item.type == Material.AIR) return
+
+        val amount = when {
+            event.isShiftClick -> item.amount
+            event.isLeftClick || event.isRightClick -> {
+                item.amount
+            }
+            else -> 0
+        }
+
+        if (amount <= 0) return
+
+        plugin.taskManager.handleEvent(player, "smelt", item.type.name.lowercase(), amount)
     }
 }

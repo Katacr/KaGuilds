@@ -1460,33 +1460,7 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
     }
 
-    /**
-     * 标记任务为已完成（用于手动完成）
-     * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
-     */
-    fun completeTask(guildId: Int, taskKey: String, playerUuid: UUID? = null): Boolean {
-        val sql = if (playerUuid != null) {
-            "UPDATE guild_task_progress SET completed = 1 WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
-        } else {
-            "UPDATE guild_task_progress SET completed = 1 WHERE guild_id = ? AND task_key = ? AND player_uuid IS NULL"
-        }
-        return try {
-            connection.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    ps.setInt(1, guildId)
-                    ps.setString(2, taskKey)
-                    if (playerUuid != null) {
-                        ps.setString(3, playerUuid.toString())
-                    }
-                    ps.executeUpdate() > 0
-                }
-            }
-        } catch (e: Exception) {
-            plugin.logger.severe("标记任务完成时出错: ${e.message}")
-            e.printStackTrace()
-            false
-        }
-    }
+
     /**
      * 获取指定公会或玩家在当天已完成的任务Key列表
      * @param playerUuid 传入null则查询公会全局任务，传入UUID则查询个人每日任务

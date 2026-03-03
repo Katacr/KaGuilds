@@ -315,7 +315,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     /**
      * 执行动作行
      */
-    private fun executeActionLine(player: Player, line: String) {
+    internal fun executeActionLine(player: Player, line: String) {
         if (line.isBlank()) return
         if (line == "PAGE_NEXT" || line == "PAGE_PREV") {
             val holder = player.openInventory.topInventory.holder as? GuildMenuHolder ?: return
@@ -356,14 +356,20 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val parts = line.split(":", limit = 2)
         val type = parts[0].trim().lowercase()
         val rawArgs = parts.getOrNull(1)?.trim() ?: ""
-
-        // 统一处理颜色和通用变量 %player%
-        val args = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawArgs.replace("%player%", player.name))
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
+        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        // 统一处理颜色和通用内置变量
+        val args = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawArgs
+            .replace("{player}", player.name)
+            .replace("{player_name}", player.name)
+            .replace("{player_uuid}", player.uniqueId.toString())
+            .replace("{guild_id}", guildId.toString())
+            .replace("{guild_name}", guildData.name))
 
         when (type) {
             "tell" -> player.sendMessage(args)
-            "command" -> player.performCommand(rawArgs.replace("%player%", player.name))
-            "console" -> plugin.server.dispatchCommand(plugin.server.consoleSender, rawArgs.replace("%player%", player.name))
+            "command" -> player.performCommand(args)
+            "console" -> plugin.server.dispatchCommand(plugin.server.consoleSender, args)
             "sound" -> {
                 val soundName = rawArgs.replace(".", "_").uppercase()
                 try {
