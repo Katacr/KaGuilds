@@ -241,7 +241,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                     // 获取昵称，如果获取不到（从未上过线）则显示“未知”
                     val name = org.bukkit.Bukkit.getOfflinePlayer(uuid).name ?: "未知玩家"
                     names.add(name)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // 防止 UUID 格式错误导致整个列表崩溃
                     continue
                 }
@@ -261,7 +261,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             while (rs.next()) {
                 try {
                     uuids.add(UUID.fromString(rs.getString("player_uuid")))
-                } catch (e: Exception) { continue }
+                } catch (_: Exception) { continue }
             }
         }
         return uuids
@@ -281,32 +281,7 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return list
     }
-    /**
-     * 获取某个公会的所有申请者 详细信息 (姓名, 申请时间)
-     */
-    fun getDetailedRequests(guildId: Int): List<Triple<String, UUID, Long>> {
-        val list = mutableListOf<Triple<String, UUID, Long>>()
-        val sql = "SELECT player_name, player_uuid, request_time FROM guild_requests WHERE guild_id = ?"
 
-        try {
-            dataSource?.connection?.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    ps.setInt(1, guildId)
-                    val rs = ps.executeQuery()
-                    while (rs.next()) {
-                        list.add(Triple(
-                            rs.getString("player_name"),
-                            UUID.fromString(rs.getString("player_uuid")),
-                            rs.getLong("request_time")
-                        ))
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return list
-    }
     /**
      * 检查玩家是否为公会管理人员 (OWNER 或 ADMIN)
      */
@@ -502,7 +477,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setInt(2, offset)
                     val rs = ps.executeQuery()
 
-                    val dateFormat = java.text.SimpleDateFormat(plugin.config.get("date-format") as String)
+                    val dateFormat = SimpleDateFormat(plugin.config.get("date-format") as String)
                     while (rs.next()) {
                         val typeRaw = rs.getString("type")
                         // 兼容管理员的操作类型
@@ -517,7 +492,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                             "BUY_BUFF" -> plugin.langManager.get("bank-text-buybuff") //"§6购买增益"
                             else -> plugin.langManager.get("bank-text-get") //"§c取出"
                         }
-                        val time = dateFormat.format(java.util.Date(rs.getLong("time")))
+                        val time = dateFormat.format(Date(rs.getLong("time")))
                         logs.add("§7[$time] §7${rs.getString("player_name")} $typeStr §f${rs.getDouble("amount")} §7${plugin.langManager.get("balance-name")}")
                     }
                 }
@@ -675,7 +650,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                     }
                 }
             } ?: -1
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             -1
         }
     }
@@ -951,12 +926,6 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setInt(1, guildId)
                     ps.setInt(2, index)
                     ps.setString(3, playerUuid.toString())
-
-                    val affected = ps.executeUpdate()
-                    if (affected == 0) {
-                        // 说明锁可能已经过期并被别人抢走了，或者已经释放了
-                        // 这种情况通常不需要报错，但也证明了 WHERE 检查的必要性
-                    }
                 }
             }
         } catch (e: Exception) {

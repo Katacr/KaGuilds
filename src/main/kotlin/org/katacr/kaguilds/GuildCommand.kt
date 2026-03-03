@@ -1,6 +1,7 @@
 package org.katacr.kaguilds
 
 import org.bukkit.GameMode
+import org.bukkit.Material
 import org.bukkit.Sound
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
@@ -1438,6 +1439,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
 
                 val taskKey = args[3]
+                @Suppress("WhenWithOnlyElse")
                 val action = args[4].lowercase()
 
                 when (action) {
@@ -1608,7 +1610,9 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 }
             }
 
-            else -> sender.sendMessage(lang.get("admin-usage"))
+            else -> {
+                sender.sendMessage(lang.get("admin-usage"))
+            }
         }
     }
 
@@ -1659,7 +1663,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         }
 
         val item = player.inventory.itemInMainHand
-        if (item.type == org.bukkit.Material.AIR) {
+        if (item.type == Material.AIR) {
             player.sendMessage(lang.get("error-no-item"))
             return
         }

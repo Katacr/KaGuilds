@@ -354,7 +354,7 @@ class MenuManager(private val plugin: KaGuilds) {
         item.itemMeta = meta
 
         // 4. 调用异步加载逻辑：物品会先显示默认皮肤，随后自动变成玩家皮肤
-        loadSkinAsync(item, member.name)
+        loadSkinAsync(item, member.uuid)
 
         return item
     }
@@ -461,12 +461,12 @@ class MenuManager(private val plugin: KaGuilds) {
     /**
      * 异步加载皮肤
      * @param item 物品
-     * @param playerName 玩家名
+     * @param playerUuid 玩家UUID
      */
-    private fun loadSkinAsync(item: ItemStack, playerName: String?) {
-        if (playerName.isNullOrBlank()) return
+    private fun loadSkinAsync(item: ItemStack, playerUuid: UUID?) {
+        if (playerUuid == null) return
         val meta = item.itemMeta as? SkullMeta ?: return
-        meta.owningPlayer = Bukkit.getOfflinePlayer(playerName)
+        meta.owningPlayer = Bukkit.getOfflinePlayer(playerUuid)
         item.itemMeta = meta
     }
 
@@ -488,9 +488,7 @@ class MenuManager(private val plugin: KaGuilds) {
                 if (char == " ") continue
 
                 val btnSection = buttons?.getConfigurationSection(char) ?: continue
-                val type = btnSection.getString("type")
-
-                when (type) {
+                when (val type = btnSection.getString("type")) {
                     "MEMBERS_LIST" -> {
                         // 实时获取成员列表数据
                         val guildId = plugin.playerGuildCache[player.uniqueId]
@@ -1018,25 +1016,29 @@ class MenuManager(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
         // 1. 检查并重置过期的进度（异步）
-        if (taskType == "daily") {
-            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                plugin.dbManager.checkAndResetDailyTasks(guildId, player.uniqueId)
-                // 延迟1tick再打开菜单，确保数据库更新完成
-                plugin.server.scheduler.runTask(plugin, Runnable {
-                    openTaskMenuInternal(player, menuName, page, taskType)
+        when (taskType) {
+            "daily" -> {
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    plugin.dbManager.checkAndResetDailyTasks(guildId, player.uniqueId)
+                    // 延迟1tick再打开菜单，确保数据库更新完成
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        openTaskMenuInternal(player, menuName, page, taskType)
+                    })
                 })
-            })
-        } else if (taskType == "global") {
-            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                plugin.dbManager.checkAndResetGlobalTasks(guildId)
-                // 延迟1tick再打开菜单，确保数据库更新完成
-                plugin.server.scheduler.runTask(plugin, Runnable {
-                    openTaskMenuInternal(player, menuName, page, taskType)
+            }
+            "global" -> {
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    plugin.dbManager.checkAndResetGlobalTasks(guildId)
+                    // 延迟1tick再打开菜单，确保数据库更新完成
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        openTaskMenuInternal(player, menuName, page, taskType)
+                    })
                 })
-            })
-        } else {
-            // 无需重置，直接打开
-            openTaskMenuInternal(player, menuName, page, taskType)
+            }
+            else -> {
+                // 无需重置，直接打开
+                openTaskMenuInternal(player, menuName, page, taskType)
+            }
         }
     }
 

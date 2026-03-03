@@ -1,9 +1,10 @@
 package org.katacr.kaguilds
 
-import com.google.common.io.ByteStreams
 import org.bukkit.entity.Player
 import org.bukkit.plugin.messaging.PluginMessageListener
 import org.katacr.kaguilds.util.MessageUtil
+import java.io.ByteArrayInputStream
+import java.io.DataInputStream
 import java.util.UUID
 import kotlin.collections.forEach
 
@@ -12,7 +13,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
 
         if (channel != "kaguilds:chat") return
 
-        val `in` = ByteStreams.newDataInput(message)
+        val `in` = DataInputStream(ByteArrayInputStream(message))
         val subChannel = `in`.readUTF()
         when (subChannel) {
             /*

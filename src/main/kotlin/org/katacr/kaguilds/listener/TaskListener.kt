@@ -138,8 +138,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
 
         // 4. 延迟 1 刻执行，等待服务器处理完背包数据变更
         plugin.server.scheduler.runTask(plugin, Runnable {
-            val currentItem = event.currentItem ?: return@Runnable
-
             val tradeCount = if (isShift) {
                 // Shift 点击逻辑：通过计算背包差值来反推交易次数
                 val amountAfter = getItemAmount(player, resultItem.type)
@@ -147,7 +145,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
                 if (diff > 0) diff / recipeAmount else 0
             } else {
                 // 普通点击：只要光标上拿到了物品，就记为 1 次交易
-                // 或者检查 event.cursor
                 1
             }
 
@@ -158,7 +155,7 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     }
 
     // 辅助方法：获取玩家背包中某种物品的总量
-    private fun getItemAmount(player: Player, material: org.bukkit.Material): Int {
+    private fun getItemAmount(player: Player, material: Material): Int {
         return player.inventory.contents
             .filterNotNull()
             .filter { it.type == material }

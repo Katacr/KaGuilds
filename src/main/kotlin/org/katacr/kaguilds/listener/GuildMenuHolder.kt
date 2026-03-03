@@ -1,11 +1,8 @@
 package org.katacr.kaguilds.listener
-import org.bukkit.Bukkit
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
-import org.bukkit.inventory.ItemStack
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.entity.Player
-import org.katacr.kaguilds.KaGuilds
 
 class GuildMenuHolder(
     val title: String,

@@ -11,6 +11,7 @@ import org.katacr.kaguilds.listener.VaultHolder
 import org.katacr.kaguilds.util.SerializationUtil
 import java.util.UUID
 import org.katacr.kaguilds.util.MessageUtil
+import java.io.DataOutputStream
 
 class GuildService(private val plugin: KaGuilds) {
     data class GuildInfo(
@@ -203,10 +204,10 @@ class GuildService(private val plugin: KaGuilds) {
 
         if (isProxy) {
             plugin.server.scheduler.runTask(plugin, Runnable {
-                val out = com.google.common.io.ByteStreams.newDataOutput()
-                out.writeUTF("MemberKick")
-                out.writeInt(guildId)
-                out.writeUTF(targetName)
+                val out = createDataOutput()
+                out.outputStream.writeUTF("MemberKick")
+                out.outputStream.writeInt(guildId)
+                out.outputStream.writeUTF(targetName)
                 plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
             })
         } else {
@@ -259,16 +260,16 @@ class GuildService(private val plugin: KaGuilds) {
             if (isProxy) {
                 // --- 代理模式：盲发广播 ---
                 plugin.server.scheduler.runTask(plugin, Runnable {
-                    val out = com.google.common.io.ByteStreams.newDataOutput()
-                    out.writeUTF("CrossInvite")
-                    out.writeUTF(targetName)   // 目标玩家名
-                    out.writeInt(guildId)      // 公会ID
-                    out.writeUTF(guildData.name) // 公会名
-                    out.writeUTF(sender.name)  // 邀请人名
+                    val out = createDataOutput()
+                    out.outputStream.writeUTF("CrossInvite")
+                    out.outputStream.writeUTF(targetName)   // 目标玩家名
+                    out.outputStream.writeInt(guildId)      // 公会ID
+                    out.outputStream.writeUTF(guildData.name) // 公会名
+                    out.outputStream.writeUTF(sender.name)  // 邀请人名
 
                     sender.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
                 })
-                // 在跨服模式下，我们无法立即知道玩家是否在线，所以返回成功，提示“邀请已发出”
+                // 在跨服模式下，我们无法立即知道玩家是否在线，所以返回成功，提示"邀请已发出"
                 callback(OperationResult.Success)
 
             } else {
@@ -373,13 +374,13 @@ class GuildService(private val plugin: KaGuilds) {
 
         if (isProxy) {
             // --- 代理模式：发包给代理端转发 ---
-            val out = com.google.common.io.ByteStreams.newDataOutput()
-            out.writeUTF(subChannel)
+            val out = createDataOutput()
+            out.outputStream.writeUTF(subChannel)
             // 动态写入后续参数
             data.forEach {
                 when (it) {
-                    is Int -> out.writeInt(it)
-                    is String -> out.writeUTF(it)
+                    is Int -> out.outputStream.writeInt(it)
+                    is String -> out.outputStream.writeUTF(it)
                 }
             }
             // 借用第一个在线玩家发包（如果没有在线玩家，单服消息通常也无意义）
@@ -614,10 +615,10 @@ class GuildService(private val plugin: KaGuilds) {
         if (!plugin.config.getBoolean("proxy", false)) return
 
         plugin.server.scheduler.runTask(plugin, Runnable {
-            val out = com.google.common.io.ByteStreams.newDataOutput()
-            out.writeUTF("SyncCache")      // 子频道标识
-            out.writeUTF(uuid.toString())   // 玩家UUID
-            out.writeInt(guildId)           // 公会ID
+            val out = createDataOutput()
+            out.outputStream.writeUTF("SyncCache")      // 子频道标识
+            out.outputStream.writeUTF(uuid.toString())   // 玩家UUID
+            out.outputStream.writeInt(guildId)           // 公会ID
 
             // 借用任意在线玩家发送
             plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
@@ -640,10 +641,10 @@ class GuildService(private val plugin: KaGuilds) {
         if (isProxy) {
             // --- 跨服模式：发包给代理端 ---
             plugin.server.scheduler.runTask(plugin, Runnable {
-                val out = com.google.common.io.ByteStreams.newDataOutput()
-                out.writeUTF(subChannel)
-                out.writeInt(guildId)
-                out.writeUTF(playerName)
+                val out = createDataOutput()
+                out.outputStream.writeUTF(subChannel)
+                out.outputStream.writeInt(guildId)
+                out.outputStream.writeUTF(playerName)
 
                 plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
             })
@@ -914,10 +915,10 @@ class GuildService(private val plugin: KaGuilds) {
     fun syncRenameProxy(guildId: Int, newName: String) {
         val isProxy = plugin.config.getBoolean("proxy", false)
         if (isProxy) {
-            val out = com.google.common.io.ByteStreams.newDataOutput()
-            out.writeUTF("RenameSync")
-            out.writeInt(guildId)
-            out.writeUTF(newName)
+            val out = createDataOutput()
+            out.outputStream.writeUTF("RenameSync")
+            out.outputStream.writeInt(guildId)
+            out.outputStream.writeUTF(newName)
             plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
         }
     }
@@ -944,12 +945,12 @@ class GuildService(private val plugin: KaGuilds) {
 
         // 2. 跨服通知 (仅在开启 proxy 时发送)
         if (plugin.config.getBoolean("proxy", false)) {
-            val out = com.google.common.io.ByteStreams.newDataOutput()
-            out.writeUTF("BankSync")
-            out.writeInt(guildId)
-            out.writeUTF(playerName)
-            out.writeUTF(type)
-            out.writeDouble(amount)
+            val out = createDataOutput()
+            out.outputStream.writeUTF("BankSync")
+            out.outputStream.writeInt(guildId)
+            out.outputStream.writeUTF(playerName)
+            out.outputStream.writeUTF(type)
+            out.outputStream.writeDouble(amount)
             plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
         }
     }
@@ -1075,10 +1076,10 @@ class GuildService(private val plugin: KaGuilds) {
 
                 // 2. 跨服广播通知 (发送给其他子服)
                 if (plugin.config.getBoolean("proxy", false)) {
-                    val out = com.google.common.io.ByteStreams.newDataOutput()
-                    out.writeUTF("AdminRenameSync") // 新增子通道名
-                    out.writeInt(guildId)
-                    out.writeUTF(newName)
+                    val out = createDataOutput()
+                    out.outputStream.writeUTF("AdminRenameSync") // 新增子通道名
+                    out.outputStream.writeInt(guildId)
+                    out.outputStream.writeUTF(newName)
 
                     plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(
                         plugin, "kaguilds:chat", out.toByteArray()
@@ -1124,9 +1125,9 @@ class GuildService(private val plugin: KaGuilds) {
 
                 // 4. 跨服同步清理
                 if (plugin.config.getBoolean("proxy", false)) {
-                    val out = com.google.common.io.ByteStreams.newDataOutput()
-                    out.writeUTF("DeleteSync")
-                    out.writeInt(guildId)
+                    val out = createDataOutput()
+                    out.outputStream.writeUTF("DeleteSync")
+                    out.outputStream.writeInt(guildId)
 
                     // 使用第一个在线玩家作为发送媒介
                     plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(
@@ -1242,14 +1243,14 @@ class GuildService(private val plugin: KaGuilds) {
 
         // 2. 跨服分发
         if (plugin.config.getBoolean("proxy", false)) {
-            val out = com.google.common.io.ByteStreams.newDataOutput()
-            out.writeUTF("BuffSync")
-            out.writeInt(guildId)
-            out.writeUTF(type.name) // 传递药水枚举名
-            out.writeInt(seconds)
-            out.writeInt(amplifier)
-            out.writeUTF(buyerName)
-            out.writeUTF(buffName)
+            val out = createDataOutput()
+            out.outputStream.writeUTF("BuffSync")
+            out.outputStream.writeInt(guildId)
+            out.outputStream.writeUTF(type.name) // 传递药水枚举名
+            out.outputStream.writeInt(seconds)
+            out.outputStream.writeInt(amplifier)
+            out.outputStream.writeUTF(buyerName)
+            out.outputStream.writeUTF(buffName)
 
             plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
         }
@@ -1318,20 +1319,20 @@ class GuildService(private val plugin: KaGuilds) {
      * 发送强制刷新包
      */
     private fun sendForceRefreshPacket(guildId: Int) {
-        val out = com.google.common.io.ByteStreams.newDataOutput()
-        out.writeUTF("ForceRefreshMembers")
-        out.writeInt(guildId)
+        val out = createDataOutput()
+        out.outputStream.writeUTF("ForceRefreshMembers")
+        out.outputStream.writeInt(guildId)
         plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
     }
     /**
      * 发送会长转让的跨服封包
      */
     private fun sendTransferSyncPacket(guildId: Int, newOwnerUuid: UUID, newOwnerName: String) {
-        val out = com.google.common.io.ByteStreams.newDataOutput()
-        out.writeUTF("GuildTransfer") // 子频道名称
-        out.writeInt(guildId)         // 哪个公会
-        out.writeUTF(newOwnerUuid.toString()) // 新会长UUID
-        out.writeUTF(newOwnerName)    // 新会长名字
+        val out = createDataOutput()
+        out.outputStream.writeUTF("GuildTransfer") // 子频道名称
+        out.outputStream.writeInt(guildId)         // 哪个公会
+        out.outputStream.writeUTF(newOwnerUuid.toString()) // 新会长UUID
+        out.outputStream.writeUTF(newOwnerName)    // 新会长名字
 
         // 找一个在线玩家作为发信人
         plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
@@ -1532,13 +1533,13 @@ class GuildService(private val plugin: KaGuilds) {
         // 只有在 proxy 模式下才发送
         if (!plugin.config.getBoolean("proxy")) return
 
-        val out = com.google.common.io.ByteStreams.newDataOutput()
+        val out = createDataOutput()
         try {
-            out.writeUTF("VaultSync") // 子频道名称
-            out.writeUTF(type)        // "Lock" 或 "Unlock"
-            out.writeInt(guildId)     // 公会 ID
-            out.writeInt(index)       // 仓库编号
-            out.writeUTF(uuid.toString()) // 操作者 UUID
+            out.outputStream.writeUTF("VaultSync") // 子频道名称
+            out.outputStream.writeUTF(type)        // "Lock" 或 "Unlock"
+            out.outputStream.writeInt(guildId)     // 公会 ID
+            out.outputStream.writeInt(index)       // 仓库编号
+            out.outputStream.writeUTF(uuid.toString()) // 操作者 UUID
 
             // 获取一个在线玩家作为传输管道发送消息
             val messenger = plugin.server.onlinePlayers.firstOrNull()
@@ -1613,7 +1614,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             if (holder.guildId != guildId || holder.vaultIndex != index) return@Runnable
 
-            // 异步更新数据库过期时间，维持“我是锁定者”的状态
+            // 异步更新数据库过期时间，维持"我是锁定者"的状态
             plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                 val nextExpire = System.currentTimeMillis() + 30000
                 val sql = "UPDATE guild_vaults SET lock_expire = ? WHERE guild_id = ? AND vault_index = ? AND last_editor = ?"
@@ -1893,5 +1894,24 @@ class GuildService(private val plugin: KaGuilds) {
     // 辅助方法：确保回调在主线程执行
     private fun syncCallback(callback: (OperationResult) -> Unit, result: OperationResult) {
         plugin.server.scheduler.runTask(plugin, Runnable { callback(result) })
+    }
+
+    /**
+     * 辅助类：封装 DataOutputStream 和 ByteArrayOutputStream
+     * 用于插件消息通信，避免访问受保护字段
+     */
+    private class ByteArrayDataOutputStream {
+        private val byteArrayStream = java.io.ByteArrayOutputStream()
+        val outputStream = DataOutputStream(byteArrayStream)
+
+        fun toByteArray(): ByteArray = byteArrayStream.toByteArray()
+    }
+
+    /**
+     * 辅助方法：创建 DataOutput 用于插件消息通信
+     * 使用 Java 标准库替代 Guava 的 ByteStreams（避免 @Beta 警告）
+     */
+    private fun createDataOutput(): ByteArrayDataOutputStream {
+        return ByteArrayDataOutputStream()
     }
 }

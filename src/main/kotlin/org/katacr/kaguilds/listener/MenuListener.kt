@@ -99,8 +99,8 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     @Suppress("UNCHECKED_CAST")
                     val group = item as Map<String, Any>
                     val conditionStr = group["condition"] as? String
-                    val successActions = group["actions"] as? List<String> ?: emptyList()
-                    val denyActions = group["deny"] as? List<String> ?: emptyList()
+                    val successActions = (group["actions"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    val denyActions = (group["deny"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
 
                     if (checkCondition(player, conditionStr)) {
                         successActions.forEach { action ->
