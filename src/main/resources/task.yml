@@ -1,5 +1,8 @@
 tasks:
   global_1:  # 任务标识符
+    display:
+      material: "DIAMOND_SWORD"
+      custom_data: 0
     name: "§a累计任务: 公会战斗" # 任务名称
     type: "global" # global:全局任务, daily:每日任务
     event:
@@ -10,9 +13,12 @@ tasks:
       - "§7描述: 公会全体成员累计击杀100个僵尸"
       - "§7奖励: §e80经验 §7100金币"
     actions: # 任务完成后执行的指令动作,可以调用该插件内菜单组件的方法
-      - "console: movey give %player_name% 100"
+      - "console: money give %player_name% 100"
       - "console: kg admin exp %kaguilds_id% add 80"
   daily_1:  # 任务标识符
+    display:
+      material: "DIAMOND_SWORD"
+      custom_data: 0
     name: "§a每日任务: 上线" # 任务名称
     type: "daily" # global:全局任务, daily:每日任务
     event:

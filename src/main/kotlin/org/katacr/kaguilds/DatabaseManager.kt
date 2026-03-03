@@ -1489,4 +1489,111 @@ class DatabaseManager(val plugin: KaGuilds) {
         }
         return completedKeys
     }
+
+    /**
+     * 检查并重置过期的每日任务进度
+     * @param guildId 公会ID
+     * @param playerUuid 玩家UUID
+     */
+    fun checkAndResetDailyTasks(guildId: Int, playerUuid: UUID) {
+        val today = taskDateFormat.format(Date())
+        val sql = """
+            SELECT task_key FROM guild_task_progress
+            WHERE guild_id = ? AND player_uuid = ? AND last_date != ?
+        """.trimIndent()
+
+        try {
+            connection.use { conn ->
+                // 1. 查询所有过期的任务
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, playerUuid.toString())
+                    ps.setString(3, today)
+
+                    val rs = ps.executeQuery()
+                    val expiredTasks = mutableListOf<String>()
+
+                    while (rs.next()) {
+                        expiredTasks.add(rs.getString("task_key"))
+                    }
+
+                    // 2. 批量重置过期任务
+                    if (expiredTasks.isNotEmpty()) {
+                        val updateSql = """
+                            UPDATE guild_task_progress
+                            SET progress = 0, completed = 0, last_date = ?
+                            WHERE guild_id = ? AND player_uuid = ? AND task_key = ?
+                        """.trimIndent()
+
+                        conn.prepareStatement(updateSql).use { updatePs ->
+                            for (taskKey in expiredTasks) {
+                                updatePs.setString(1, today)
+                                updatePs.setInt(2, guildId)
+                                updatePs.setString(3, playerUuid.toString())
+                                updatePs.setString(4, taskKey)
+                                updatePs.executeUpdate()
+                            }
+                        }
+
+                        // 3. 清除缓存
+                        plugin.taskManager.dailyDoneCache.remove(playerUuid)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("检查并重置每日任务时出错: ${e.message}")
+        }
+    }
+
+    /**
+     * 检查并重置过期的全局任务进度
+     * @param guildId 公会ID
+     */
+    fun checkAndResetGlobalTasks(guildId: Int) {
+        val today = taskDateFormat.format(Date())
+        val sql = """
+            SELECT task_key FROM guild_task_progress
+            WHERE guild_id = ? AND player_uuid IS NULL AND last_date != ?
+        """.trimIndent()
+
+        try {
+            connection.use { conn ->
+                // 1. 查询所有过期的全局任务
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, today)
+
+                    val rs = ps.executeQuery()
+                    val expiredTasks = mutableListOf<String>()
+
+                    while (rs.next()) {
+                        expiredTasks.add(rs.getString("task_key"))
+                    }
+
+                    // 2. 批量重置过期任务
+                    if (expiredTasks.isNotEmpty()) {
+                        val updateSql = """
+                            UPDATE guild_task_progress
+                            SET progress = 0, completed = 0, last_date = ?
+                            WHERE guild_id = ? AND player_uuid IS NULL AND task_key = ?
+                        """.trimIndent()
+
+                        conn.prepareStatement(updateSql).use { updatePs ->
+                            for (taskKey in expiredTasks) {
+                                updatePs.setString(1, today)
+                                updatePs.setInt(2, guildId)
+                                updatePs.setString(3, taskKey)
+                                updatePs.executeUpdate()
+                            }
+                        }
+
+                        // 3. 清除缓存
+                        plugin.taskManager.guildDoneCache.remove(guildId)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("检查并重置全局任务时出错: ${e.message}")
+        }
+    }
 }

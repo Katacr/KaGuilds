@@ -257,14 +257,57 @@ class KaGuilds : JavaPlugin() {
      */
     private fun setupGuiFolder() {
         val guiFolder = File(dataFolder, "gui")
+
+        // 如果文件夹不存在或为空，则创建并释放所有默认 GUI 文件
         if (!guiFolder.exists() || guiFolder.listFiles()?.isEmpty() == true) {
             guiFolder.mkdirs()
-            val defaultMenus = listOf("main_menu.yml", "guilds_list.yml", "guild_members.yml", "guild_buffs.yml", "guild_vaults.yml", "guild_bank.yml","guild_upgrade.yml", "example.yml", "guild_create.yml")
-            defaultMenus.forEach { fileName ->
-                val destFile = File(guiFolder, fileName)
-                if (!destFile.exists()) {
-                    saveResource("gui/$fileName", false)
+
+            try {
+                // 获取 JAR 包中 gui 文件夹下的所有资源
+                val resourcePath = "gui/"
+                val urls = javaClass.classLoader.getResources(resourcePath)
+
+                while (urls.hasMoreElements()) {
+                    val url = urls.nextElement()
+                    val protocol = url.protocol
+
+                    if (protocol == "jar") {
+                        // JAR 包中的资源
+                        val jarPath = url.path.substring(5, url.path.indexOf("!"))
+                        val jarFile = java.util.jar.JarFile(jarPath)
+
+                        val entries = jarFile.entries()
+                        while (entries.hasMoreElements()) {
+                            val entry = entries.nextElement()
+                            val name = entry.name
+
+                            // 只处理 gui 文件夹下的 .yml 文件
+                            if (name.startsWith(resourcePath) && name.endsWith(".yml") && !entry.isDirectory) {
+                                val fileName = name.substring(resourcePath.length)
+                                val destFile = File(guiFolder, fileName)
+
+                                // 只在目标文件不存在时才释放
+                                if (!destFile.exists()) {
+                                    saveResource(name, false)
+                                }
+                            }
+                        }
+                        jarFile.close()
+                    } else if (protocol == "file") {
+                        // 开发环境：从文件系统读取
+                        val guiResourceFolder = File(url.toURI())
+                        if (guiResourceFolder.exists() && guiResourceFolder.isDirectory) {
+                            guiResourceFolder.listFiles()?.filter { it.isFile && it.extension == "yml" }?.forEach { file ->
+                                val destFile = File(guiFolder, file.name)
+                                if (!destFile.exists()) {
+                                    saveResource("$resourcePath${file.name}", false)
+                                }
+                            }
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                logger.warning("Failed to extract GUI files: ${e.message}")
             }
         }
     }

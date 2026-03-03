@@ -1,0 +1,57 @@
+title: "&0公会每日任务"  # 标题 (支持颜色)
+
+Layout:   # 菜单布局 (6行)
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "1":
+    type: 'TASK_DAILY' 
+    display:
+      material: {task_item}
+      name: '&a{task_name} ' # 任务名称
+      lore:
+        - '&7--------------------------'
+        - '&7{task_lore}'   # 任务描述
+        - '&7--------------------------'
+        - '&e进度: {task_progress}/{task_amount}'
+        - '&b状态: {task_status}'
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c返回主菜单'
+    actions:
+      left:
+        - 'open: main_menu'
+
+  "<":
+    display:
+      material: PAPER
+      name: '&a上一页'
+      lore:
+        - '&7第 {page} / {total_pages} 页'
+        - '&e点击翻页'
+    actions:
+      left:
+        - 'PAGE_PREV'
+
+  ">":
+    display:
+      material: PAPER
+      name: '&a下一页'
+      lore:
+        - '&7第 {page} / {total_pages} 页'
+        - '&e点击翻页'
+    actions:
+      left:
+        - 'PAGE_NEXT'

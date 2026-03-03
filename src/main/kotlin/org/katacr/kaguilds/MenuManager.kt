@@ -13,6 +13,7 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.meta.SkullMeta
 import org.bukkit.persistence.PersistentDataType
 import org.katacr.kaguilds.listener.GuildMenuHolder
+import org.katacr.kaguilds.service.TaskManager
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.ceil
@@ -83,6 +84,8 @@ class MenuManager(private val plugin: KaGuilds) {
         var isBuffList = false
         var isVaultList = false
         var isUpgradeList = false
+        var isTaskDailyList = false
+        var isTaskGlobalList = false
 
         for (key in buttons.getKeys(false)) {
             val type = buttons.getConfigurationSection(key)?.getString("type")
@@ -92,6 +95,8 @@ class MenuManager(private val plugin: KaGuilds) {
                 "BUFF_LIST" -> isBuffList = true
                 "GUILD_VAULTS" -> isVaultList = true
                 "GUILD_UPGRADE" -> isUpgradeList = true
+                "TASK_DAILY" -> isTaskDailyList = true
+                "TASK_GLOBAL" -> isTaskGlobalList = true
             }
         }
 
@@ -101,6 +106,8 @@ class MenuManager(private val plugin: KaGuilds) {
             isBuffList -> openBuffShopMenu(player, menuName, page)
             isVaultList -> openVaultMenu(player, menuName)
             isUpgradeList -> openUpgradeMenu(player, menuName, page)
+            isTaskDailyList -> openTaskMenu(player, menuName, page, "daily")
+            isTaskGlobalList -> openTaskMenu(player, menuName, page, "global")
             else -> renderStandardMenu(player, config, menuName)
         }
     }
@@ -602,6 +609,30 @@ class MenuManager(private val plugin: KaGuilds) {
                             }
                         }
                     }
+                    "TASK_DAILY", "TASK_GLOBAL" -> {
+                        // 实时获取任务数据
+                        val guildId = plugin.playerGuildCache[player.uniqueId]
+                        if (guildId != null) {
+                            val taskType = if (type == "TASK_DAILY") "daily" else "global"
+                            val allTasks = plugin.taskManager.taskDefinitions.values.filter { it.type == taskType }
+                            val listSlots = mutableListOf<Int>()
+                            for (tr in layout.indices) {
+                                for (tc in layout[tr].indices) {
+                                    if (buttons.getConfigurationSection(layout[tr][tc].toString())?.getString("type") == type) {
+                                        listSlots.add(tr * 9 + tc)
+                                    }
+                                }
+                            }
+                            val tasksPerPage = listSlots.size
+                            val currentPageTasks = allTasks.drop(holder.currentPage * tasksPerPage).take(tasksPerPage)
+                            val relativeIdx = listSlots.indexOf(slot)
+                            if (relativeIdx != -1 && relativeIdx < currentPageTasks.size) {
+                                val task = currentPageTasks[relativeIdx]
+                                val item = buildTaskItem(btnSection, task, player, guildId)
+                                inv.setItem(slot, item)
+                            }
+                        }
+                    }
                     else -> {
                         // 普通按钮（变量替换）
                         val item = buildNormalItem(btnSection, holder, 1, player)
@@ -710,7 +741,19 @@ class MenuManager(private val plugin: KaGuilds) {
         )
 
         meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
-        meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, viewer) }
+
+        // 构建lore列表，支持多行描述
+        val loreLines = mutableListOf<String>()
+        display.getStringList("lore").forEach { line ->
+            val processedLine = applyPlaceholders(line, placeholders, viewer)
+            // 如果行中包含换行符，拆分成多行
+            if (processedLine.contains("\n")) {
+                loreLines.addAll(processedLine.split("\n"))
+            } else {
+                loreLines.add(processedLine)
+            }
+        }
+        meta.lore = loreLines
 
         // 写入 PDC 方便点击时识别（如果你想在监听器里处理的话，也可以直接用 action 处理）
         val key = NamespacedKey(plugin, "buff_keyname")
@@ -795,7 +838,19 @@ class MenuManager(private val plugin: KaGuilds) {
         )
 
         meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
-        meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, viewer) }
+
+        // 构建lore列表，支持多行描述
+        val loreLines = mutableListOf<String>()
+        display.getStringList("lore").forEach { line ->
+            val processedLine = applyPlaceholders(line, placeholders, viewer)
+            // 如果行中包含换行符，拆分成多行
+            if (processedLine.contains("\n")) {
+                loreLines.addAll(processedLine.split("\n"))
+            } else {
+                loreLines.add(processedLine)
+            }
+        }
+        meta.lore = loreLines
 
         // 关键：存入 PDC 供监听器检查
         val vaultNumKey = NamespacedKey(plugin, "vault_num")
@@ -926,7 +981,19 @@ class MenuManager(private val plugin: KaGuilds) {
         )
 
         meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
-        meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, viewer) }
+
+        // 构建lore列表，支持多行描述
+        val loreLines = mutableListOf<String>()
+        display.getStringList("lore").forEach { line ->
+            val processedLine = applyPlaceholders(line, placeholders, viewer)
+            // 如果行中包含换行符，拆分成多行
+            if (processedLine.contains("\n")) {
+                loreLines.addAll(processedLine.split("\n"))
+            } else {
+                loreLines.add(processedLine)
+            }
+        }
+        meta.lore = loreLines
 
         // 4. 关键：存入 PDC 供监听器检查
         val upgradeLevelKey = NamespacedKey(plugin, "upgrade_level_num")
@@ -939,6 +1006,171 @@ class MenuManager(private val plugin: KaGuilds) {
         return item
     }
 
+
+    /**
+     * 打开任务菜单
+     * @param player 玩家
+     * @param menuName 菜单名
+     * @param page 当前页
+     * @param taskType 任务类型: daily 或 global
+     */
+    fun openTaskMenu(player: Player, menuName: String, page: Int = 0, taskType: String = "daily") {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
+
+        // 1. 检查并重置过期的进度（异步）
+        if (taskType == "daily") {
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                plugin.dbManager.checkAndResetDailyTasks(guildId, player.uniqueId)
+                // 延迟1tick再打开菜单，确保数据库更新完成
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    openTaskMenuInternal(player, menuName, page, taskType)
+                })
+            })
+        } else if (taskType == "global") {
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                plugin.dbManager.checkAndResetGlobalTasks(guildId)
+                // 延迟1tick再打开菜单，确保数据库更新完成
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    openTaskMenuInternal(player, menuName, page, taskType)
+                })
+            })
+        } else {
+            // 无需重置，直接打开
+            openTaskMenuInternal(player, menuName, page, taskType)
+        }
+    }
+
+    /**
+     * 内部方法：实际打开任务菜单
+     */
+    private fun openTaskMenuInternal(player: Player, menuName: String, page: Int, taskType: String) {
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
+
+        // 1. 获取指定类型的任务
+        val allTasks = plugin.taskManager.taskDefinitions.values.filter { it.type == taskType }
+        val taskTypeKey = if (taskType == "daily") "TASK_DAILY" else "TASK_GLOBAL"
+
+        // 2. 加载菜单布局
+        val file = File(plugin.dataFolder, "gui/$menuName.yml")
+        if (!file.exists()) return
+        val menuConfig = YamlConfiguration.loadConfiguration(file)
+        val layout = getLayout(menuConfig)
+        val buttons = getButtonsSection(menuConfig) ?: return
+
+        // 3. 计算分页槽位
+        val taskSlots = mutableListOf<Int>()
+        for (r in layout.indices) {
+            for (c in layout[r].indices) {
+                val char = layout[r][c].toString()
+                if (buttons.getConfigurationSection(char)?.getString("type") == taskTypeKey) {
+                    taskSlots.add(r * 9 + c)
+                }
+            }
+        }
+
+        val tasksPerPage = taskSlots.size
+        val maxPages = ceil(allTasks.size.toDouble() / tasksPerPage.coerceAtLeast(1)).toInt().coerceAtLeast(1)
+        val currentPageTasks = allTasks.drop(page * tasksPerPage).take(tasksPerPage)
+
+        val title = ChatColor.translateAlternateColorCodes('&', menuConfig.getString("title", if (taskType == "daily") "Daily Tasks" else "Global Tasks")!!)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName, player)
+        val inv = Bukkit.createInventory(holder, layout.size * 9, title)
+        holder.setInventory(inv)
+
+        // 4. 渲染循环
+        for (r in layout.indices) {
+            for (c in layout[r].indices) {
+                val slot = r * 9 + c
+                val char = layout[r][c].toString()
+                val btnSection = buttons.getConfigurationSection(char) ?: continue
+                val type = btnSection.getString("type")
+
+                if (type == taskTypeKey) {
+                    val relativeIdx = taskSlots.indexOf(slot)
+                    if (relativeIdx != -1 && relativeIdx < currentPageTasks.size) {
+                        val task = currentPageTasks[relativeIdx]
+                        inv.setItem(slot, buildTaskItem(btnSection, task, player, guildId))
+                    }
+                } else {
+                    inv.setItem(slot, buildNormalItem(btnSection, holder, maxPages, player))
+                }
+            }
+        }
+
+        // 启动刷新任务
+        val updateTicks = menuConfig.getLong("update", 0L)
+        if (updateTicks > 0) {
+            holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
+                refreshMenu(holder)
+            }, updateTicks, updateTicks)
+        }
+
+        player.openInventory(inv)
+    }
+
+    /**
+     * 构建任务物品
+     * @param section 按钮配置
+     * @param task 任务定义
+     * @param viewer 玩家
+     * @param guildId 公会ID
+     */
+    private fun buildTaskItem(section: ConfigurationSection, task: TaskManager.TaskDefinition, viewer: Player, guildId: Int): ItemStack {
+        val lang = plugin.langManager
+        val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
+
+        // 获取任务进度
+        val progress = plugin.dbManager.getGuildTaskProgress(guildId, task.key, if (task.type == "daily") viewer.uniqueId else null)
+        val currentProgress = progress?.progress ?: 0
+        val isCompleted = currentProgress >= task.amount
+
+        // 动态材质
+        val materialName = if (display.getString("material") == "{task_item}") {
+            if (isCompleted) "ENCHANTED_BOOK" else "BOOK"
+        } else {
+            display.getString("material") ?: "BOOK"
+        }
+        val material = Material.matchMaterial(materialName) ?: Material.BOOK
+
+        val item = ItemStack(material)
+        val meta = item.itemMeta ?: return item
+
+        if (display.contains("custom_data")) {
+            meta.setCustomModelData(display.getInt("custom_data"))
+        }
+
+        // 准备变量替换
+        val placeholders = mapOf(
+            "task_key" to task.key,
+            "task_name" to task.name,
+            "task_lore" to task.lore.joinToString("\n"),
+            "task_progress" to currentProgress.toString(),
+            "task_amount" to task.amount.toString(),
+            "task_status" to (if (isCompleted) lang.get("task-status-completed") else lang.get("task-status-incomplete"))
+        )
+
+        meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
+
+        // 构建lore列表，支持多行描述
+        val loreLines = mutableListOf<String>()
+        display.getStringList("lore").forEach { line ->
+            val processedLine = applyPlaceholders(line, placeholders, viewer)
+            // 如果行中包含换行符，拆分成多行
+            if (processedLine.contains("\n")) {
+                loreLines.addAll(processedLine.split("\n"))
+            } else {
+                loreLines.add(processedLine)
+            }
+        }
+        meta.lore = loreLines
+
+        // 写入 PDC 供监听器检查
+        val taskKey = NamespacedKey(plugin, "task_key")
+        meta.persistentDataContainer.set(taskKey, PersistentDataType.STRING, task.key)
+
+        item.itemMeta = meta
+        return item
+    }
 
     fun reload() {
         menuCache.clear()

@@ -332,13 +332,21 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                 holder.menuName.contains("list", ignoreCase = true) -> {
                     plugin.dbManager.getGuildCount()
                 }
+                holder.menuName.contains("task", ignoreCase = true) -> {
+                    // 判断是 daily 还是 global 任务
+                    val hasGlobalTask = holder.buttons?.getKeys(false)?.any { key ->
+                        holder.buttons.getConfigurationSection(key)?.getString("type") == "TASK_GLOBAL"
+                    } == true
+                    val taskType = if (hasGlobalTask) "global" else "daily"
+                    plugin.taskManager.taskDefinitions.values.count { it.type == taskType }
+                }
                 else -> 0
             }
 
             // 2. 计算每页槽位数量 (通过布局中的特定标识符统计)
             val itemsPerPage = holder.layout.joinToString("").count { char ->
                 val type = holder.buttons?.getConfigurationSection(char.toString())?.getString("type")
-                type == "MEMBERS_LIST" || type == "GUILDS_LIST" || type == "BUFF_LIST"
+                type == "MEMBERS_LIST" || type == "GUILDS_LIST" || type == "BUFF_LIST" || type == "TASK_DAILY" || type == "TASK_GLOBAL"
             }.coerceAtLeast(1)
 
             val maxPages = kotlin.math.ceil(totalCount.toDouble() / itemsPerPage).toInt().coerceAtLeast(1)
