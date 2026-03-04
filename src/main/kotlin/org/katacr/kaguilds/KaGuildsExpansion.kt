@@ -40,7 +40,41 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "announcement" -> guild.announcement
             "member_count" -> plugin.dbManager.getMemberCount(guildId).toString()
             "max_members" -> guild.maxMembers.toString()
-
+            "exp" -> guild.exp.toString()
+            "need_exp" -> {
+                // 获取下一级所需经验
+                val nextLevel = guild.level + 1
+                val needExp = plugin.levelsConfig.getInt("levels.$nextLevel.need-exp", 0)
+                if (needExp == 0) "0" else needExp.toString()
+            }
+            "create_time" -> {
+                // 格式化创建时间
+                val formatPattern = plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss") ?: "yyyy-MM-dd HH:mm:ss"
+                java.text.SimpleDateFormat(formatPattern).format(java.util.Date(guild.createTime))
+            }
+            "pending_requests" -> plugin.dbManager.getRequests(guildId).size.toString()
+            "pvp_wins" -> guild.pvpWins.toString()
+            "pvp_losses" -> guild.pvpLosses.toString()
+            "pvp_draws" -> guild.pvpDraws.toString()
+            "pvp_total" -> guild.pvpTotal.toString()
+            "is_admin" -> {
+                when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+                    "ADMIN" -> lang.get("papi-boolean-true")
+                    else -> lang.get("papi-boolean-false")
+                }
+            }
+            "is_owner" -> {
+                when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+                    "OWNER" -> lang.get("papi-boolean-true")
+                    else -> lang.get("papi-boolean-false")
+                }
+            }
+            "is_staff" -> {
+                if (plugin.dbManager.isStaff(player.uniqueId, guildId))
+                    lang.get("papi-boolean-true")
+                else
+                    lang.get("papi-boolean-false")
+            }
             "role_name" -> {
                 when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
                     "OWNER" -> lang.get("papi-role-owner")
@@ -49,8 +83,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
                     else -> lang.get("papi-role-none")
                 }
             }
-
-            "members" -> {
+            "member_list" -> {
                 val memberList = plugin.dbManager.getMemberNames(guildId)
                 if (memberList.isEmpty()) {
                     lang.get("papi-no-member")

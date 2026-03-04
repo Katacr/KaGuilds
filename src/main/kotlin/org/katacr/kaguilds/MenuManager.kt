@@ -26,7 +26,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 辅助方法：获取布局配置（支持多种键名变体）
      */
     private fun getLayout(config: ConfigurationSection): List<String> {
-        val layoutPattern = Regex("(?i)^layout[s]?$")
+        val layoutPattern = Regex("(?i)^layouts?$")
         for (key in config.getKeys(false)) {
             if (layoutPattern.matches(key)) {
                 return config.getStringList(key)
@@ -39,7 +39,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 辅助方法：获取按钮配置（支持多种键名变体）
      */
     private fun getButtonsSection(config: ConfigurationSection): ConfigurationSection? {
-        val buttonPattern = Regex("(?i)^button[s]?$")
+        val buttonPattern = Regex("(?i)^buttons?$")
         for (key in config.getKeys(false)) {
             if (buttonPattern.matches(key)) {
                 return config.getConfigurationSection(key)

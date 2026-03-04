@@ -996,6 +996,24 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
+     * 获取所有公会的成员总数
+     */
+    fun getTotalMemberCount(): Int {
+        val sql = "SELECT COUNT(*) FROM guild_members"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    val rs = ps.executeQuery()
+                    if (rs.next()) rs.getInt(1) else 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0
+        }
+    }
+
+    /**
      * 分页获取公会数据列表
      * @param page 当前页码 (从 0 开始)
      * @param size 每页显示数量

@@ -171,7 +171,6 @@ class TaskManager(val plugin: KaGuilds) {
      */
     fun reload() {
         loadTaskDefinitions()
-        plugin.logger.info("Task configuration reloaded, ${taskDefinitions.size} tasks loaded")
     }
 
     /**

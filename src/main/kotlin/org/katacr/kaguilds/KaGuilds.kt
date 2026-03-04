@@ -337,9 +337,26 @@ class KaGuilds : JavaPlugin() {
         val gameVersion = server.version.split("MC: ")[1].removeSuffix(")")
 
         // 动态判断各种状态
-        val vaultStatus = if (setupEconomy()) "§aHooked" else "§cNot found"
-        val papiStatus = if (server.pluginManager.getPlugin("PlaceholderAPI") != null) "§aHooked" else "§cNot found"
+        val vaultStatus = setupEconomy()
+        val papiStatus = server.pluginManager.getPlugin("PlaceholderAPI") != null
         val dbType = config.getString("database.type", "SQLite") ?: "SQLite"
+
+        // 统计加载的资源数量
+        val levelsCount = levelsConfig.getConfigurationSection("levels")?.getKeys(false)?.size ?: 0
+        val buffCount = buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
+        val dailyTasksCount = taskManager.taskDefinitions.values.count { it.type == "daily" }
+        val globalTasksCount = taskManager.taskDefinitions.values.count { it.type == "global" }
+        val allTasksCount = dailyTasksCount + globalTasksCount
+        val guiMenuCount = guiMenuFiles.size
+
+        // 统计公会和成员数量
+        val guildCount = if (::dbManager.isInitialized) dbManager.getGuildCount() else 0
+        val memberCount = if (::dbManager.isInitialized) dbManager.getTotalMemberCount() else 0
+
+        // 准备国际化文本
+        val vaultText = langManager.get("info-logo-hook-true").takeIf { vaultStatus } ?: langManager.get("info-logo-hook-false")
+        val papiText = langManager.get("info-logo-hook-true").takeIf { papiStatus } ?: langManager.get("info-logo-hook-false")
+
         // 使用三引号避免转义字符导致的对齐问题
         val logo = """
             §b________________________________________________________
@@ -350,11 +367,17 @@ class KaGuilds : JavaPlugin() {
             §b | . \ | [] |§3| |_| | |_| | | | (_| |__  \   §b
             §b |_|\_\|_,\_\§3 \____|\__,_|_|_|\__,_|____/   §b
             §b
-            §7    Version: §e$version
-            §7    Minecraft: §b$gameVersion
-            §7    Database: §6$dbType
-            §7    Vault: $vaultStatus
-            §7    PlaceholderAPI: $papiStatus
+            §7${langManager.get("info-logo-version", "version" to version)}
+            §7${langManager.get("info-logo-minecraft", "version" to gameVersion)}
+            §7${langManager.get("info-logo-database", "type" to dbType)}
+            §7${langManager.get("info-logo-vault", "status" to vaultText)}
+            §7${langManager.get("info-logo-placeholderapi", "status" to papiText)}
+            §7${langManager.get("info-logo-level", "amount" to levelsCount.toString())}
+            §7${langManager.get("info-logo-buff", "amount" to buffCount.toString())}
+            §7${langManager.get("info-logo-task", "all_task" to allTasksCount.toString(), "global" to globalTasksCount.toString(), "daily" to dailyTasksCount.toString())}
+            §7${langManager.get("info-logo-gui-menu", "amount" to guiMenuCount.toString())}
+            §7${langManager.get("info-logo-guild-count", "amount" to guildCount.toString())}
+            §7${langManager.get("info-logo-member-count", "amount" to memberCount.toString())}
             §b________________________________________________________
         """.trimIndent()
 
