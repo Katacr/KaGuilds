@@ -26,9 +26,9 @@ class MenuManager(private val plugin: KaGuilds) {
      * 辅助方法：获取布局配置（支持多种键名变体）
      */
     private fun getLayout(config: ConfigurationSection): List<String> {
-        val keys = listOf("Layout", "layout", "layouts", "LAYOUT", "Layouts")
+        val layoutPattern = Regex("(?i)^layout[s]?$")
         for (key in config.getKeys(false)) {
-            if (keys.contains(key)) {
+            if (layoutPattern.matches(key)) {
                 return config.getStringList(key)
             }
         }
@@ -39,9 +39,9 @@ class MenuManager(private val plugin: KaGuilds) {
      * 辅助方法：获取按钮配置（支持多种键名变体）
      */
     private fun getButtonsSection(config: ConfigurationSection): ConfigurationSection? {
-        val keys = listOf("button", "Button", "buttons", "Buttons", "BUTTON")
+        val buttonPattern = Regex("(?i)^button[s]?$")
         for (key in config.getKeys(false)) {
-            if (keys.contains(key)) {
+            if (buttonPattern.matches(key)) {
                 return config.getConfigurationSection(key)
             }
         }
@@ -52,9 +52,9 @@ class MenuManager(private val plugin: KaGuilds) {
      * 辅助方法：获取材质名称（支持多种键名变体）
      */
     private fun getMaterial(display: ConfigurationSection): String? {
-        val keys = listOf("material", "Material", "mat", "Mat", "Mats", "mats","materials", "Materials", "MATERIAL")
+        val materialPattern = Regex("(?i)^mat(erials?)?$")
         for (key in display.getKeys(false)) {
-            if (keys.contains(key)) {
+            if (materialPattern.matches(key)) {
                 return display.getString(key)
             }
         }
