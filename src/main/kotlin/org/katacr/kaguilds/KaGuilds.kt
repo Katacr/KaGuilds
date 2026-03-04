@@ -172,13 +172,11 @@ class KaGuilds : JavaPlugin() {
                 pvpManager.removeBossBar()
             }
         }
-
         // 2. 关闭数据库连接
         if (::dbManager.isInitialized) {
             dbManager.close()
         }
 
-        logger.info("KaGuilds 已安全关闭。")
     }
 
     /**

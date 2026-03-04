@@ -2209,24 +2209,62 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 val sub = args[0].lowercase()
                 val adminAction = args[1].lowercase()
 
-                if (sub == "admin" && adminAction == "task") {
-                    val taskKeys = plugin.taskManager.getAllTaskDefinitions().keys.toList()
-                    return filterList(taskKeys, args[3])
+                if (sub == "admin") {
+                    return when (adminAction) {
+                        // /kg admin task <公会ID> <任务key> ...
+                        "task" -> {
+                            val taskKeys = plugin.taskManager.getAllTaskDefinitions().keys.toList()
+                            filterList(taskKeys, args[3])
+                        }
+                        // /kg admin contribution #ID <玩家名|-all> <set|add|clear> [数值]
+                        "contribution" -> {
+                            val playerList = plugin.server.onlinePlayers.map { it.name }.toMutableList()
+                            playerList.add("-all")
+                            filterList(playerList, args[3])
+                        }
+                        // /kg admin transfer #ID <玩家名>
+                        "transfer" -> null // 补全玩家名
+                        // /kg admin kick <玩家名>
+                        "kick" -> null // 补全玩家名
+                        // /kg admin join <玩家名> <公会ID>
+                        "join" -> null // 补全玩家名
+                        // /kg admin arena <sub> <val>
+                        "arena" -> when (args[2].lowercase()) {
+                            "setpos" -> filterList(listOf("1", "2"), args[3])
+                            "setspawn", "setkit" -> filterList(listOf("red", "blue"), args[3])
+                            else -> emptyList()
+                        }
+                        // /kg admin bank #ID <see|log|add|remove|set>
+                        "bank" -> filterList(listOf("see", "log", "add", "remove", "set"), args[3])
+                        // /kg admin exp #ID <add|remove|set>
+                        "exp" -> filterList(listOf("add", "remove", "set"), args[3])
+                        // /kg admin vault #ID <1-9>
+                        "vault" -> filterList((1..9).map { it.toString() }, args[3])
+                        // /kg admin rename #ID <name>
+                        "rename" -> filterList(listOf("<name>"), args[3])
+                        // /kg admin setlevel #ID <level>
+                        "setlevel" -> filterList(listOf("<level>"), args[3])
+                        else -> emptyList()
+                    }
                 }
-
-                // 原有的其他 admin 补全逻辑
-                handleAdminTab(args)
+                emptyList()
             }
 
             5 -> {
                 val sub = args[0].lowercase()
                 val adminAction = args[1].lowercase()
+
                 if (sub == "admin") {
-                    when (adminAction) {
-                        "task" -> return filterList(listOf("see","reset","add"), args[4])
-                        "contribution" -> return filterList(listOf("set", "add", "clear"), args[4])
-                        "bank", "exp" -> return filterList(listOf("<数值>"), args[4])
-                        "transfer", "kick", "join" -> return null // 补全玩家名
+                    return when (adminAction) {
+                        // /kg admin task #ID <任务key> <see|reset|add>
+                        "task" -> filterList(listOf("see", "reset", "add"), args[4])
+                        // /kg admin contribution #ID <玩家名|-all> <set|add|clear>
+                        "contribution" -> filterList(listOf("set", "add", "clear"), args[4])
+                        // /kg admin bank #ID <add|remove|set> <数值>
+                        "bank" -> filterList(listOf("<数值>"), args[4])
+                        // /kg admin exp #ID <add|remove|set> <数值>
+                        "exp" -> filterList(listOf("<数值>"), args[4])
+                        else -> emptyList()
                     }
                 }
                 emptyList()
@@ -2234,41 +2272,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
             else -> emptyList()
         }
-    }
-
-    /**
-     * 专门处理 /kg admin ... 的补全
-     */
-    private fun handleAdminTab(args: Array<out String>): List<String>? {
-        val adminAction = args[1].lowercase()
-        val thirdArg = args[2].lowercase() // 可能是 ID，也可能是 arena 的 subAction
-
-        val list = when (adminAction) {
-            // 模式 A: /kg admin arena [sub] [val] -> 此时 thirdArg 是 subAction
-            "arena" -> when (thirdArg) {
-                "setpos" -> listOf("1", "2")
-                "setspawn", "setkit" -> listOf("red", "blue")
-                else -> emptyList()
-            }
-
-            // 模式 B: /kg admin [action] [ID] [sub] -> 此时需要补全 subAction
-            "bank" -> listOf("see", "log", "add", "remove", "set")
-            "exp" -> listOf("add", "remove", "set")
-            "contribution" -> listOf("set", "add", "clear")
-
-            // 模式 C: /kg admin [action] [ID] [val] -> 此时直接提示值
-            "vault" -> (1..9).map { it.toString() }
-            "rename" -> listOf("<name>")
-            "setlevel" -> listOf("<level>")
-            "open" -> plugin.guiMenuFiles
-
-            // 模式 D: /kg admin [action] [ID] [Player] -> 此时补全玩家
-            "transfer", "kick", "join", "contribution" -> return null
-
-            else -> emptyList()
-        }
-
-        return filterList(list, args[3])
     }
 
     /**
