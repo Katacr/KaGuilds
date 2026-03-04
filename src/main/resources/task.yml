@@ -1,6 +1,6 @@
 tasks:
   global_1:  # 任务标识符
-    display:
+    display: # 用于任务菜单显示
       material: "DIAMOND_SWORD"
       custom_data: 0
     name: "§a累计任务: 公会战斗" # 任务名称

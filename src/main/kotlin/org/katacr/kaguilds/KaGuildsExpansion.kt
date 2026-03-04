@@ -41,6 +41,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "member_count" -> plugin.dbManager.getMemberCount(guildId).toString()
             "max_members" -> guild.maxMembers.toString()
             "exp" -> guild.exp.toString()
+            "contribution" -> plugin.dbManager.getPlayerContribution(player.uniqueId).toString()
             "need_exp" -> {
                 // 获取下一级所需经验
                 val nextLevel = guild.level + 1

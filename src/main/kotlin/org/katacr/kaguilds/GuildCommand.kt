@@ -265,6 +265,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                             if (plugin.dbManager.updateGuildBalance(guildId, amount)) {
                                 plugin.dbManager.logBankTransaction(guildId, player.name, "ADD", amount)
+                                // 增加玩家贡献度（根据配置的比例）
+                                val contributionEnabled = plugin.config.getBoolean("contribution.enabled", true)
+                                if (contributionEnabled) {
+                                    val bankDepositRatio = plugin.config.getDouble("contribution.bank-deposit-ratio", 1.0)
+                                    val earnedContribution = (amount * bankDepositRatio).toInt()
+                                    plugin.dbManager.addContribution(player.uniqueId, earnedContribution)
+                                }
+
                                 player.sendMessage(lang.get("bank-add-success", "amount" to amount.toString()))
                                 plugin.guildService.dispatchBankNotification(guildId, player.name, "deposit", amount)
                                 // 触发捐赠任务
@@ -283,9 +291,31 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         return@Runnable
                     }
 
-                    // 2. 更新数据库扣款
+                    // 2. 检查玩家贡献度是否足够（如果启用了贡献度系统）
+                    val contributionEnabled = plugin.config.getBoolean("contribution.enabled", true)
+                    if (contributionEnabled) {
+                        val contributionRatio = plugin.config.getDouble("contribution.bank-withdraw-ratio", 1.0)
+                        val requiredContribution = (amount * contributionRatio).toInt()
+                        val currentContribution = plugin.dbManager.getPlayerContribution(player.uniqueId)
+
+                        if (currentContribution < requiredContribution) {
+                            player.sendMessage(lang.get("bank-insufficient-contribution",
+                                "required" to requiredContribution.toString(),
+                                "current" to currentContribution.toString()
+                            ))
+                            return@Runnable
+                        }
+                    }
+
+                    // 3. 更新数据库扣款并扣除贡献度
                     if (plugin.dbManager.updateGuildBalance(guildId, -amount)) {
                         plugin.dbManager.logBankTransaction(guildId, player.name, "GET", amount)
+                        // 如果启用了贡献度系统，则扣除贡献度
+                        if (contributionEnabled) {
+                            val contributionRatio = plugin.config.getDouble("contribution.bank-withdraw-ratio", 1.0)
+                            val requiredContribution = (amount * contributionRatio).toInt()
+                            plugin.dbManager.addContribution(player.uniqueId, -requiredContribution)
+                        }
 
                         plugin.server.scheduler.runTask(plugin, Runnable {
                             econ.depositPlayer(player, amount)
@@ -1609,6 +1639,186 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     }
                 }
             }
+            "contribution" -> {
+                if (!checkAdminPermission(sender, "contribution")) {
+                    return
+                }
+                // 格式: /kg admin contribution #ID <玩家名|-all> <set|add|clear> [amount]
+                if (args.size < 5) {
+                    sender.sendMessage(lang.get("admin-contribution-usage"))
+                    return
+                }
+
+                val idStr = args[2].replace("#", "")
+                val guildId = idStr.toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-id"))
+                val targetName = args[3]
+                val action = args[4].lowercase()
+
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    // 检查是否使用 -all 通配符
+                    if (targetName == "-all") {
+                        // 获取公会所有成员
+                        val members = plugin.dbManager.getGuildMembers(guildId)
+
+                        if (members.isEmpty()) {
+                            sender.sendMessage(lang.get("error-not-has-guild"))
+                            return@Runnable
+                        }
+
+                        when (action) {
+                            "set" -> {
+                                if (args.size < 6) {
+                                    sender.sendMessage(lang.get("admin-contribution-set-usage"))
+                                    return@Runnable
+                                }
+                                val amount = args[5].toIntOrNull() ?: return@Runnable sender.sendMessage(lang.get("error-invalid-number"))
+
+                                if (amount < 0) {
+                                    sender.sendMessage(lang.get("admin-contribution-negative"))
+                                    return@Runnable
+                                }
+
+                                var successCount = 0
+                                members.forEach { member ->
+                                    if (plugin.dbManager.setContribution(member.uuid, amount)) {
+                                        successCount++
+                                    }
+                                }
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    sender.sendMessage(lang.get("admin-contribution-set-all-success",
+                                        "count" to successCount.toString(),
+                                        "total" to members.size.toString(),
+                                        "amount" to amount.toString()
+                                    ))
+                                })
+                            }
+                            "add" -> {
+                                if (args.size < 6) {
+                                    sender.sendMessage(lang.get("admin-contribution-add-usage"))
+                                    return@Runnable
+                                }
+                                val amount = args[5].toIntOrNull() ?: return@Runnable sender.sendMessage(lang.get("error-invalid-number"))
+
+                                if (amount < 0) {
+                                    sender.sendMessage(lang.get("admin-contribution-negative"))
+                                    return@Runnable
+                                }
+
+                                var successCount = 0
+                                members.forEach { member ->
+                                    if (plugin.dbManager.addContribution(member.uuid, amount)) {
+                                        successCount++
+                                    }
+                                }
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    sender.sendMessage(lang.get("admin-contribution-add-all-success",
+                                        "count" to successCount.toString(),
+                                        "total" to members.size.toString(),
+                                        "amount" to amount.toString()
+                                    ))
+                                })
+                            }
+                            "clear" -> {
+                                var successCount = 0
+                                members.forEach { member ->
+                                    if (plugin.dbManager.setContribution(member.uuid, 0)) {
+                                        successCount++
+                                    }
+                                }
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    sender.sendMessage(lang.get("admin-contribution-clear-all-success",
+                                        "count" to successCount.toString(),
+                                        "total" to members.size.toString()
+                                    ))
+                                })
+                            }
+                            else -> {
+                                sender.sendMessage(lang.get("admin-contribution-usage"))
+                            }
+                        }
+                    } else {
+                        // 原有的单个玩家逻辑
+                        // 获取目标玩家UUID
+                        val targetUuid = plugin.dbManager.getPlayerUuidByName(targetName)
+
+                        if (targetUuid == null) {
+                            sender.sendMessage(lang.get("error-player-not-found"))
+                            return@Runnable
+                        }
+
+                        // 检查玩家是否在指定公会
+                        val playerGuildId = plugin.dbManager.getGuildIdByPlayer(targetUuid)
+                        if (playerGuildId != guildId) {
+                            sender.sendMessage(lang.get("admin-contribution-not-in-guild", "player" to targetName, "id" to guildId.toString()))
+                            return@Runnable
+                        }
+
+                        when (action) {
+                            "set" -> {
+                                if (args.size < 6) {
+                                    sender.sendMessage(lang.get("admin-contribution-set-usage"))
+                                    return@Runnable
+                                }
+                                val amount = args[5].toIntOrNull() ?: return@Runnable sender.sendMessage(lang.get("error-invalid-number"))
+
+                                if (amount < 0) {
+                                    sender.sendMessage(lang.get("admin-contribution-negative"))
+                                    return@Runnable
+                                }
+
+                                val success = plugin.dbManager.setContribution(targetUuid, amount)
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    if (success) {
+                                        sender.sendMessage(lang.get("admin-contribution-set-success", "player" to targetName, "amount" to amount.toString()))
+                                    } else {
+                                        sender.sendMessage(lang.get("admin-contribution-failed"))
+                                    }
+                                })
+                            }
+                            "add" -> {
+                                if (args.size < 6) {
+                                    sender.sendMessage(lang.get("admin-contribution-add-usage"))
+                                    return@Runnable
+                                }
+                                val amount = args[5].toIntOrNull() ?: return@Runnable sender.sendMessage(lang.get("error-invalid-number"))
+
+                                if (amount < 0) {
+                                    sender.sendMessage(lang.get("admin-contribution-negative"))
+                                    return@Runnable
+                                }
+
+                                val success = plugin.dbManager.addContribution(targetUuid, amount)
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    if (success) {
+                                        sender.sendMessage(lang.get("admin-contribution-add-success", "player" to targetName, "amount" to amount.toString()))
+                                    } else {
+                                        sender.sendMessage(lang.get("admin-contribution-failed"))
+                                    }
+                                })
+                            }
+                            "clear" -> {
+                                val success = plugin.dbManager.setContribution(targetUuid, 0)
+
+                                plugin.server.scheduler.runTask(plugin, Runnable {
+                                    if (success) {
+                                        sender.sendMessage(lang.get("admin-contribution-clear-success", "player" to targetName))
+                                    } else {
+                                        sender.sendMessage(lang.get("admin-contribution-failed"))
+                                    }
+                                })
+                            }
+                            else -> {
+                                sender.sendMessage(lang.get("admin-contribution-usage"))
+                            }
+                        }
+                    }
+                })
+            }
 
             else -> {
                 sender.sendMessage(lang.get("admin-usage"))
@@ -1964,7 +2174,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
                         // 在此处添加 task 子指令
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
@@ -1986,7 +2196,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         "arena" -> filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
                         "unlockall" -> emptyList()
                         "open" -> filterList(plugin.guiMenuFiles, args[2])
-                        "task" -> filterList(listOf("<公会ID>"), args[2]) // 提示输入公会ID
+                        "task", "contribution" -> filterList(listOf("<公会ID>"), args[2]) // 提示输入公会ID
                         else -> filterList(listOf("#"), args[2]) // 其他指令提示 ID
                     }
                 }
@@ -2014,6 +2224,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 if (sub == "admin") {
                     when (adminAction) {
                         "task" -> return filterList(listOf("see","reset","add"), args[4])
+                        "contribution" -> return filterList(listOf("set", "add", "clear"), args[4])
                         "bank", "exp" -> return filterList(listOf("<数值>"), args[4])
                         "transfer", "kick", "join" -> return null // 补全玩家名
                     }
@@ -2043,6 +2254,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             // 模式 B: /kg admin [action] [ID] [sub] -> 此时需要补全 subAction
             "bank" -> listOf("see", "log", "add", "remove", "set")
             "exp" -> listOf("add", "remove", "set")
+            "contribution" -> listOf("set", "add", "clear")
 
             // 模式 C: /kg admin [action] [ID] [val] -> 此时直接提示值
             "vault" -> (1..9).map { it.toString() }
@@ -2051,7 +2263,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "open" -> plugin.guiMenuFiles
 
             // 模式 D: /kg admin [action] [ID] [Player] -> 此时补全玩家
-            "transfer", "kick", "join" -> return null
+            "transfer", "kick", "join", "contribution" -> return null
 
             else -> emptyList()
         }

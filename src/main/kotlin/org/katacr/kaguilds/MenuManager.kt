@@ -345,6 +345,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val placeholders = mapOf(
             "members_name" to (member.name ?: "Null"),
             "members_role" to roleDisplay,
+            "members_contribution" to member.contribution.toString(),
             "members_join_time" to SimpleDateFormat(plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss")!!).format(Date(member.joinTime))
         )
 

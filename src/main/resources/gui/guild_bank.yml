@@ -26,7 +26,7 @@ button:
     display:
       material: LIME_STAINED_GLASS_PANE
       name: ' &a存入 &7[ &b1,000 金币 &7]'
-      amount: 1  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+      amount: 1
       custom_data: 10001
     actions:
       left:
@@ -36,7 +36,7 @@ button:
     display:
       material: LIME_STAINED_GLASS_PANE
       name: ' &a存入 &7[ &b10,000 金币 &7]'
-      amount: 10  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+      amount: 10
     actions:
       left:
         - 'command: kg bank add 10000'
@@ -45,18 +45,18 @@ button:
     display:
       material: LIME_STAINED_GLASS_PANE
       name: ' &a存入 &7[ &b自定义数量 &7]'
-      amount: 64  # 添加新的display支持：物品堆叠数量
+      amount: 64
     actions:
       left:
         - 'tell: 请打开聊天框输入要存入的金额。'
-        - 'catcher: bank_add' # 输入捕获器(玩家输入后：代执行指令/kg bank add [玩家输入的值]，同时取消chat动作，避免发送聊天消息)
+        - 'catcher: bank_add'
         - 'close'
 
   "4":
     display:
       material: PINK_STAINED_GLASS_PANE
       name: ' &e取出 &7[ &b1,000 金币 &7]'
-      amount: 1  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+      amount: 1
     actions:
       left:
         - 'command: kg bank get 1000'
@@ -65,7 +65,7 @@ button:
     display:
       material: PINK_STAINED_GLASS_PANE
       name: ' &e取出 &7[ &b10,000 金币 &7]'
-      amount: 10  # 添加新的display支持：物品堆叠数量（未写该值时默认数量为1）
+      amount: 10
     actions:
       left:
         - 'command: kg bank get 10000'
@@ -74,7 +74,7 @@ button:
     display:
       material: PINK_STAINED_GLASS_PANE
       name: ' &e取出 &7[ &b自定义数量 &7]'
-      amount: 64  # 添加新的display支持：物品堆叠数量
+      amount: 64
     actions:
       left:
         - 'tell: 请打开聊天框输入要存入的金额。'

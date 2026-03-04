@@ -82,7 +82,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                 player_uuid VARCHAR(36) NOT NULL,
                 player_name VARCHAR(16),
                 role VARCHAR(16) DEFAULT 'MEMBER',
-                join_time BIGINT
+                join_time BIGINT,
+                contribution INT DEFAULT 0
             )
         """)
 
@@ -141,7 +142,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                 id INTEGER PRIMARY KEY $autoIncrement,
                 guild_id INT NOT NULL,
                 task_key VARCHAR(64) NOT NULL,
-                player_uuid VARCHAR(36) NOT NULL,
+                player_uuid VARCHAR(36) DEFAULT NULL,
                 progress INT NOT NULL DEFAULT 0,
                 target INT NOT NULL DEFAULT 0,
                 completed BOOLEAN NOT NULL DEFAULT 0,
@@ -1081,7 +1082,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                             uuid = UUID.fromString(rs.getString("player_uuid")),
                             name = rs.getString("player_name"),
                             role = rs.getString("role") ?: "MEMBER",
-                            joinTime = rs.getLong("join_time")
+                            joinTime = rs.getLong("join_time"),
+                            contribution = rs.getInt("contribution")
                         ))
                     }
                 }
@@ -1090,6 +1092,71 @@ class DatabaseManager(val plugin: KaGuilds) {
             e.printStackTrace()
         }
         return members
+    }
+
+    /**
+     * 增加玩家贡献度
+     * @param playerUuid 玩家UUID
+     * @param amount 增加的贡献度数量
+     * @return 是否成功
+     */
+    fun addContribution(playerUuid: UUID, amount: Int): Boolean {
+        val sql = "UPDATE guild_members SET contribution = contribution + ? WHERE player_uuid = ?"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, amount)
+                    ps.setString(2, playerUuid.toString())
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 设置玩家贡献度（用于清零等操作）
+     * @param playerUuid 玩家UUID
+     * @param amount 设置的贡献度数量
+     * @return 是否成功
+     */
+    fun setContribution(playerUuid: UUID, amount: Int): Boolean {
+        val sql = "UPDATE guild_members SET contribution = ? WHERE player_uuid = ?"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, amount)
+                    ps.setString(2, playerUuid.toString())
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 获取玩家贡献度
+     * @param playerUuid 玩家UUID
+     * @return 贡献度，如果玩家不在公会或出错则返回0
+     */
+    fun getPlayerContribution(playerUuid: UUID): Int {
+        val sql = "SELECT contribution FROM guild_members WHERE player_uuid = ?"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    val rs = ps.executeQuery()
+                    if (rs.next()) rs.getInt("contribution") else 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0
+        }
     }
 
     /**
@@ -1201,7 +1268,8 @@ class DatabaseManager(val plugin: KaGuilds) {
         val uuid: UUID,
         val name: String?,
         val role: String,
-        val joinTime: Long
+        val joinTime: Long,
+        val contribution: Int = 0
     )
 
     // 公会任务进度数据模型

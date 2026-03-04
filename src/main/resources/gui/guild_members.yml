@@ -22,6 +22,7 @@ button:
       lore:
         - '&7--------------------------'
         - '&b公会职位: &f{members_role}'  # 成员职位
+        - '&b贡献度: &f{members_contribution}'
         - '&b加入时间: &f{members_join_time}'  # 成员加入时间
         - '&7--------------------------'
         - ''

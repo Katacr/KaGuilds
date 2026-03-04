@@ -3,16 +3,16 @@ language: zh_CN  # en_US 或 zh_CN
 
 proxy: false # 是否启用代理模式
 server-id: server # 服务器名称，用于跨服邀请/通讯
-date-format: "yyyy-MM-dd HH:mm:ss"
+date-format: "yyyy-MM-dd HH:mm:ss" # 日期格式
 
 guild:
   name-settings: # 名称设置
-    min-length: 3
-    max-length: 16
+    min-length: 3 # 最小长度
+    max-length: 16 # 最大长度
     # 正则表达式：允许英文字母、数字、下划线、汉字
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
-  motd: "欢迎加入我的公会"
-  icon: "SHIELD"
+  motd: "欢迎加入我的公会" # 默认的公会公告
+  icon: "SHIELD" # 默认的公会图标
   teleport: # 传送设置
     disabled-worlds: # 禁止设置传送点的世界
       - "world_nether"
@@ -24,7 +24,7 @@ guild:
     max-players: 5 # 单方队伍最大人数
     ready-time: 30 # 公会战准备时间(秒)
     pvp-time: 600 # 公会战游戏时间(秒)
-    kit: true # 是否启用套装
+    kit: true # 是否启用预设套装
     reward-command: # 公会战奖励命令(控制台执行)
       - 'kg admin bank {win_id} add 1000' # 公会战奖励,{win_id}为胜利公会id
       - 'kg admin exp {win_id} add 500'
@@ -48,5 +48,11 @@ balance:
   seticon: 1000.0  # 设置公会图标所需金币
   motd: 100.0  # 设置公会公告所需金币
   pvp: 300.0 # 发起公会战所需金币
+
+# 贡献度系统设置
+contribution:
+  enabled: true  # 是否启用贡献度系统
+  bank-deposit-ratio: 1.0  # 存入金币时获得贡献度的比例（每存入1金币获得的贡献度）
+  bank-withdraw-ratio: 1.0  # 提取金币时扣除贡献度的比例（每提取1金币扣除的贡献度）
 
 
