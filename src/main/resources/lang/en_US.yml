@@ -245,7 +245,6 @@ tp-data-error: "§cFailed to parse teleport point data, please contact administr
 
 # Guild Chat Related
 chat-usage: "§cUsage: /kg chat [message]"
-chat-format: "§8[§bGuild Chat§8] §a%player%§f: %message%"
 chat-no-guild: "§cYou haven't joined any guild, cannot use chat channel."
 chat-join-success: "§aJoined guild chat mode. Your messages will now be sent to the guild channel. Type /kg chat again to exit this mode."
 chat-quit-success: "§aExited guild chat mode. Your messages will be sent to the public chat channel normally."

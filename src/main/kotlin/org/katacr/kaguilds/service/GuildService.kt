@@ -420,7 +420,7 @@ class GuildService(private val plugin: KaGuilds) {
                     val roleDisplayName = data.getOrNull(3) as? String ?: ""
 
                     // 使用自定义聊天格式
-                    var format = plugin.config.getString("guild.chat-format", "&7[&e Guild &7] &f{player}&f: {message}") ?: ""
+                    var format = plugin.config.getString("guild.chat-format", "&7[&e单公会聊天&7] &f{player}&f: {message}") ?: ""
                     format = format.replace("{player}", senderName)
                         .replace("{message}", msgContent)
                         .replace("{role}", roleDisplayName)
@@ -434,10 +434,13 @@ class GuildService(private val plugin: KaGuilds) {
                             format
                         }
 
+                        // 转换颜色代码
+                        val coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', formattedMessage)
+
                         // 发送消息给公会成员
                         plugin.server.onlinePlayers.forEach { p ->
                             if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
-                                p.sendMessage(formattedMessage)
+                                p.sendMessage(coloredMessage)
                             }
                         }
                     })
@@ -584,13 +587,42 @@ class GuildService(private val plugin: KaGuilds) {
             // 3. 获取玩家角色
             val role = plugin.dbManager.getPlayerRole(player.uniqueId)
             val roleDisplayName = when (role) {
-                "OWNER" -> plugin.langManager.get("role-owner")
-                "ADMIN" -> plugin.langManager.get("role-admin")
-                else -> plugin.langManager.get("role-member")
+                "OWNER" -> plugin.langManager.get("papi-role-owner")
+                "ADMIN" -> plugin.langManager.get("papi-role-admin")
+                else -> plugin.langManager.get("papi-role-member")
             }
 
-            // 4. 统一分发聊天消息，传递角色信息
-            dispatchGuildNotification(guildId, "Chat", guildId, player.name, message, roleDisplayName)
+            // 4. 构建聊天格式（支持 PAPI 变量）
+            var format = plugin.config.getString("guild.chat-format", "&7[&e公会聊天&7] &f{player}&f: {message}") ?: ""
+            format = format.replace("{player}", player.name)
+                .replace("{message}", message)
+                .replace("{role}", roleDisplayName)
+
+            // 5. 解析 PlaceholderAPI 变量（在主线程执行）
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                val papiPlugin = plugin.server.pluginManager.getPlugin("PlaceholderAPI")
+                val formattedMessage = if (papiPlugin != null) {
+                    me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, format)
+                } else {
+                    format
+                }
+
+                // 6. 转换颜色代码
+                val coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', formattedMessage)
+
+                // 7. 发送消息
+                if (plugin.config.getBoolean("proxy", false)) {
+                    // 跨服模式：发送已解析的消息给其他服务器
+                    dispatchGuildNotification(guildId, "Chat", guildId, player.name, message, roleDisplayName, coloredMessage)
+                } else {
+                    // 单服模式：直接在当前服务器内发送
+                    plugin.server.onlinePlayers.forEach { p ->
+                        if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                            p.sendMessage(coloredMessage)
+                        }
+                    }
+                }
+            })
         })
     }
     /**

@@ -21,10 +21,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "OnlinePlayersList" -> {
                 val playerCount = `in`.readInt()
-                plugin.logger.info("收到Velocity端发送的在线玩家列表，玩家数量: $playerCount")
                 
                 // 清空旧列表
-                val oldSize = plugin.crossServerOnlinePlayers.size
                 plugin.crossServerOnlinePlayers.clear()
                 
                 // 读取新列表
@@ -33,22 +31,12 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     val serverId = `in`.readUTF()
                     plugin.crossServerOnlinePlayers[playerName] = serverId
                 }
-                
-                plugin.logger.info("在线玩家列表已更新: $oldSize -> ${plugin.crossServerOnlinePlayers.size} 个玩家")
-                if (plugin.crossServerOnlinePlayers.size > 0) {
-                    plugin.logger.info("在线玩家详情:")
-                    plugin.crossServerOnlinePlayers.forEach { (name, server) ->
-                        plugin.logger.info("  - $name ($server)")
-                    }
-                }
             }
 
             /*
              * 处理在线玩家同步请求
              */
             "RequestPlayersSync" -> {
-                val requestingServer = `in`.readUTF()
-                plugin.logger.info("收到来自 $requestingServer 的在线玩家同步请求，广播本服玩家")
                 // 广播本服务器的所有在线玩家
                 plugin.server.onlinePlayers.forEach { player ->
                     val serverId = plugin.config.getString("server-id", "unknown")
@@ -57,13 +45,13 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     try {
                         dos.writeUTF("PlayerJoin")
                         dos.writeUTF(player.name)
-                        dos.writeUTF(serverId)
+                        if (serverId != null) {
+                            dos.writeUTF(serverId)
+                        }
                         player.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
                     } catch (e: Exception) {
-                        plugin.logger.warning("广播在线玩家失败: ${e.message}")
                     }
                 }
-                plugin.logger.info("已广播本服 ${plugin.server.onlinePlayers.size} 个在线玩家")
             }
             /*
              * 处理跨服聊天
@@ -72,16 +60,16 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val targetGuildId = `in`.readInt()
                 val senderName = `in`.readUTF()
                 val msgContent = `in`.readUTF()
+                val roleDisplayName = `in`.readUTF()
+                val coloredMessage = `in`.readUTF()
 
-                val formattedMsg = plugin.langManager.get("chat-format",
-                    "player" to senderName, "message" to msgContent)
-
+                // 直接发送已解析和着色的消息
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     // 这里的逻辑：如果玩家本地缓存匹配，则发送
                     val cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
 
                     if (cachedId != null && cachedId == targetGuildId) {
-                        onlinePlayer.sendMessage(formattedMsg)
+                        onlinePlayer.sendMessage(coloredMessage)
                     }
                 }
             }
