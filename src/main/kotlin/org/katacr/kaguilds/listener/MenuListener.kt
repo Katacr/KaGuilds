@@ -365,14 +365,15 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val type = parts[0].trim().lowercase()
         val rawArgs = parts.getOrNull(1)?.trim() ?: ""
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+
         // 统一处理颜色和通用内置变量
+        val guildData = plugin.dbManager.getGuildData(guildId)
         val args = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawArgs
             .replace("{player}", player.name)
             .replace("{player_name}", player.name)
             .replace("{player_uuid}", player.uniqueId.toString())
             .replace("{guild_id}", guildId.toString())
-            .replace("{guild_name}", guildData.name))
+            .replace("{guild_name}", guildData?.name ?: "N/A"))
 
         when (type) {
             "tell" -> player.sendMessage(args)

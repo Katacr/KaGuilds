@@ -1317,7 +1317,11 @@ class DatabaseManager(val plugin: KaGuilds) {
      * @param playerUuid 玩家UUID（每日任务需要，全局任务传null）
      */
     fun getGuildTaskProgress(guildId: Int, taskKey: String, playerUuid: UUID? = null): GuildTaskProgress? {
-        val sql = "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND (player_uuid = ? OR player_uuid IS NULL)"
+        val sql = if (playerUuid != null) {
+            "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
+        } else {
+            "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND player_uuid IS NULL"
+        }
         return try {
             connection.use { conn ->
                 conn.prepareStatement(sql).use { ps ->
@@ -1325,8 +1329,6 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setString(2, taskKey)
                     if (playerUuid != null) {
                         ps.setString(3, playerUuid.toString())
-                    } else {
-                        ps.setNull(3, java.sql.Types.VARCHAR)
                     }
                     val rs = ps.executeQuery()
                     if (rs.next()) {
@@ -1441,7 +1443,7 @@ class DatabaseManager(val plugin: KaGuilds) {
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
 
-                        val insertedId = conn.prepareStatement(insertSql).use { ps ->
+                        val insertedId = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS).use { ps ->
                             ps.setInt(1, guildId)
                             ps.setString(2, taskKey)
                             if (playerUuid != null) {
@@ -1522,17 +1524,24 @@ class DatabaseManager(val plugin: KaGuilds) {
      */
     fun getCompletedTaskKeys(guildId: Int, playerUuid: UUID? = null): Set<String> {
         val today = taskDateFormat.format(Date())
-        val uuidStr = playerUuid?.toString() ?: "GLOBAL"
         val completedKeys = mutableSetOf<String>()
 
-        val sql = "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid = ? AND last_date = ? AND completed = 1"
+        val sql = if (playerUuid != null) {
+            "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid = ? AND last_date = ? AND completed = 1"
+        } else {
+            "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid IS NULL AND last_date = ? AND completed = 1"
+        }
 
         try {
             connection.use { conn ->
                 conn.prepareStatement(sql).use { ps ->
                     ps.setInt(1, guildId)
-                    ps.setString(2, uuidStr)
-                    ps.setString(3, today)
+                    if (playerUuid != null) {
+                        ps.setString(2, playerUuid.toString())
+                        ps.setString(3, today)
+                    } else {
+                        ps.setString(2, today)
+                    }
                     val rs = ps.executeQuery()
                     while (rs.next()) {
                         completedKeys.add(rs.getString("task_key"))

@@ -402,6 +402,7 @@ admin-contribution-failed: "§cOperation failed, please check if player name or 
 
 # Task System
 task-completed: "§a✓ Task Completed: %name%"
+task-global-completed: "§6[Guild Task] §aGuild has completed global task: §e%name%"
 task-action-error: "Error executing task action"
 task-notify-error: "Error sending task completion notification"
 task-not-found: "§cTask not found: %task_key%"

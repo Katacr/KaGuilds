@@ -14,6 +14,8 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
     @EventHandler
     fun onJoin(event: PlayerJoinEvent) {
         val player = event.player
+        val isProxy = plugin.config.getBoolean("proxy", false)
+
         // 玩家加入时，异步从数据库读取其公会ID并存入缓存
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
@@ -21,15 +23,26 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                 plugin.playerGuildCache[player.uniqueId] = guildId
             }
         })
+
+        // 跨服模式：不再需要手动广播，Velocity端会自动维护在线列表
+        if (isProxy) {
+            plugin.logger.info("玩家 ${player.name} 加入，Velocity端会自动更新在线玩家列表")
+        }
     }
 
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
+        val player = event.player
+        val isProxy = plugin.config.getBoolean("proxy", false)
+
         // 玩家退出时，清理内存，防止内存泄漏
-        plugin.playerGuildCache.remove(event.player.uniqueId)
+        plugin.playerGuildCache.remove(player.uniqueId)
+
+        // 跨服模式：不再需要手动广播，Velocity端会自动更新在线列表
+        if (isProxy) {
+            plugin.logger.info("玩家 ${player.name} 离开，Velocity端会自动更新在线玩家列表")
+        }
     }
-
-
 
     @EventHandler
     fun onPlayerMove(event: PlayerMoveEvent) {

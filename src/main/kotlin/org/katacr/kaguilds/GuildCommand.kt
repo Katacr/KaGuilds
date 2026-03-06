@@ -1344,6 +1344,26 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
+            "debug" -> {
+                if (!checkAdminPermission(sender, "debug")) {
+                    return
+                }
+                val isProxy = plugin.config.getBoolean("proxy", false)
+                val serverId = plugin.config.getString("server-id", "unknown")
+
+                sender.sendMessage("§6===== KaGuilds Debug Info =====")
+                sender.sendMessage("§e代理模式: ${if (isProxy) "§a启用" else "§c禁用"}")
+                sender.sendMessage("§e服务器ID: §f$serverId")
+                sender.sendMessage("§e本服在线玩家: §f${plugin.server.onlinePlayers.size}")
+                sender.sendMessage("§e跨服缓存玩家: §f${plugin.crossServerOnlinePlayers.size}")
+                if (plugin.crossServerOnlinePlayers.isNotEmpty()) {
+                    sender.sendMessage("§7跨服玩家列表:")
+                    plugin.crossServerOnlinePlayers.forEach { (name, srvId) ->
+                        sender.sendMessage("  §f$name §7($srvId)")
+                    }
+                }
+                sender.sendMessage("§6================================")
+            }
             "open" -> {
                 if (!checkAdminPermission(sender, "open")) {
                     return
@@ -2174,12 +2194,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
                         // 在此处添加 task 子指令
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution", "debug")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
                     "buff" -> if (sender is Player) getBuffTab(sender) else emptyList()
-                    "kick", "promote", "demote", "invite", "join", "accept", "deny", "transfer" -> return null
+                    "invite" -> getCrossServerOnlinePlayers()
+                    "kick", "promote", "demote", "join", "accept", "deny", "transfer" -> null
                     else -> emptyList()
                 }
                 filterList(list, args[1])
@@ -2218,7 +2239,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         }
                         // /kg admin contribution #ID <玩家名|-all> <set|add|clear> [数值]
                         "contribution" -> {
-                            val playerList = plugin.server.onlinePlayers.map { it.name }.toMutableList()
+                            val playerList = getCrossServerOnlinePlayers().toMutableList()
                             playerList.add("-all")
                             filterList(playerList, args[3])
                         }
@@ -2281,6 +2302,25 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         // 如果 list 为 null，直接返回 null（Bukkit 会补全玩家名）
         // 如果 list 存在，过滤后返回
         return list?.filter { it.startsWith(input, ignoreCase = true) }
+    }
+
+    /**
+     * 辅助方法：获取跨服在线玩家列表（用于 tab 补全）
+     */
+    private fun getCrossServerOnlinePlayers(): List<String> {
+        val isProxy = plugin.config.getBoolean("proxy", false)
+        val result = if (isProxy) {
+            // 跨服模式：返回所有跨服在线玩家
+            val crossServerList = plugin.crossServerOnlinePlayers.keys.toList()
+            plugin.logger.info("Tab补全 - 跨服模式: ${crossServerList.size} 个玩家 (${crossServerList.take(5)}...)")
+            crossServerList
+        } else {
+            // 单服模式：只返回本服在线玩家
+            val localList = plugin.server.onlinePlayers.map { it.name }
+            plugin.logger.info("Tab补全 - 单服模式: ${localList.size} 个玩家 (${localList.take(5)}...)")
+            localList
+        }
+        return result
     }
 
     /**

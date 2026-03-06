@@ -413,7 +413,8 @@ admin-contribution-clear-all-success: "§a[管理] 已成功清零公会内 §e%
 admin-contribution-failed: "§c操作失败，请检查玩家名称或公会ID是否正确"
 
 # 任务系统
-task-completed: "§a✓ 任务完成: %name%"
+task-completed: "§8[§b公会任务§8] §a您已完成任务: §e%name%"
+task-global-completed: "§8[§b公会任务§8] §a公会已完成全体任务: §e%name%"
 task-action-error: "执行任务动作时出错"
 task-notify-error: "发送任务完成通知时出错"
 task-not-found: "§c任务不存在: %task_key%"

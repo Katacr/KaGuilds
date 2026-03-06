@@ -3,6 +3,8 @@ package org.katacr.kaguilds.service
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.util.MessageUtil
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.util.*
 
 /**
@@ -102,7 +104,7 @@ class TaskManager(val plugin: KaGuilds) {
 
                 // 执行奖励（因为有内存和数据库双重判定，这里绝不会重复触发）
                 executeTaskActions(player, guildId, task)
-                notifyTaskCompletion(player, task)
+                notifyTaskCompletion(player, task, guildId)
             }
         }
     }
@@ -154,7 +156,20 @@ class TaskManager(val plugin: KaGuilds) {
     /**
      * 通知玩家任务完成
      */
-    internal fun notifyTaskCompletion(player: Player, task: TaskDefinition) {
+    internal fun notifyTaskCompletion(player: Player, task: TaskDefinition, guildId: Int) {
+        // 全局任务：通知公会全体成员
+        if (task.type == "global") {
+            notifyGuildTaskCompletion(guildId, task)
+        } else {
+            // 每日任务：只通知当前玩家
+            notifyPlayerTaskCompletion(player, task)
+        }
+    }
+
+    /**
+     * 通知玩家任务完成（每日任务）
+     */
+    private fun notifyPlayerTaskCompletion(player: Player, task: TaskDefinition) {
         try {
             val message = plugin.langManager.get("task-completed")
                 .replace("%name%", task.name)
@@ -163,6 +178,35 @@ class TaskManager(val plugin: KaGuilds) {
             player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
         } catch (e: Exception) {
             plugin.logger.warning(plugin.langManager.get("task-notify-error") + ": ${e.message}")
+        }
+    }
+
+    /**
+     * 通知公会全体成员任务完成（全局任务）
+     */
+    private fun notifyGuildTaskCompletion(guildId: Int, task: TaskDefinition) {
+        val lang = plugin.langManager
+        val isProxy = plugin.config.getBoolean("proxy", false)
+
+        if (isProxy) {
+            // 跨服模式：发包给代理端转发
+            val out = plugin.guildService.createDataOutputForTask()
+            out.outputStream.writeUTF("TaskCompleted")
+            out.outputStream.writeInt(guildId)
+            out.outputStream.writeUTF(task.name)
+
+            // 借用第一个在线玩家发包
+            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        } else {
+            // 单服模式：直接在当前服务器内查找并发送
+            plugin.server.onlinePlayers.forEach { p ->
+                if (plugin.playerGuildCache[p.uniqueId] == guildId) {
+                    val message = lang.get("task-global-completed", "name" to task.name)
+                    val msg = MessageUtil.createText(message)
+                    p.spigot().sendMessage(msg)
+                    p.playSound(p.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
+                }
+            }
         }
     }
 

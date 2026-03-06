@@ -61,28 +61,29 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     fun notifyTargetGuild(targetGuildId: Int, senderGuildName: String) {
         val lang = plugin.langManager
-        val msg = MessageUtil.createText(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
-
-        val acceptBtn = MessageUtil.createClickableText(
-            text = lang.get("arena-pvp-accept-btn"),
-            hoverText = lang.get("arena-pvp-accept-btn-hover"),
-            command = "/kg pvp accept"
-        )
-        val space = MessageUtil.createText(" ")
-        val denyBtn = MessageUtil.createClickableText(
-            text = lang.get("arena-pvp-deny-btn"),
-            hoverText = lang.get("arena-pvp-deny-btn-hover"),
-            command = "/kg pvp deny"
-        )
-
-        msg.addExtra(acceptBtn)
-        msg.addExtra(space)
-        msg.addExtra(denyBtn)
 
         plugin.server.onlinePlayers.forEach { onlinePlayer ->
             val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
             if (playerGuildId == targetGuildId) {
                 if (plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
+                    val msg = MessageUtil.createText(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
+
+                    val acceptBtn = MessageUtil.createClickableText(
+                        text = lang.get("arena-pvp-accept-btn"),
+                        hoverText = lang.get("arena-pvp-accept-btn-hover"),
+                        command = "/kg pvp accept"
+                    )
+                    val space = MessageUtil.createText(" ")
+                    val denyBtn = MessageUtil.createClickableText(
+                        text = lang.get("arena-pvp-deny-btn"),
+                        hoverText = lang.get("arena-pvp-deny-btn-hover"),
+                        command = "/kg pvp deny"
+                    )
+
+                    msg.addExtra(acceptBtn)
+                    msg.addExtra(space)
+                    msg.addExtra(denyBtn)
+
                     onlinePlayer.spigot().sendMessage(msg)
                 }
             }
