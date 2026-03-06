@@ -468,6 +468,27 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
         chatCatchers.remove(event.player.uniqueId)
+        // 退出公会聊天模式
+        plugin.guildChatPlayers.remove(event.player.uniqueId)
+    }
+
+    /**
+     * 处理公会聊天模式
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    fun onGuildChat(event: AsyncPlayerChatEvent) {
+        val player = event.player
+
+        // 检查玩家是否在公会聊天模式
+        if (!plugin.guildChatPlayers.contains(player.uniqueId)) {
+            return
+        }
+
+        // 拦截消息，改为发送到公会频道
+        event.isCancelled = true
+
+        // 发送公会聊天消息
+        plugin.guildService.sendGuildChat(player, event.message)
     }
 
     /**

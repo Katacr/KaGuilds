@@ -13,6 +13,7 @@ guild:
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
   motd: "欢迎加入我的公会" # 默认的公会公告
   icon: "SHIELD" # 默认的公会图标
+  chat-format: "&7[&e公会聊天&7] &f{role} &f%player_level% &6{player}&f: {message}" # 聊天格式
   teleport: # 传送设置
     disabled-worlds: # 禁止设置传送点的世界
       - "world_nether"

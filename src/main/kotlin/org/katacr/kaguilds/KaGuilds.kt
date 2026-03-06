@@ -25,6 +25,8 @@ class KaGuilds : JavaPlugin() {
     val playerGuildCache = mutableMapOf<UUID, Int>()
     // 跨服在线玩家缓存：Map<玩家名, 所在服务器ID>
     val crossServerOnlinePlayers = mutableMapOf<String, String>()
+    // 公会聊天模式玩家集合
+    val guildChatPlayers = mutableSetOf<UUID>()
     lateinit var dbManager: DatabaseManager
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
@@ -129,11 +131,6 @@ class KaGuilds : JavaPlugin() {
         server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
         server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
 
-        // 跨服模式：Velocity端会自动广播在线玩家列表，无需主动请求
-        if (config.getBoolean("proxy", false)) {
-            logger.info("跨服模式已启用，Velocity端将自动同步在线玩家列表")
-        }
-
         // 7. 打印Logo
         sendStartupMessage()
     }
@@ -188,6 +185,8 @@ class KaGuilds : JavaPlugin() {
         if (config.getBoolean("proxy", false)) {
             crossServerOnlinePlayers.clear()
         }
+        // 清空公会聊天模式玩家集合
+        guildChatPlayers.clear()
     }
 
     /**

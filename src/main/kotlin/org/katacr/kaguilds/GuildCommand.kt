@@ -152,13 +152,30 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return
         }
 
-        // 检查参数：/kg chat <消息...>
+        // 检查参数：/kg chat <消息...> 或 /kg chat（切换模式）
         if (args.size < 2) {
-            player.sendMessage(lang.get("chat-usage"))
+            // 无参数：切换公会聊天模式
+            val guildId = plugin.playerGuildCache[player.uniqueId]
+                ?: plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+
+            if (guildId == null) {
+                player.sendMessage(lang.get("error-not-has-guild"))
+                return
+            }
+
+            if (plugin.guildChatPlayers.contains(player.uniqueId)) {
+                // 退出模式
+                plugin.guildChatPlayers.remove(player.uniqueId)
+                player.sendMessage(lang.get("chat-quit-success"))
+            } else {
+                // 加入模式
+                plugin.guildChatPlayers.add(player.uniqueId)
+                player.sendMessage(lang.get("chat-join-success"))
+            }
             return
         }
 
-        // 合并消息内容
+        // 有参数：发送单条公会消息
         val message = args.sliceArray(1 until args.size).joinToString(" ")
         plugin.guildService.sendGuildChat(player, message)
     }
@@ -1344,26 +1361,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
                 plugin.guildService.adminModifyExp(sender, guildId, action, amount)
             }
-            "debug" -> {
-                if (!checkAdminPermission(sender, "debug")) {
-                    return
-                }
-                val isProxy = plugin.config.getBoolean("proxy", false)
-                val serverId = plugin.config.getString("server-id", "unknown")
-
-                sender.sendMessage("§6===== KaGuilds Debug Info =====")
-                sender.sendMessage("§e代理模式: ${if (isProxy) "§a启用" else "§c禁用"}")
-                sender.sendMessage("§e服务器ID: §f$serverId")
-                sender.sendMessage("§e本服在线玩家: §f${plugin.server.onlinePlayers.size}")
-                sender.sendMessage("§e跨服缓存玩家: §f${plugin.crossServerOnlinePlayers.size}")
-                if (plugin.crossServerOnlinePlayers.isNotEmpty()) {
-                    sender.sendMessage("§7跨服玩家列表:")
-                    plugin.crossServerOnlinePlayers.forEach { (name, srvId) ->
-                        sender.sendMessage("  §f$name §7($srvId)")
-                    }
-                }
-                sender.sendMessage("§6================================")
-            }
             "open" -> {
                 if (!checkAdminPermission(sender, "open")) {
                     return
@@ -2194,7 +2191,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
                         // 在此处添加 task 子指令
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution", "debug")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution")
                     } else emptyList()
                     "bank" -> listOf("add", "get", "log")
                     "vault" -> (1..9).map { it.toString() }
@@ -2312,12 +2309,10 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         val result = if (isProxy) {
             // 跨服模式：返回所有跨服在线玩家
             val crossServerList = plugin.crossServerOnlinePlayers.keys.toList()
-            plugin.logger.info("Tab补全 - 跨服模式: ${crossServerList.size} 个玩家 (${crossServerList.take(5)}...)")
             crossServerList
         } else {
             // 单服模式：只返回本服在线玩家
             val localList = plugin.server.onlinePlayers.map { it.name }
-            plugin.logger.info("Tab补全 - 单服模式: ${localList.size} 个玩家 (${localList.take(5)}...)")
             localList
         }
         return result

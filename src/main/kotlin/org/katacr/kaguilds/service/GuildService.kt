@@ -258,8 +258,6 @@ class GuildService(private val plugin: KaGuilds) {
             val isProxy = plugin.config.getBoolean("proxy", false)
 
             if (isProxy) {
-                // --- 代理模式：盲发广播 ---
-                plugin.logger.info("发送跨服邀请: sender=${sender.name}, target=$targetName, guild=${guildData.name} (ID=$guildId)")
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     val out = createDataOutput()
                     out.outputStream.writeUTF("CrossInvite")
@@ -359,8 +357,6 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 4. 添加申请并通知
             if (plugin.dbManager.addRequest(guildId, player.uniqueId, player.name)) {
-                // 这里已经能拿到真实的 guildName 了
-                plugin.logger.info("玩家 ${player.name} 申请加入公会 $guildName ($guildId)，正在发送跨服通知...")
                 dispatchGuildNotification(guildId, "NotifyRequest", guildId, guildName, player.name)
                 callback(OperationResult.Success)
             }
@@ -387,12 +383,8 @@ class GuildService(private val plugin: KaGuilds) {
             }
             // 借用第一个在线玩家发包（如果没有在线玩家，单服消息通常也无意义）
             val sender = plugin.server.onlinePlayers.firstOrNull()
-            if (sender != null) {
-                plugin.logger.info("通过玩家 ${sender.name} 发送跨服消息 $subChannel 到代理")
-                sender.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-            } else {
-                plugin.logger.warning("没有在线玩家可用，无法发送跨服消息 $subChannel")
-            }
+            sender?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+
 
         } else {
             // --- 单服模式：直接在当前服务器内查找并发送 ---
@@ -425,13 +417,30 @@ class GuildService(private val plugin: KaGuilds) {
                 "Chat" -> {
                     val senderName = data[1] as String
                     val msgContent = data[2] as String
-                    val formatted = plugin.langManager.get("chat-format", "player" to senderName, "message" to msgContent)
+                    val roleDisplayName = data.getOrNull(3) as? String ?: ""
 
-                    plugin.server.onlinePlayers.forEach { p ->
-                        if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
-                            p.sendMessage(formatted)
+                    // 使用自定义聊天格式
+                    var format = plugin.config.getString("guild.chat-format", "&7[&e Guild &7] &f{player}&f: {message}") ?: ""
+                    format = format.replace("{player}", senderName)
+                        .replace("{message}", msgContent)
+                        .replace("{role}", roleDisplayName)
+
+                    // 支持 PlaceholderAPI 变量（需要在主线程替换）
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        val papiPlugin = plugin.server.pluginManager.getPlugin("PlaceholderAPI")
+                        val formattedMessage = if (papiPlugin != null) {
+                            me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(plugin.server.getPlayer(senderName), format)
+                        } else {
+                            format
                         }
-                    }
+
+                        // 发送消息给公会成员
+                        plugin.server.onlinePlayers.forEach { p ->
+                            if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
+                                p.sendMessage(formattedMessage)
+                            }
+                        }
+                    })
                 }
             }
         }
@@ -572,8 +581,16 @@ class GuildService(private val plugin: KaGuilds) {
             // 2. 更新一下本地缓存，确保后续逻辑也是对的
             plugin.playerGuildCache[player.uniqueId] = guildId
 
-            // 3. 统一分发聊天消息
-            dispatchGuildNotification(guildId, "Chat", guildId, player.name, message)
+            // 3. 获取玩家角色
+            val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+            val roleDisplayName = when (role) {
+                "OWNER" -> plugin.langManager.get("role-owner")
+                "ADMIN" -> plugin.langManager.get("role-admin")
+                else -> plugin.langManager.get("role-member")
+            }
+
+            // 4. 统一分发聊天消息，传递角色信息
+            dispatchGuildNotification(guildId, "Chat", guildId, player.name, message, roleDisplayName)
         })
     }
     /**
