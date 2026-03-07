@@ -445,18 +445,14 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             return
         }
 
-        // 2. 验证是否为数字 (bank_add/get 专用)
-        val amount = message.toLongOrNull()
-        if (amount == null || amount <= 0) {
-            player.sendMessage(lang.get("menu-catcher-invalid-amount"))
-            return
-        }
-
-        // 3. 回到同步主线程执行指令
+        // 2. 回到同步主线程执行指令
         plugin.server.scheduler.runTask(plugin, Runnable {
             when (type) {
-                "bank_add" -> player.performCommand("kg bank add $amount")
-                "bank_get" -> player.performCommand("kg bank get $amount")
+                "bank_add" -> player.performCommand("kg bank add $message")
+                "bank_get" -> player.performCommand("kg bank get $message")
+                "guild_rename" -> player.performCommand("kg rename $message")
+                "guild_create" -> player.performCommand("kg create $message")
+                "edit_motd" -> player.performCommand("kg motd $message")
             }
         })
     }

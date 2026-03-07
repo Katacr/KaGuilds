@@ -400,6 +400,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun handleCreate(player: Player, args: Array<out String>) {
         val lang = plugin.langManager
+        val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+
+        // 如果玩家已经在公会中，则不允许创建
+        if (guildId != null) {
+            player.sendMessage(lang.get("already-in-guild"))
+            return
+        }
 
         // 权限检查
         if (!checkPermission(player, "create")) {
@@ -945,7 +952,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             is GuildService.PendingAction.Delete -> performDelete(player)
             is GuildService.PendingAction.Leave -> performLeave(player)
             is GuildService.PendingAction.Transfer -> performTransfer(player, action.targetName)
-
+            is GuildService.PendingAction.Rename -> performRename(player, action.newName)
         }
     }
 
@@ -1016,6 +1023,27 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 })
             }
         })
+    }
+
+    /*
+     * 执行重命名确认逻辑
+     */
+    private fun performRename(player: Player, newName: String) {
+        val lang = plugin.langManager
+
+        plugin.guildService.renameGuild(player, newName) { result ->
+            when (result) {
+                is OperationResult.Success -> {
+                    val price = plugin.config.getDouble("balance.rename", 3000.0).toString()
+                    player.sendMessage(lang.get("rename-success",
+                        "name" to newName,
+                        "price" to price
+                    ))
+                }
+                is OperationResult.Error -> player.sendMessage(result.message)
+                else -> {}
+            }
+        }
     }
 
     /*

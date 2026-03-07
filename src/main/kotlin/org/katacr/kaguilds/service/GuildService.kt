@@ -23,6 +23,7 @@ class GuildService(private val plugin: KaGuilds) {
     sealed class PendingAction {
         data class Create(val guildName: String) : PendingAction()
         data class Transfer(val targetName: String) : PendingAction()
+        data class Rename(val newName: String) : PendingAction()
         object Delete : PendingAction()
         object Leave : PendingAction()
     }

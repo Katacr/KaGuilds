@@ -18,7 +18,8 @@ button:
       name: '&a创建公会'
     actions:
       left:
-        - 'command: kg create'  # 直接执行，无需条件
+        - 'tell: 请打开聊天框输入想要创建的公会名称，创建公会需要花费10000金币。'
+        - 'catcher: guild_create'
         - 'close'
   "2":
     display:
