@@ -912,23 +912,32 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return
         }
 
-        // 2. 定义变量 newName
         val newName = args[1]
 
-        // 3. 调用 Service
-        plugin.guildService.renameGuild(player, newName) { result ->
-            when (result) {
-                is OperationResult.Success -> {
-                    val price = plugin.config.getDouble("balance.rename", 3000.0).toString()
-                    player.sendMessage(lang.get("rename-success",
-                        "name" to newName,
-                        "price" to price
-                    ))
-                }
-                is OperationResult.Error -> player.sendMessage(result.message)
-                else -> {}
+        // 1. 异步检查权限（涉及数据库查询）
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+
+            // 检查是否在公会中
+            if (guildId == null) {
+                player.sendMessage(lang.get("not-in-guild"))
+                return@Runnable
             }
-        }
+
+            val guildData = plugin.dbManager.getGuildData(guildId)
+
+            // 检查是否是会长 (对比 UUID)
+            if (guildData?.ownerUuid != player.uniqueId.toString()) {
+                player.sendMessage(lang.get("not-staff"))
+                return@Runnable
+            }
+
+            // 2. 检查通过，回到主线程设置确认动作
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                player.sendMessage(lang.get("rename-confirm", "name" to newName))
+                plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Rename(newName))
+            })
+        })
     }
 
     /*
