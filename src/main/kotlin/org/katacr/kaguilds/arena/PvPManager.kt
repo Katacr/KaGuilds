@@ -144,6 +144,9 @@ class PvPManager(private val plugin: KaGuilds) {
         val match = currentMatch ?: return
         match.totalTime = readyTime
 
+        // 通知双方公会在其他服务器的玩家
+        notifyCrossServerGuildMembers(match)
+
         object : org.bukkit.scheduler.BukkitRunnable() {
             var timeLeft = readyTime
 
@@ -188,6 +191,48 @@ class PvPManager(private val plugin: KaGuilds) {
                 timeLeft--
             }
         }.runTaskTimer(plugin, 0L, 20L)
+    }
+
+    /**
+     * 通知双方公会在其他服务器的成员
+     */
+    private fun notifyCrossServerGuildMembers(match: ActiveMatch) {
+        val lang = plugin.langManager
+        val serverId = plugin.config.getString("server-id", "unknown") ?: "unknown"
+        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+
+        // 检查是否启用代理模式
+        if (!plugin.config.getBoolean("proxy", false)) {
+            return // 单服模式不需要跨服通知
+        }
+
+        // 通知红公会成员
+        sendCrossServerBattleNotify(match.redGuildId, serverId, redName, blueName)
+        // 通知蓝公会成员
+        sendCrossServerBattleNotify(match.blueGuildId, serverId, blueName, redName)
+    }
+
+    /**
+     * 发送跨服公会战通知
+     */
+    private fun sendCrossServerBattleNotify(guildId: Int, serverId: String, ownGuildName: String, enemyGuildName: String) {
+        val lang = plugin.langManager
+
+        val out = java.io.ByteArrayOutputStream()
+        val dos = java.io.DataOutputStream(out)
+        try {
+            dos.writeUTF("PvPBattleStart")
+            dos.writeInt(guildId)
+            dos.writeUTF(serverId)
+            dos.writeUTF(ownGuildName)
+            dos.writeUTF(enemyGuildName)
+
+            // 使用第一个在线玩家发送跨服消息
+            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        } catch (e: Exception) {
+            plugin.logger.warning("发送跨服公会战通知失败: ${e.message}")
+        }
     }
 
     /**

@@ -162,6 +162,11 @@ class KaGuilds : JavaPlugin() {
      * 关闭插件
      */
     override fun onDisable() {
+        // 1. 停止任务管理器的午夜检查定时器
+        if (::taskManager.isInitialized) {
+            taskManager.stopMidnightCheck()
+        }
+
         if (::pvpManager.isInitialized) {
             pvpManager.currentMatch?.let { match ->
                 // 如果战斗还没正式开始，强制执行退款

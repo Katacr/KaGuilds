@@ -159,17 +159,13 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val guildName = `in`.readUTF()
                 val senderName = `in`.readUTF()
 
-                plugin.logger.info("收到跨服邀请: target=$targetName, guild=$guildName (ID=$guildId), sender=$senderName")
-
                 // 寻找目标玩家是否在本服
                 val targetPlayer = plugin.server.onlinePlayers.find { it.name.equals(targetName, true) }
 
                 if (targetPlayer != null) {
-                    plugin.logger.info("玩家 $targetName 在本服，发送邀请通知")
                     // 异步检查目标玩家是否有公会（防止他在别的服刚加了公会）
                     plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                         if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) == null) {
-                            plugin.logger.info("玩家 $targetName 无公会，执行邀请逻辑")
 
                             // 1. 存入本服的邀请缓存
                             plugin.inviteCache[targetPlayer.uniqueId] = guildId
@@ -204,12 +200,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                             plugin.server.scheduler.runTaskLater(plugin, Runnable {
                                 plugin.inviteCache.remove(targetPlayer.uniqueId)
                             }, 1200L)
-                        } else {
-                            plugin.logger.info("玩家 $targetName 已有公会，忽略邀请")
                         }
                     })
-                } else {
-                    plugin.logger.info("玩家 $targetName 不在本服")
                 }
             }
             /*
@@ -220,21 +212,16 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val guildName = `in`.readUTF()  // 公会名（未使用但需要读取以消耗数据）
                 val appName = `in`.readUTF()
 
-                plugin.logger.info("收到 NotifyRequest 消息: targetGuildId=$targetId, applicant=$appName, guildName=$guildName")
-
                 val lang = plugin.langManager
                 var notifiedCount = 0
 
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     // 先查缓存确认公会
                     if (plugin.playerGuildCache[onlinePlayer.uniqueId] == targetId) {
-                        plugin.logger.info("玩家 ${onlinePlayer.name} 属于目标公会 $targetId，检查权限...")
                         // 再异步查权限发送
                         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
                             val role = plugin.dbManager.getPlayerRole(onlinePlayer.uniqueId)
-                            plugin.logger.info("玩家 ${onlinePlayer.name} 的角色是: $role")
                             if (role == "OWNER" || role == "ADMIN") {
-                                plugin.logger.info("向玩家 ${onlinePlayer.name} 发送申请通知")
                                 plugin.server.scheduler.runTask(plugin, Runnable {
                                     val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to appName))
                                     val viewBtn = MessageUtil.createClickableText(
@@ -251,7 +238,6 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         })
                     }
                 }
-                plugin.logger.info("NotifyRequest 消息处理完成，通知了 $notifiedCount 个玩家")
             }
 
             /*
@@ -495,28 +481,40 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val serverId = `in`.readUTF()
 
                 // 更新跨服在线玩家缓存
-                val previous = plugin.crossServerOnlinePlayers[playerName]
                 plugin.crossServerOnlinePlayers[playerName] = serverId
-
-                if (previous == null) {
-                    plugin.logger.info("跨服玩家上线: $playerName ($serverId) - 新增玩家")
-                } else {
-                    plugin.logger.info("跨服玩家上线: $playerName ($serverId) - 更新服务器ID (原: $previous)")
-                }
             }
 
             /*
-             * 处理跨服玩家退出（兼容旧的消息格式）
+             * 处理跨服公会战通知
              */
-            "PlayerQuit" -> {
-                val playerName = `in`.readUTF()
+            "PvPBattleStart" -> {
+                val targetGuildId = `in`.readInt()
+                val serverId = `in`.readUTF()
+                val ownGuildName = `in`.readUTF()
+                val enemyGuildName = `in`.readUTF()
 
-                // 从跨服在线玩家缓存中移除
-                val removed = plugin.crossServerOnlinePlayers.remove(playerName)
-                if (removed != null) {
-                    plugin.logger.info("跨服玩家下线: $playerName - 已移除")
-                } else {
-                    plugin.logger.warning("跨服玩家下线: $playerName - 未在缓存中找到")
+                // 获取当前服务器的 ID
+                val currentServerId = plugin.config.getString("server-id", "unknown")
+
+                // 如果是发起服务器本身,则不处理此消息
+                if (serverId == currentServerId) {
+                    return
+                }
+
+                val lang = plugin.langManager
+
+                plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                    // 通知属于该公会的玩家
+                    if (plugin.playerGuildCache[onlinePlayer.uniqueId] == targetGuildId) {
+                        val msg = MessageUtil.createText(
+                            lang.get("arena-pvp-cross-server-notify",
+                                "server" to serverId,
+                                "own" to ownGuildName,
+                                "enemy" to enemyGuildName)
+                        )
+                        onlinePlayer.spigot().sendMessage(msg)
+                        onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+                    }
                 }
             }
         }
