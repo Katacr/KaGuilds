@@ -433,7 +433,6 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         // 尝试从缓存中获取当前玩家的捕获任务
         val type = chatCatchers[player.uniqueId] ?: return
 
-
         // 1. 拦截消息
         event.isCancelled = true
         chatCatchers.remove(player.uniqueId)
@@ -475,9 +474,15 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     /**
      * 处理公会聊天模式
      */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     fun onGuildChat(event: AsyncPlayerChatEvent) {
         val player = event.player
+
+        // 优先检查：如果玩家正在进行菜单输入捕获，不处理公会聊天
+        // 菜单输入捕获优先级更高，因为这是用户主动触发的操作
+        if (chatCatchers.containsKey(player.uniqueId)) {
+            return
+        }
 
         // 检查玩家是否在公会聊天模式
         if (!plugin.guildChatPlayers.contains(player.uniqueId)) {
