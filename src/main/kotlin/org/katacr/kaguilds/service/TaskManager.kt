@@ -26,6 +26,11 @@ class TaskManager(val plugin: KaGuilds) {
     // 全局任务 BossBar 缓存: GuildId -> TaskKey -> BossBar (同一公会的所有玩家共享)
     private val globalBossBarCache = mutableMapOf<Int, MutableMap<String, org.bukkit.boss.BossBar>>()
 
+    // BossBar 定时器缓存: PlayerUUID -> TaskKey -> TaskId (个人任务)
+    private val bossBarTimerCache = mutableMapOf<UUID, MutableMap<String, Int>>()
+    // 全局任务 BossBar 定时器缓存: GuildId -> TaskKey -> TaskId
+    private val globalBossBarTimerCache = mutableMapOf<Int, MutableMap<String, Int>>()
+
     /**
      * 任务定义数据类
      */
@@ -505,14 +510,24 @@ class TaskManager(val plugin: KaGuilds) {
             val progressValue = progress.toDouble() / target.toDouble().coerceAtLeast(1.0)
             existingBar.progress = progressValue.coerceIn(0.0, 1.0)
 
-            // 重置计时器：5秒后如果还没被更新则彻底删除
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 取消之前的定时器
+            val oldTaskId = bossBarTimerCache[playerUuid]?.get(task.key)
+            if (oldTaskId != null && oldTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(oldTaskId)
+            }
+
+            // 创建新的定时器：5秒后移除 BossBar
+            val newTaskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val currentBar = bossBarCache[playerUuid]?.get(task.key)
                 if (currentBar == existingBar) {
                     currentBar.removeAll()
                     bossBarCache[playerUuid]?.remove(task.key)
+                    bossBarTimerCache[playerUuid]?.remove(task.key)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存新的定时器ID
+            bossBarTimerCache.getOrPut(playerUuid) { mutableMapOf() }[task.key] = newTaskId
         } else {
             // 创建新的 BossBar
             val title = plugin.langManager.get("task-progress-title")
@@ -537,14 +552,18 @@ class TaskManager(val plugin: KaGuilds) {
             // 缓存 BossBar
             bossBarCache[playerUuid]!![task.key] = bossBar
 
-            // 5秒后移除 BossBar
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 创建定时器：5秒后移除 BossBar
+            val taskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val cachedBar = bossBarCache[playerUuid]?.get(task.key)
                 if (cachedBar == bossBar) {
                     bossBar.removeAll()
                     bossBarCache[playerUuid]?.remove(task.key)
+                    bossBarTimerCache[playerUuid]?.remove(task.key)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存定时器ID
+            bossBarTimerCache.getOrPut(playerUuid) { mutableMapOf() }[task.key] = taskId
         }
     }
 
@@ -579,14 +598,29 @@ class TaskManager(val plugin: KaGuilds) {
             val progressValue = progress.toDouble() / target.toDouble().coerceAtLeast(1.0)
             existingBar.progress = progressValue.coerceIn(0.0, 1.0)
 
-            // 重置计时器：5秒后如果还没被更新则彻底删除
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 如果启用代理模式，发送跨服消息更新进展
+            if (plugin.config.getBoolean("proxy", false)) {
+                sendGlobalTaskBossBarToProxy(guildId, task.key, task.name, progress, target)
+            }
+
+            // 取消之前的定时器
+            val oldTaskId = globalBossBarTimerCache[guildId]?.get(task.key)
+            if (oldTaskId != null && oldTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(oldTaskId)
+            }
+
+            // 创建新的定时器：5秒后移除 BossBar
+            val newTaskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val currentBar = globalBossBarCache[guildId]?.get(task.key)
                 if (currentBar == existingBar) {
                     currentBar.removeAll()
                     globalBossBarCache[guildId]?.remove(task.key)
+                    globalBossBarTimerCache[guildId]?.remove(task.key)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存新的定时器ID
+            globalBossBarTimerCache.getOrPut(guildId) { mutableMapOf() }[task.key] = newTaskId
         } else {
             // 创建新的 BossBar
             val title = plugin.langManager.get("task-progress-title")
@@ -613,14 +647,18 @@ class TaskManager(val plugin: KaGuilds) {
             // 缓存 BossBar
             globalBossBarCache[guildId]!![task.key] = bossBar
 
-            // 5秒后移除 BossBar
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 创建定时器：5秒后移除 BossBar
+            val taskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val cachedBar = globalBossBarCache[guildId]?.get(task.key)
                 if (cachedBar == bossBar) {
                     bossBar.removeAll()
                     globalBossBarCache[guildId]?.remove(task.key)
+                    globalBossBarTimerCache[guildId]?.remove(task.key)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存定时器ID
+            globalBossBarTimerCache.getOrPut(guildId) { mutableMapOf() }[task.key] = taskId
 
             // 如果启用代理模式，发送跨服消息
             if (plugin.config.getBoolean("proxy", false)) {
@@ -805,6 +843,14 @@ class TaskManager(val plugin: KaGuilds) {
      */
     fun clearDailyCache(playerUuid: UUID) {
         dailyDoneCache.remove(playerUuid)
+
+        // 清理该玩家的 BossBar 定时器
+        val playerTimers = bossBarTimerCache.remove(playerUuid)
+        playerTimers?.values?.forEach { taskId ->
+            if (taskId != -1) {
+                Bukkit.getScheduler().cancelTask(taskId)
+            }
+        }
 
         // 清理该玩家的 BossBar 缓存
         val playerBars = bossBarCache.remove(playerUuid)

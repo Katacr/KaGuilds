@@ -166,9 +166,10 @@ class KaGuilds : JavaPlugin() {
      * 关闭插件
      */
     override fun onDisable() {
-        // 1. 停止任务管理器的午夜检查定时器
+        // 1. 停止任务管理器的定时器
         if (::taskManager.isInitialized) {
             taskManager.stopMidnightCheck()
+            taskManager.stopTaskResetCheck()
         }
 
         if (::pvpManager.isInitialized) {
