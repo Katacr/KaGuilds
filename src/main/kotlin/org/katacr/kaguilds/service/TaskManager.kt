@@ -455,10 +455,22 @@ class TaskManager(val plugin: KaGuilds) {
             if (result.completed) {
                 // 移除该任务的 BossBar
                 if (task.type == "daily") {
+                    // 取消并清理个人任务 BossBar 定时器
+                    val oldTaskId = bossBarTimerCache[player.uniqueId]?.get(task.key)
+                    if (oldTaskId != null && oldTaskId != -1) {
+                        Bukkit.getScheduler().cancelTask(oldTaskId)
+                        bossBarTimerCache[player.uniqueId]?.remove(task.key)
+                    }
                     // 移除个人任务 BossBar
                     bossBarCache[player.uniqueId]?.get(task.key)?.removeAll()
                     bossBarCache[player.uniqueId]?.remove(task.key)
                 } else if (task.type == "global") {
+                    // 取消并清理全局任务 BossBar 定时器
+                    val oldTaskId = globalBossBarTimerCache[guildId]?.get(task.key)
+                    if (oldTaskId != null && oldTaskId != -1) {
+                        Bukkit.getScheduler().cancelTask(oldTaskId)
+                        globalBossBarTimerCache[guildId]?.remove(task.key)
+                    }
                     // 移除全局任务 BossBar
                     globalBossBarCache[guildId]?.get(task.key)?.removeAll()
                     globalBossBarCache[guildId]?.remove(task.key)
@@ -882,14 +894,24 @@ class TaskManager(val plugin: KaGuilds) {
             val progressValue = progress.toDouble() / target.toDouble().coerceAtLeast(1.0)
             existingBar.progress = progressValue.coerceIn(0.0, 1.0)
 
-            // 重置计时器：5秒后如果还没被更新则彻底删除
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 取消之前的定时器
+            val oldTaskId = globalBossBarTimerCache[guildId]?.get(taskKey)
+            if (oldTaskId != null && oldTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(oldTaskId)
+            }
+
+            // 创建新的定时器：5秒后移除 BossBar
+            val newTaskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val currentBar = globalBossBarCache[guildId]?.get(taskKey)
                 if (currentBar == existingBar) {
                     currentBar.removeAll()
                     globalBossBarCache[guildId]?.remove(taskKey)
+                    globalBossBarTimerCache[guildId]?.remove(taskKey)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存新的定时器ID
+            globalBossBarTimerCache.getOrPut(guildId) { mutableMapOf() }[taskKey] = newTaskId
         } else {
             // 创建新的 BossBar
             val barText = plugin.langManager.get("task-progress-bar")
@@ -917,16 +939,21 @@ class TaskManager(val plugin: KaGuilds) {
             // 缓存 BossBar
             globalBossBarCache[guildId]!![taskKey] = bossBar
 
-            // 5秒后移除 BossBar
-            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 创建定时器：5秒后移除 BossBar
+            val taskId = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 val cachedBar = globalBossBarCache[guildId]?.get(taskKey)
                 if (cachedBar == bossBar) {
                     bossBar.removeAll()
                     globalBossBarCache[guildId]?.remove(taskKey)
+                    globalBossBarTimerCache[guildId]?.remove(taskKey)
                 }
-            }, 5 * 20L)
+            }, 5 * 20L).taskId
+
+            // 保存定时器ID
+            globalBossBarTimerCache.getOrPut(guildId) { mutableMapOf() }[taskKey] = taskId
         }
     }
+
 
     /**
      * 移除跨服全局任务 BossBar
@@ -934,6 +961,14 @@ class TaskManager(val plugin: KaGuilds) {
      * @param taskKey 任务键
      */
     fun removeCrossServerGlobalBossBar(guildId: Int, taskKey: String) {
+        // 取消并清理定时器
+        val oldTaskId = globalBossBarTimerCache[guildId]?.get(taskKey)
+        if (oldTaskId != null && oldTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(oldTaskId)
+            globalBossBarTimerCache[guildId]?.remove(taskKey)
+        }
+
+        // 移除 BossBar
         globalBossBarCache[guildId]?.get(taskKey)?.removeAll()
         globalBossBarCache[guildId]?.remove(taskKey)
     }

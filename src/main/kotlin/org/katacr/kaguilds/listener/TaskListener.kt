@@ -28,7 +28,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     fun onPlayerJoin(event: PlayerJoinEvent) {
         val player = event.player
-        plugin.logger.info("[Task-Listener] 玩家 ${player.name} 登录，清理过期缓存并触发 login 任务事件")
 
         // 1. 清除过期的每日任务缓存（确保新的一天任务状态正确）
         plugin.taskManager.clearExpiredDailyCache(player)
@@ -45,8 +44,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     fun onPlayerQuit(event: PlayerQuitEvent) {
         val player = event.player
-        plugin.logger.info("[Task-Listener] 玩家 ${player.name} 退出游戏，清理每日任务缓存")
-
         // 清理玩家的每日任务缓存
         plugin.taskManager.clearDailyCache(player.uniqueId)
     }
@@ -63,7 +60,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
         val entityType = event.entity.type.name.lowercase()
 
         // 触发击杀怪物事件
-        plugin.logger.fine("[Task-Listener] 玩家 ${killer.name} 击杀了 $entityType")
         plugin.taskManager.handleEvent(killer, "kill_mobs", entityType)
     }
 
@@ -77,7 +73,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
 
         // 如果你的任务是"挖掘任何矿石"，可以在这里先做一次聚合判断
         // 否则直接传入具体的方块名
-        plugin.logger.fine("[Task-Listener] 玩家 ${player.name} 破坏了 ${blockType.name.lowercase()}")
         plugin.taskManager.handleEvent(player, "break_block", blockType.name.lowercase())
     }
 
@@ -87,7 +82,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
      */
     fun onGuildDonate(player: Player, amount: Double) {
         // 捐赠金额作为增量值传递
-        plugin.logger.info("[Task-Listener] 玩家 ${player.name} 捐赠了 $amount")
         plugin.taskManager.handleEvent(player, "donate", "*", amount.toInt())
     }
 

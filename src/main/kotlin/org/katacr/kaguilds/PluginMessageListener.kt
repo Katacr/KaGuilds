@@ -111,15 +111,13 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 val taskKey = `in`.readUTF()
                 val taskName = `in`.readUTF()
 
-                // 调用 TaskManager 的方法来移除跨服 BossBar
+                // 只调用 TaskManager 的方法来移除跨服 BossBar
+                // 不发送完成通知，因为 TaskCompleted 消息已经发送过了
                 plugin.taskManager.removeCrossServerGlobalBossBar(targetGuildId, taskKey)
 
-                // 同时也发送完成通知
-                val msg = plugin.langManager.get("task-global-completed", "name" to taskName)
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     val cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
                     if (cachedId != null && cachedId == targetGuildId) {
-                        onlinePlayer.spigot().sendMessage(MessageUtil.createText(msg))
                         onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
                     }
                 }
