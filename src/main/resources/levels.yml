@@ -8,6 +8,7 @@ levels:
     max-money: 50000 # 公会金库最大金币
     tp-money: 500 # 传送费用，等级越高费用越便宜
     vaults: 1  # 拥有仓库数量
+    bank-interest: 0.5 # 银行利息百分比 (每日)
     use-buff: # 允许使用的buff列表
      - NightVision
      - Speed
@@ -18,6 +19,7 @@ levels:
     max-money: 100000 # 公会金库最大金币
     tp-money: 300 # 传送费用，等级越高费用越便宜
     vaults: 2  # 拥有仓库数量
+    bank-interest: 0.6 # 银行利息百分比 (每日)
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -30,6 +32,7 @@ levels:
     max-money: 200000 # 公会金库最大金币
     tp-money: 200 # 传送费用，等级越高费用越便宜
     vaults: 3  # 拥有仓库数量
+    bank-interest: 0.7 # 银行利息百分比 (每日)
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -44,6 +47,7 @@ levels:
     max-money: 400000 # 公会金库最大金币
     tp-money: 100 # 传送费用，等级越高费用越便宜
     vaults: 4  # 拥有仓库数量
+    bank-interest: 0.8 # 银行利息百分比 (每日)
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed
@@ -60,6 +64,7 @@ levels:
     max-money: 600000 # 公会金库最大金币
     tp-money: 50 # 传送费用，等级越高费用越便宜
     vaults: 5  # 拥有仓库数量（上限9个）
+    bank-interest: 1.0 # 银行利息百分比 (每日)
     use-buff: # 允许使用的buff列表
       - NightVision
       - Speed

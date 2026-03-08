@@ -3,8 +3,6 @@ package org.katacr.kaguilds.service
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.util.MessageUtil
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
 import java.util.*
 
 /**
@@ -83,7 +81,7 @@ class TaskManager(val plugin: KaGuilds) {
         // 每 24 小时精确触发一次 (86400000 毫秒)
         val delay = 24 * 60 * 60 * 1000L
 
-        midnightTimer.schedule(object : java.util.TimerTask() {
+        midnightTimer.schedule(object : TimerTask() {
             override fun run() {
                 plugin.logger.info("[Task] 午夜缓存重置触发 (系统时间)")
 
@@ -107,6 +105,16 @@ class TaskManager(val plugin: KaGuilds) {
         }
 
         plugin.logger.info("[Task] 开始检查 ${onlinePlayers.size} 个在线玩家的缓存...")
+
+        // 先收集所有在线玩家的公会ID（去重）
+        val activeGuildIds = onlinePlayers
+            .mapNotNull { plugin.playerGuildCache[it.uniqueId] }
+            .distinct()
+
+        // 计算活跃公会的银行利息
+        if (activeGuildIds.isNotEmpty()) {
+            calculateInterestForActiveGuilds(activeGuildIds)
+        }
 
         var updatedCount = 0
         var loginTriggeredCount = 0
@@ -153,6 +161,113 @@ class TaskManager(val plugin: KaGuilds) {
             midnightCheckRunning = false
             plugin.logger.info("[Task] 午夜缓存检查已停止")
         }
+    }
+
+    /**
+     * 计算活跃公会的银行利息
+     * @param activeGuildIds 活跃公会ID列表
+     */
+    private fun calculateInterestForActiveGuilds(activeGuildIds: List<Int>) {
+        val today = getTodayDateLong() // 获取今日0点的时间戳
+
+        plugin.logger.info("[Interest] 开始为 ${activeGuildIds.size} 个活跃公会计算银行利息...")
+
+        var processedCount = 0
+        val updatedGuilds = mutableListOf<Int>()
+
+        activeGuildIds.forEach { guildId ->
+            val guildData = plugin.dbManager.getGuildData(guildId)
+            if (guildData == null) {
+                plugin.logger.warning("[Interest] 无法获取公会数据 (ID: $guildId)")
+                return@forEach
+            }
+
+            val lastInterestDate = guildData.lastInterestDate
+
+            // 计算距离上次计息的天数
+            val daysSinceLastInterest = calculateDaysBetween(lastInterestDate, today)
+
+            if (daysSinceLastInterest > 0) {
+                // 获取该等级的利息率
+                val interestRate = getInterestRate(guildData.level)
+                if (interestRate == null || interestRate <= 0) {
+                    plugin.logger.fine("[Interest] 公会 ${guildData.name} (等级 ${guildData.level}) 无利息配置")
+                    return@forEach
+                }
+
+                // 计算利息：balance * (rate / 100) * days
+                val interest = guildData.balance * (interestRate / 100.0) * daysSinceLastInterest
+
+                if (interest > 0) {
+                    // 更新公会余额
+                    val success = plugin.dbManager.updateGuildBalance(guildId, interest)
+
+                    if (success) {
+                        // 记录利息日志
+                        plugin.dbManager.logBankTransaction(
+                            guildId,
+                            "系统",
+                            "INTEREST",
+                            interest
+                        )
+
+                        updatedGuilds.add(guildId)
+                        processedCount++
+                        plugin.logger.info("[Interest] 公会 ${guildData.name} (等级${guildData.level}) 计息成功: $daysSinceLastInterest 天 × ${interestRate}% = $interest")
+                    } else {
+                        plugin.logger.warning("[Interest] 公会 ${guildData.name} 余额更新失败")
+                    }
+                }
+            }
+        }
+
+        // 批量更新计息日期
+        if (updatedGuilds.isNotEmpty()) {
+            val updated = plugin.dbManager.batchUpdateLastInterestDate(updatedGuilds, today)
+            plugin.logger.info("[Interest] 批量更新计息日期完成: $updated/${updatedGuilds.size} 个公会")
+        }
+
+        plugin.logger.info("[Interest] 银行利息计算完成，共处理 $processedCount 个公会")
+    }
+
+    /**
+     * 计算两个时间戳之间的天数差异
+     * @param lastTimestamp 上次时间戳
+     * @param currentTimestamp 当前时间戳
+     * @return 天数
+     */
+    private fun calculateDaysBetween(lastTimestamp: Long, currentTimestamp: Long): Int {
+        if (lastTimestamp == 0L) return 1 // 首次计息，按1天计算
+
+        val lastDate = java.time.LocalDate.ofEpochDay(lastTimestamp / 86400000)
+        val currentDate = java.time.LocalDate.ofEpochDay(currentTimestamp / 86400000)
+
+        return (currentDate.toEpochDay() - lastDate.toEpochDay()).toInt()
+    }
+
+    /**
+     * 获取今日0点的时间戳
+     * @return 时间戳
+     */
+    private fun getTodayDateLong(): Long {
+        val now = java.time.LocalDateTime.now()
+        val todayMidnight = now.toLocalDate().atStartOfDay()
+        return java.time.ZonedDateTime.of(todayMidnight, java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    /**
+     * 获取指定等级的银行利息率
+     * @param level 公会等级
+     * @return 利息率（百分比），如 0.5 表示 0.5%
+     */
+    private fun getInterestRate(level: Int): Double? {
+        val levelSection = plugin.levelsConfig.getConfigurationSection("levels.$level")
+        if (levelSection == null) {
+            plugin.logger.warning("[Interest] 未找到等级 $level 的配置")
+            return null
+        }
+
+        return levelSection.getDouble("bank-interest", 0.0)
     }
 
     /**

@@ -197,7 +197,6 @@ class PvPManager(private val plugin: KaGuilds) {
      * 通知双方公会在其他服务器的成员
      */
     private fun notifyCrossServerGuildMembers(match: ActiveMatch) {
-        val lang = plugin.langManager
         val serverId = plugin.config.getString("server-id", "unknown") ?: "unknown"
         val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
         val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
@@ -217,7 +216,6 @@ class PvPManager(private val plugin: KaGuilds) {
      * 发送跨服公会战通知
      */
     private fun sendCrossServerBattleNotify(guildId: Int, serverId: String, ownGuildName: String, enemyGuildName: String) {
-        val lang = plugin.langManager
 
         val out = java.io.ByteArrayOutputStream()
         val dos = java.io.DataOutputStream(out)

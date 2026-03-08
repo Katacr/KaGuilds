@@ -70,7 +70,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                 pvp_wins INT DEFAULT 0,
                 pvp_losses INT DEFAULT 0,
                 pvp_draws INT DEFAULT 0,
-                pvp_total INT DEFAULT 0
+                pvp_total INT DEFAULT 0,
+                last_interest_date BIGINT DEFAULT 0
             )
         """)
 
@@ -449,7 +450,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                         announcement = rs.getString("announcement"),
                         maxMembers = rs.getInt("max_members"),
                         teleportLocation = rs.getString("teleport_location"), // <-- 读取新增字段
-                        createTime = rs.getLong("create_time")
+                        createTime = rs.getLong("create_time"),
+                        lastInterestDate = rs.getLong("last_interest_date")
                     )
                 }
                 null
@@ -1260,7 +1262,8 @@ class DatabaseManager(val plugin: KaGuilds) {
         val pvpWins: Int = 0,
         val pvpLosses: Int = 0,
         val pvpDraws: Int = 0,
-        val pvpTotal: Int = 0
+        val pvpTotal: Int = 0,
+        val lastInterestDate: Long = 0 // 上次计息日期的时间戳
     )
 
     // 成员数据模型
@@ -1673,6 +1676,61 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
         } catch (e: Exception) {
             plugin.logger.warning("检查并重置全局任务时出错: ${e.message}")
+        }
+    }
+
+    /**
+     * 更新公会的上次计息日期
+     * @param guildId 公会ID
+     * @param timestamp 时间戳
+     * @return 是否更新成功
+     */
+    fun updateLastInterestDate(guildId: Int, timestamp: Long): Boolean {
+        val sql = "UPDATE guild_data SET last_interest_date = ? WHERE id = ?"
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setLong(1, timestamp)
+                    ps.setInt(2, guildId)
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("更新公会上次计息日期时出错: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 批量更新多个公会的上次计息日期
+     * @param guildIds 公会ID列表
+     * @param timestamp 时间戳
+     * @return 成功更新的数量
+     */
+    fun batchUpdateLastInterestDate(guildIds: List<Int>, timestamp: Long): Int {
+        if (guildIds.isEmpty()) return 0
+
+        var updatedCount = 0
+        val sql = "UPDATE guild_data SET last_interest_date = ? WHERE id = ?"
+
+        return try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    for (guildId in guildIds) {
+                        ps.setLong(1, timestamp)
+                        ps.setInt(2, guildId)
+                        ps.addBatch()
+                    }
+                    val results = ps.executeBatch()
+                    updatedCount = results.count { it > 0 }
+                }
+            }
+            updatedCount
+        } catch (e: Exception) {
+            plugin.logger.warning("批量更新公会计息日期时出错: ${e.message}")
+            e.printStackTrace()
+            0
         }
     }
 }
