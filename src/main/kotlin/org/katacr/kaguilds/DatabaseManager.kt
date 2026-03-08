@@ -151,8 +151,15 @@ class DatabaseManager(val plugin: KaGuilds) {
                 CONSTRAINT uk_guild_task_player UNIQUE(guild_id, task_key, player_uuid)
             )
         """)
+
+            // 为MySQL表设置InnoDB引擎（忽略已存在的错误）
             if (isMySQL) {
-                statement.execute("ALTER TABLE guild_task_progress ENGINE = InnoDB")
+                try {
+                    statement.execute("ALTER TABLE guild_task_progress ENGINE = InnoDB")
+                } catch (e: Exception) {
+                    // 忽略错误（表可能已经存在或者是其他问题）
+                    plugin.logger.fine("设置 guild_task_progress 引擎时出错（可能已存在）: ${e.message}")
+                }
             }
         }
     }
@@ -493,7 +500,9 @@ class DatabaseManager(val plugin: KaGuilds) {
                             "SET_MOTD" -> plugin.langManager.get("bank-text-setmotd") //"§6修改公告"
                             "RENAME" -> plugin.langManager.get("bank-text-rename") //"§6公会改名"
                             "BUY_BUFF" -> plugin.langManager.get("bank-text-buybuff") //"§6购买增益"
-                            else -> plugin.langManager.get("bank-text-get") //"§c取出"
+                            "INTEREST" -> plugin.langManager.get("bank-text-interest") //"§a利息"
+                            "GET" -> plugin.langManager.get("bank-text-get") //"§c取出"
+                            else -> "§cUnknown Action"
                         }
                         val time = dateFormat.format(Date(rs.getLong("time")))
                         logs.add("§7[$time] §7${rs.getString("player_name")} $typeStr §f${rs.getDouble("amount")} §7${plugin.langManager.get("balance-name")}")

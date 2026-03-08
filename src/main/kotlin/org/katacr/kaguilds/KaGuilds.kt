@@ -106,6 +106,10 @@ class KaGuilds : JavaPlugin() {
             dbManager.setup()
         } catch (e: Exception) {
             logger.severe("数据库连接失败! 插件将无法正常工作。")
+            logger.severe("错误类型: ${e.javaClass.simpleName}")
+            logger.severe("错误信息: ${e.message}")
+            logger.severe("详细堆栈:")
+            e.printStackTrace()
             server.pluginManager.disablePlugin(this)
             return
         }

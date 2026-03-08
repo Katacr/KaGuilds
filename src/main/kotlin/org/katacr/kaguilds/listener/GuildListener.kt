@@ -8,6 +8,8 @@ import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.katacr.kaguilds.KaGuilds
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 class GuildListener(private val plugin: KaGuilds) : Listener {
 
@@ -22,7 +24,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                 plugin.playerGuildCache[player.uniqueId] = guildId
 
                 // 检查并计算公会的银行利息
-                checkAndCalculateGuildInterest(guildId, player)
+                checkAndCalculateGuildInterest(guildId)
             }
         })
     }
@@ -30,14 +32,9 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
     /**
      * 检查并计算公会的银行利息
      * @param guildId 公会ID
-     * @param player 玩家对象（用于日志记录）
      */
-    private fun checkAndCalculateGuildInterest(guildId: Int, player: Player) {
-        val guildData = plugin.dbManager.getGuildData(guildId)
-        if (guildData == null) {
-            plugin.logger.warning("[Interest] 玩家 ${player.name} 加入时无法获取公会数据 (ID: $guildId)")
-            return
-        }
+    private fun checkAndCalculateGuildInterest(guildId: Int) {
+        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
 
         val today = getTodayDateLong()
         val lastInterestDate = guildData.lastInterestDate
@@ -53,12 +50,14 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                 return
             }
 
-            // 计算利息：balance * (rate / 100) * days
-            val interest = guildData.balance * (interestRate / 100.0) * daysSinceLastInterest
+            // 复利计算：每天的利息都会累加到本金中
+            val rateMultiplier = 1 + (interestRate / 100.0)
+            val finalBalance = guildData.balance * rateMultiplier.pow(daysSinceLastInterest.toDouble())
+            val totalInterest = ((finalBalance - guildData.balance) * 100).roundToInt() / 100.0
 
-            if (interest > 0) {
+            if (totalInterest > 0) {
                 // 更新公会余额
-                val success = plugin.dbManager.updateGuildBalance(guildId, interest)
+                val success = plugin.dbManager.updateGuildBalance(guildId, totalInterest)
 
                 if (success) {
                     // 记录利息日志
@@ -66,15 +65,12 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                         guildId,
                         "系统",
                         "INTEREST",
-                        interest
+                        totalInterest
                     )
 
                     // 更新计息日期
                     plugin.dbManager.updateLastInterestDate(guildId, today)
 
-                    plugin.logger.info("[Interest] 玩家 ${player.name} 上线触发公会 ${guildData.name} (等级${guildData.level}) 计息: $daysSinceLastInterest 天 × ${interestRate}% = $interest")
-                } else {
-                    plugin.logger.warning("[Interest] 玩家 ${player.name} 上线时公会 ${guildData.name} 余额更新失败")
                 }
             }
         }

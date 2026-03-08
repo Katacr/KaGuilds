@@ -3,7 +3,11 @@ package org.katacr.kaguilds.service
 import org.bukkit.entity.Player
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.util.MessageUtil
-import java.util.*
+import java.util.Timer
+import java.util.TimerTask
+import java.util.UUID
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /**
  * 任务管理器
@@ -13,6 +17,7 @@ class TaskManager(val plugin: KaGuilds) {
     private val tasksByType = mutableMapOf<String, MutableList<TaskDefinition>>()
     val guildDoneCache = mutableMapOf<Int, MutableSet<String>>()
     val dailyDoneCache = mutableMapOf<UUID, MutableSet<String>>()
+
     /**
      * 任务定义数据类
      */
@@ -47,7 +52,6 @@ class TaskManager(val plugin: KaGuilds) {
      */
     private fun startMidnightCacheCheck() {
         if (midnightCheckRunning) {
-            plugin.logger.warning("[Task] 午夜检查任务已在运行，跳过")
             return
         }
 
@@ -57,8 +61,6 @@ class TaskManager(val plugin: KaGuilds) {
 
         midnightTimer.schedule(object : TimerTask() {
             override fun run() {
-                plugin.logger.info("[Task] 午夜缓存重置触发 (系统时间)")
-
                 // 切换到 Bukkit 主线程执行 Bukkit API
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     checkAllOnlinePlayersCache()
@@ -69,8 +71,6 @@ class TaskManager(val plugin: KaGuilds) {
             }
         }, delay)
 
-        val delayMinutes = delay / 60000
-        plugin.logger.info("[Task] 午夜缓存检查已启动，将在 $delayMinutes 分钟后首次触发")
         midnightCheckRunning = true
     }
 
@@ -83,8 +83,6 @@ class TaskManager(val plugin: KaGuilds) {
 
         midnightTimer.schedule(object : TimerTask() {
             override fun run() {
-                plugin.logger.info("[Task] 午夜缓存重置触发 (系统时间)")
-
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     checkAllOnlinePlayersCache()
                 })
@@ -100,11 +98,8 @@ class TaskManager(val plugin: KaGuilds) {
     private fun checkAllOnlinePlayersCache() {
         val onlinePlayers = plugin.server.onlinePlayers
         if (onlinePlayers.isEmpty()) {
-            plugin.logger.fine("[Task] 没有在线玩家，跳过缓存检查")
             return
         }
-
-        plugin.logger.info("[Task] 开始检查 ${onlinePlayers.size} 个在线玩家的缓存...")
 
         // 先收集所有在线玩家的公会ID（去重）
         val activeGuildIds = onlinePlayers
@@ -116,8 +111,6 @@ class TaskManager(val plugin: KaGuilds) {
             calculateInterestForActiveGuilds(activeGuildIds)
         }
 
-        var updatedCount = 0
-        var loginTriggeredCount = 0
         onlinePlayers.forEach { player ->
             val guildId = plugin.playerGuildCache[player.uniqueId]
             if (guildId != null && dailyDoneCache.containsKey(player.uniqueId)) {
@@ -128,8 +121,6 @@ class TaskManager(val plugin: KaGuilds) {
                 // 比较缓存是否需要更新
                 if (oldCache != completed) {
                     dailyDoneCache[player.uniqueId] = completed.toMutableSet()
-                    updatedCount++
-                    plugin.logger.info("[Task] 已更新玩家 ${player.name} 的缓存")
                 }
 
                 // 检查是否有 login 类型的任务，如果有则直接触发
@@ -141,15 +132,11 @@ class TaskManager(val plugin: KaGuilds) {
                     }
 
                     if (hasUnfinishedLoginTask) {
-                        plugin.logger.info("[Task] 触发玩家 ${player.name} 的 login 任务（午夜跨日自动触发）")
                         handleEvent(player, "login")
-                        loginTriggeredCount++
                     }
                 }
             }
         }
-
-        plugin.logger.info("[Task] 缓存检查完成，更新了 $updatedCount 个玩家的缓存，触发了 $loginTriggeredCount 个玩家的 login 任务")
     }
 
     /**
@@ -168,19 +155,12 @@ class TaskManager(val plugin: KaGuilds) {
      * @param activeGuildIds 活跃公会ID列表
      */
     private fun calculateInterestForActiveGuilds(activeGuildIds: List<Int>) {
-        val today = getTodayDateLong() // 获取今日0点的时间戳
+        val today = getTodayDateLong()
 
-        plugin.logger.info("[Interest] 开始为 ${activeGuildIds.size} 个活跃公会计算银行利息...")
-
-        var processedCount = 0
         val updatedGuilds = mutableListOf<Int>()
 
         activeGuildIds.forEach { guildId ->
-            val guildData = plugin.dbManager.getGuildData(guildId)
-            if (guildData == null) {
-                plugin.logger.warning("[Interest] 无法获取公会数据 (ID: $guildId)")
-                return@forEach
-            }
+            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@forEach
 
             val lastInterestDate = guildData.lastInterestDate
 
@@ -191,16 +171,18 @@ class TaskManager(val plugin: KaGuilds) {
                 // 获取该等级的利息率
                 val interestRate = getInterestRate(guildData.level)
                 if (interestRate == null || interestRate <= 0) {
-                    plugin.logger.fine("[Interest] 公会 ${guildData.name} (等级 ${guildData.level}) 无利息配置")
+
                     return@forEach
                 }
 
-                // 计算利息：balance * (rate / 100) * days
-                val interest = guildData.balance * (interestRate / 100.0) * daysSinceLastInterest
+                // 复利计算：每天的利息都会累加到本金中
+                val rateMultiplier = 1 + (interestRate / 100.0)
+                val finalBalance = guildData.balance * rateMultiplier.pow(daysSinceLastInterest.toDouble())
+                val totalInterest = ((finalBalance - guildData.balance) * 100).roundToInt() / 100.0
 
-                if (interest > 0) {
+                if (totalInterest > 0) {
                     // 更新公会余额
-                    val success = plugin.dbManager.updateGuildBalance(guildId, interest)
+                    val success = plugin.dbManager.updateGuildBalance(guildId, totalInterest)
 
                     if (success) {
                         // 记录利息日志
@@ -208,14 +190,10 @@ class TaskManager(val plugin: KaGuilds) {
                             guildId,
                             "系统",
                             "INTEREST",
-                            interest
+                            totalInterest
                         )
 
                         updatedGuilds.add(guildId)
-                        processedCount++
-                        plugin.logger.info("[Interest] 公会 ${guildData.name} (等级${guildData.level}) 计息成功: $daysSinceLastInterest 天 × ${interestRate}% = $interest")
-                    } else {
-                        plugin.logger.warning("[Interest] 公会 ${guildData.name} 余额更新失败")
                     }
                 }
             }
@@ -223,15 +201,10 @@ class TaskManager(val plugin: KaGuilds) {
 
         // 批量更新计息日期
         if (updatedGuilds.isNotEmpty()) {
-            val updated = plugin.dbManager.batchUpdateLastInterestDate(updatedGuilds, today)
-            plugin.logger.info("[Interest] 批量更新计息日期完成: $updated/${updatedGuilds.size} 个公会")
+            plugin.dbManager.batchUpdateLastInterestDate(updatedGuilds, today)
         }
-
-        plugin.logger.info("[Interest] 银行利息计算完成，共处理 $processedCount 个公会")
     }
-
     /**
-     * 计算两个时间戳之间的天数差异
      * @param lastTimestamp 上次时间戳
      * @param currentTimestamp 当前时间戳
      * @return 天数
@@ -261,11 +234,7 @@ class TaskManager(val plugin: KaGuilds) {
      * @return 利息率（百分比），如 0.5 表示 0.5%
      */
     private fun getInterestRate(level: Int): Double? {
-        val levelSection = plugin.levelsConfig.getConfigurationSection("levels.$level")
-        if (levelSection == null) {
-            plugin.logger.warning("[Interest] 未找到等级 $level 的配置")
-            return null
-        }
+        val levelSection = plugin.levelsConfig.getConfigurationSection("levels.$level") ?: return null
 
         return levelSection.getDouble("bank-interest", 0.0)
     }
@@ -278,7 +247,7 @@ class TaskManager(val plugin: KaGuilds) {
         tasksByType.clear()
 
         val tasksSection = plugin.tasksConfig.getConfigurationSection("tasks") ?: run {
-            plugin.logger.warning("[Task] 未找到 tasks 配置节点")
+
             return
         }
 
@@ -303,9 +272,6 @@ class TaskManager(val plugin: KaGuilds) {
             tasksByType.computeIfAbsent(task.eventType) { mutableListOf() }.add(task)
             loadedCount++
         }
-
-        plugin.logger.info("[Task] 已加载 $loadedCount 个任务定义")
-        plugin.logger.info("[Task] 事件类型分组: ${tasksByType.keys.map { "$it=${tasksByType[it]?.size}" }}")
     }
 
     /**
@@ -316,32 +282,24 @@ class TaskManager(val plugin: KaGuilds) {
      * @param increment 增量值，默认为 1
      */
     fun handleEvent(player: Player, eventType: String, target: String = "*", increment: Int = 1) {
-        val tasks = tasksByType[eventType] ?: run {
-            plugin.logger.fine("[Task] 事件类型 $eventType 没有匹配的任务")
-            return
-        }
-        val guildId = plugin.playerGuildCache[player.uniqueId] ?: run {
-            plugin.logger.fine("[Task] 玩家 ${player.name} 没有公会，跳过任务处理")
-            return
-        }
+        val tasks = tasksByType[eventType] ?: return
+        val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
-        plugin.logger.info("[Task] 玩家 ${player.name} (公会ID: $guildId) 触发事件: $eventType, 目标: $target, 增量: $increment")
+
 
         for (task in tasks) {
-            // 1. 基础匹配
+            // 基础匹配
             if (task.target != "*" && !task.target.equals(target, ignoreCase = true)) {
-                plugin.logger.fine("[Task] 任务 ${task.key} 目标不匹配: 需要 ${task.target}, 实际 $target")
                 continue
             }
 
-            // 2. 内存检查 (如果内存没有，isTaskDone 会自动去数据库预热)
+            // 内存检查 (如果内存没有，isTaskDone 会自动去数据库预热)
             val isDone = isTaskDone(guildId, player, task)
             if (isDone) {
-                plugin.logger.fine("[Task] 任务 ${task.key} (${task.name}) 已完成，跳过")
                 continue
             }
 
-            plugin.logger.info("[Task] 处理任务 ${task.key} (${task.name}), 类型: ${task.type}, 目标: ${task.amount}")
+
 
             // 3. 数据库原子更新
             val result = plugin.dbManager.incrementTaskProgress(
@@ -351,21 +309,19 @@ class TaskManager(val plugin: KaGuilds) {
             )
 
             if (result != null) {
-                plugin.logger.info("[Task] 任务 ${task.key} 进度更新: ${result.progress}/${result.target}, 完成: ${result.completed}")
+                // 处理完成逻辑
             } else {
                 plugin.logger.warning("[Task] 任务 ${task.key} 进度更新失败，返回 null")
+                return
             }
 
-            // 4. 处理完成逻辑
-            if (result?.completed == true) {
-                plugin.logger.info("[Task] 任务 ${task.key} (${task.name}) 已完成！")
+
+            if (result.completed) {
                 // 更新内存，确保下次直接从内存返回 true
                 if (task.type == "daily") {
                     dailyDoneCache.getOrPut(player.uniqueId) { mutableSetOf() }.add(task.key)
-                    plugin.logger.info("[Task] 已将任务 ${task.key} 添加到玩家 ${player.name} 的每日完成缓存")
                 } else {
                     guildDoneCache.getOrPut(guildId) { mutableSetOf() }.add(task.key)
-                    plugin.logger.info("[Task] 已将任务 ${task.key} 添加到公会 $guildId 的全局完成缓存")
                 }
 
                 // 执行奖励
@@ -499,19 +455,15 @@ class TaskManager(val plugin: KaGuilds) {
         if (isDaily) {
             // 如果内存里没有该玩家的记录，去数据库查一次（预热）
             if (!dailyDoneCache.containsKey(player.uniqueId)) {
-                plugin.logger.fine("[Task] 玩家 ${player.name} 每日任务缓存为空，从数据库加载")
                 val completed = plugin.dbManager.getCompletedTaskKeys(guildId, player.uniqueId)
                 dailyDoneCache[player.uniqueId] = completed.toMutableSet()
-                plugin.logger.fine("[Task] 玩家 ${player.name} 已加载 ${completed.size} 个完成的每日任务")
             }
             return dailyDoneCache[player.uniqueId]?.contains(task.key) ?: false
         } else {
             // 如果内存里没有该公会的记录，去数据库查一次（预热）
             if (!guildDoneCache.containsKey(guildId)) {
-                plugin.logger.fine("[Task] 公会 $guildId 全局任务缓存为空，从数据库加载")
                 val completed = plugin.dbManager.getCompletedTaskKeys(guildId, null)
                 guildDoneCache[guildId] = completed.toMutableSet()
-                plugin.logger.fine("[Task] 公会 $guildId 已加载 ${completed.size} 个完成的全局任务")
             }
             return guildDoneCache[guildId]?.contains(task.key) ?: false
         }
@@ -523,29 +475,17 @@ class TaskManager(val plugin: KaGuilds) {
     fun clearExpiredDailyCache(player: Player) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
-        plugin.logger.info("[Task] 玩家 ${player.name} 登录，检查并清除过期的每日任务缓存")
-
         // 从数据库重新加载今日已完成的任务
         val completed = plugin.dbManager.getCompletedTaskKeys(guildId, player.uniqueId)
-
         // 更新缓存（会自动清除昨天的任务）
-        val oldCache = dailyDoneCache[player.uniqueId]
         dailyDoneCache[player.uniqueId] = completed.toMutableSet()
-
-        if (oldCache != null && oldCache != completed) {
-            plugin.logger.info("[Task] 已清除玩家 ${player.name} 的过期每日任务缓存")
-            plugin.logger.info("[Task] 旧缓存: ${oldCache.joinToString()}, 新缓存: ${completed.joinToString()}")
-        }
     }
 
     /**
      * 清除玩家的每日任务缓存（玩家退出游戏时调用）
      */
     fun clearDailyCache(playerUuid: UUID) {
-        val cache = dailyDoneCache.remove(playerUuid)
-        if (cache != null) {
-            plugin.logger.info("[Task] 已清除玩家 $playerUuid 的每日任务缓存 (移除 ${cache.size} 个任务)")
-        }
+        dailyDoneCache.remove(playerUuid)
     }
 
     /**

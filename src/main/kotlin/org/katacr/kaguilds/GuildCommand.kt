@@ -103,7 +103,6 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "pvp" -> handlePvP(sender as Player, args)
             "menu" -> handleMenu(sender as Player)
 
-
             else -> {
                 sender.sendMessage(lang.get("help-hint"))
             }
@@ -2201,6 +2200,14 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             else -> player.sendMessage(lang.get("error-missing-args"))
         }
     }
+
+    /*
+     * 处理 /kg debug 命令
+     * 用法: /kg debug #guildId tack days
+     * 例如: /kg debug #1 tack 5 (将公会ID为1的公会计息日前移5天)
+     */
+
+
     /*
      * 处理 /kg 命令的 tab 补全
      */
