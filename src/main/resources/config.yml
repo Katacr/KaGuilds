@@ -50,6 +50,11 @@ balance:
   motd: 100.0  # 设置公会公告所需金币
   pvp: 300.0 # 发起公会战所需金币
 
+task:
+  daily_boss_bar: true # 每日任务获得进展时显示 BossBar
+  global_boss_bar: true # 全局任务获得进展时显示 BossBar
+  reset_time: 00:00:00 # 任务重置时间
+
 # 贡献度系统设置
 contribution:
   enabled: true  # 是否启用贡献度系统

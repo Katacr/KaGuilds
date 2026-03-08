@@ -91,6 +91,40 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 }
             }
             /*
+             * 处理跨服全局任务 BossBar 进度更新
+             */
+            "GlobalTaskProgress" -> {
+                val targetGuildId = `in`.readInt()
+                val taskKey = `in`.readUTF()
+                val taskName = `in`.readUTF()
+                val progress = `in`.readInt()
+                val target = `in`.readInt()
+
+                // 调用 TaskManager 的方法来更新跨服 BossBar
+                plugin.taskManager.updateCrossServerGlobalBossBar(targetGuildId, taskKey, taskName, progress, target)
+            }
+            /*
+             * 处理跨服全局任务完成通知
+             */
+            "GlobalTaskCompleted" -> {
+                val targetGuildId = `in`.readInt()
+                val taskKey = `in`.readUTF()
+                val taskName = `in`.readUTF()
+
+                // 调用 TaskManager 的方法来移除跨服 BossBar
+                plugin.taskManager.removeCrossServerGlobalBossBar(targetGuildId, taskKey)
+
+                // 同时也发送完成通知
+                val msg = plugin.langManager.get("task-global-completed", "name" to taskName)
+                plugin.server.onlinePlayers.forEach { onlinePlayer ->
+                    val cachedId = plugin.playerGuildCache[onlinePlayer.uniqueId]
+                    if (cachedId != null && cachedId == targetGuildId) {
+                        onlinePlayer.spigot().sendMessage(MessageUtil.createText(msg))
+                        onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
+                    }
+                }
+            }
+            /*
              * 处理跨服公会缓存
              */
             "SyncCache" -> {

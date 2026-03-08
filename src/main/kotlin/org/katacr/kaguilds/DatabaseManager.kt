@@ -1415,8 +1415,6 @@ class DatabaseManager(val plugin: KaGuilds) {
         val today = taskDateFormat.format(Date())
         val existingProgress = getGuildTaskProgress(guildId, taskKey, playerUuid)
 
-        plugin.logger.info("[Task-DB] 增加任务进度 - 公会ID: $guildId, 任务: $taskKey, 玩家UUID: ${playerUuid ?: "null(全局)"}, 增量: $increment, 目标: $target")
-
         return try {
             connection.use { conn ->
                 conn.autoCommit = false
@@ -1425,17 +1423,13 @@ class DatabaseManager(val plugin: KaGuilds) {
                         // 检查是否是新的一天
                         val isNewDay = existingProgress.lastDate != today
 
-                        plugin.logger.info("[Task-DB] 已存在进度记录 - ID: ${existingProgress.id}, 当前进度: ${existingProgress.progress}, 目标: ${existingProgress.target}, 已完成: ${existingProgress.completed}, 日期: ${existingProgress.lastDate}, 新日期: $today, 是否新的一天: $isNewDay")
-
                         // 检查是否已完成
                         if (existingProgress.completed && existingProgress.progress >= existingProgress.target && !isNewDay) {
-                            plugin.logger.info("[Task-DB] 任务已完成且不是新的一天，跳过更新")
                             return existingProgress
                         }
 
                         // 如果是新一天，重置进度
                         val newProgress = if (isNewDay) {
-                            plugin.logger.info("[Task-DB] 检测到新的一天，重置进度")
                             increment
                         } else {
                             minOf(existingProgress.progress + increment, target)
@@ -1451,13 +1445,10 @@ class DatabaseManager(val plugin: KaGuilds) {
                             ps.executeUpdate()
                         }
 
-                        plugin.logger.info("[Task-DB] 更新进度成功 - 新进度: $newProgress, 是否完成: $isCompleted")
-
                         conn.commit()
                         return existingProgress.copy(progress = newProgress, completed = isCompleted, lastDate = today)
                     } else {
                         // 创建新进度记录
-                        plugin.logger.info("[Task-DB] 不存在进度记录，创建新记录")
                         val isCompleted = increment >= target
                         val insertSql = """
                             INSERT INTO guild_task_progress (guild_id, task_key, player_uuid, progress, target, completed, last_date)
@@ -1481,8 +1472,6 @@ class DatabaseManager(val plugin: KaGuilds) {
                             val generatedKeys = ps.generatedKeys
                             if (generatedKeys.next()) generatedKeys.getInt(1) else -1
                         }
-
-                        plugin.logger.info("[Task-DB] 创建新记录成功 - ID: $insertedId, 进度: $increment, 是否完成: $isCompleted")
 
                         conn.commit()
                         return GuildTaskProgress(
@@ -1556,8 +1545,6 @@ class DatabaseManager(val plugin: KaGuilds) {
             "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid IS NULL AND last_date = ? AND completed = 1"
         }
 
-        plugin.logger.info("[Task-DB] 查询已完成任务 - 公会ID: $guildId, 玩家UUID: ${playerUuid ?: "null(全局)"}, 日期: $today")
-
         try {
             connection.use { conn ->
                 conn.prepareStatement(sql).use { ps ->
@@ -1574,7 +1561,6 @@ class DatabaseManager(val plugin: KaGuilds) {
                     }
                 }
             }
-            plugin.logger.info("[Task-DB] 查询完成，找到 ${completedKeys.size} 个已完成任务: ${completedKeys.joinToString()}")
         } catch (e: Exception) {
             plugin.logger.severe("获取已完成任务缓存失败: ${e.message}")
         }
