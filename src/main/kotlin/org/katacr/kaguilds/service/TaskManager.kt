@@ -164,7 +164,6 @@ class TaskManager(val plugin: KaGuilds) {
         if (midnightCheckRunning) {
             midnightTimer.cancel()
             midnightCheckRunning = false
-            plugin.logger.info("[Task] 午夜缓存检查已停止")
         }
     }
 
@@ -175,7 +174,6 @@ class TaskManager(val plugin: KaGuilds) {
         if (taskResetRunning) {
             taskResetTimer.cancel()
             taskResetRunning = false
-            plugin.logger.info("[Task] 任务重置检查已停止")
         }
     }
 
@@ -221,7 +219,6 @@ class TaskManager(val plugin: KaGuilds) {
         }, delay)
 
         taskResetRunning = true
-        plugin.logger.info("[Task] 任务重置检查已启动，将在 $resetTimeConfig 重置每日任务")
     }
 
     /**

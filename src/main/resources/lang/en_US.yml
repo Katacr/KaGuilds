@@ -168,7 +168,7 @@ rename-success-notify: "§8[§bGuild Affairs§8] §7Guild has been officially re
 
 # Guild Bank Related
 balance-name: "Gold"
-bank-usage: "§cUsage: /kg bank <add/get/log> [amount/page]"
+bank-usage: "§cUsage: /kg bank <add/take/log> [amount/page]"
 bank-invalid-amount: "§cPlease enter a valid positive integer amount."
 bank-insufficient-player: "§cYou don't have enough gold in your account!"
 bank-insufficient-guild: "§cThe guild bank doesn't have enough gold!"
@@ -318,6 +318,7 @@ arena-pvp-out-of-bounds: "§c[!] Leaving the arena is prohibited!"
 confirm-create: "§eYou are about to create guild §b%name%§e, this will cost §a%cost% §egold."
 confirm-delete: "§c§lAttention! §eYou are attempting to §4§lpermanently dissolve §ethe guild. This operation cannot be undone!"
 confirm-leave: "§eAre you sure you want to leave the current guild?"
+confirm-kick: "§eYou are about to kick player §c%player%§e, this operation cannot be undone!"
 confirm-hint: "§eIf confirmed, please type §6/kg confirm §ewithin 30 seconds to execute."
 
 # Admin Command Related

@@ -176,7 +176,7 @@ rename-success-notify: "§8[§b公会事务§8] §7公会已正式更名为: §f
 
 # 公会金库相关
 balance-name: "金币"
-bank-usage: "§c用法: /kg bank <add/get/log> [金额/页码]"
+bank-usage: "§c用法: /kg bank <add/take/log> [金额/页码]"
 bank-invalid-amount: "§c请输入有效的正整数金额。"
 bank-insufficient-player: "§c你账户里的金币不足！"
 bank-insufficient-guild: "§c公会金库里的金币不足！"
@@ -331,6 +331,7 @@ arena-pvp-out-of-bounds: "§c[!] 禁止离开竞技场范围！"
 confirm-create: "§e您即将创建公会 §b%name% §e，这将花费 §a%cost% §e金币。"
 confirm-delete: "§c§l注意！§e您正在尝试§4§l永久解散§e公会。此操作无法撤销！"
 confirm-leave: "§e您确定要退出当前公会吗？"
+confirm-kick: "§e您即将踢出玩家 §c%player% §e，此操作无法撤销！"
 confirm-hint: "§e若确定，请在 30 秒内输入 §6/kg confirm §e以执行。"
 
 # 管理员指令相关

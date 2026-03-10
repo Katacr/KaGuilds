@@ -1106,6 +1106,30 @@ class DatabaseManager(val plugin: KaGuilds) {
     }
 
     /**
+     * 获取公会成员的玩家名列表
+     * @param guildId 公会ID
+     * @return 公会成员玩家名列表
+     */
+    fun getGuildMemberNames(guildId: Int): List<String> {
+        val names = mutableListOf<String>()
+        val sql = "SELECT player_name FROM guild_members WHERE guild_id = ?"
+        try {
+            connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    val rs = ps.executeQuery()
+                    while (rs.next()) {
+                        names.add(rs.getString("player_name"))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return names
+    }
+
+    /**
      * 增加玩家贡献度
      * @param playerUuid 玩家UUID
      * @param amount 增加的贡献度数量
@@ -1423,8 +1447,29 @@ class DatabaseManager(val plugin: KaGuilds) {
                         // 检查是否是新的一天
                         val isNewDay = existingProgress.lastDate != today
 
-                        // 检查是否已完成
-                        if (existingProgress.completed && existingProgress.progress >= existingProgress.target && !isNewDay) {
+                        // 对于每日任务，需要检查该玩家今天是否在任何公会完成了这个任务
+                        if (playerUuid != null && existingProgress.completed && existingProgress.progress >= existingProgress.target && !isNewDay) {
+                            // 检查该玩家今天是否在其他公会也完成了这个任务
+                            val checkSql = """
+                                SELECT COUNT(*) as count FROM guild_task_progress
+                                WHERE task_key = ? AND player_uuid = ? AND completed = 1 AND last_date = ? AND guild_id != ?
+                            """.trimIndent()
+                            
+                            conn.prepareStatement(checkSql).use { ps ->
+                                ps.setString(1, taskKey)
+                                ps.setString(2, playerUuid.toString())
+                                ps.setString(3, today)
+                                ps.setInt(4, guildId)
+                                val rs = ps.executeQuery()
+                                if (rs.next() && rs.getInt("count") > 0) {
+                                    // 玩家今天在其他公会已经完成了这个任务，不允许再次完成
+                                    conn.commit()
+                                    return existingProgress.copy(completed = true)
+                                }
+                            }
+                            
+                            // 当前公会已完成，返回已完成状态
+                            conn.commit()
                             return existingProgress
                         }
 
@@ -1448,6 +1493,35 @@ class DatabaseManager(val plugin: KaGuilds) {
                         conn.commit()
                         return existingProgress.copy(progress = newProgress, completed = isCompleted, lastDate = today)
                     } else {
+                        // 对于每日任务，创建新记录前需要检查该玩家今天是否已经在其他公会完成了这个任务
+                        if (playerUuid != null) {
+                            val checkSql = """
+                                SELECT COUNT(*) as count FROM guild_task_progress
+                                WHERE task_key = ? AND player_uuid = ? AND completed = 1 AND last_date = ?
+                            """.trimIndent()
+                            
+                            conn.prepareStatement(checkSql).use { ps ->
+                                ps.setString(1, taskKey)
+                                ps.setString(2, playerUuid.toString())
+                                ps.setString(3, today)
+                                val rs = ps.executeQuery()
+                                if (rs.next() && rs.getInt("count") > 0) {
+                                    // 玩家今天已经在其他公会完成了这个任务
+                                    conn.commit()
+                                    return GuildTaskProgress(
+                                        id = -1,
+                                        guildId = guildId,
+                                        taskKey = taskKey,
+                                        playerUuid = playerUuid,
+                                        progress = 0,
+                                        target = target,
+                                        completed = true,
+                                        lastDate = today
+                                    )
+                                }
+                            }
+                        }
+                        
                         // 创建新进度记录
                         val isCompleted = increment >= target
                         val insertSql = """

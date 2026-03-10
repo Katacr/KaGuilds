@@ -1,5 +1,6 @@
 package org.katacr.kaguilds
 
+import net.md_5.bungee.api.chat.TextComponent
 import org.bukkit.GameMode
 import org.bukkit.Material
 import org.bukkit.Sound
@@ -300,7 +301,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     })
                 }
 
-                "get" -> {
+                "take" -> {
                     // 1. 检查公会余额是否足够
                     if (guildData.balance < amount) {
                         player.sendMessage(lang.get("bank-insufficient-guild"))
@@ -361,15 +362,34 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             player.sendMessage(lang.get("kick-usage"))
             return
         }
-        plugin.guildService.kickMember(player, args[1]) { result ->
-            val lang = plugin.langManager
-            when (result) {
-                is OperationResult.Success -> player.sendMessage(lang.get("kick-success-sender", "name" to args[1]))
-                is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
-                is OperationResult.Error -> player.sendMessage("§c${result.message}")
-                else -> {}
+
+        val targetName = args[1]
+
+        // 异步检查目标玩家是否在公会中
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val targetUuid = plugin.dbManager.getUuidByPlayerName(targetName)
+            if (targetUuid == null) {
+                // 回到主线程发送消息
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    player.sendMessage(lang.get("player-not-found", "player" to targetName))
+                })
+                return@Runnable
             }
-        }
+
+            val targetGuildId = plugin.dbManager.getGuildIdByPlayer(targetUuid)
+
+            // 回到主线程设置确认动作
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (targetGuildId == null) {
+                    player.sendMessage(lang.get("player-not-in-guild", "player" to targetName))
+                    return@Runnable
+                }
+
+                player.sendMessage(lang.get("kick-confirm", "player" to targetName))
+        plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Kick(targetName))
+        sendConfirmHint(player)
+    })
+        })
     }
 
     /*
@@ -391,7 +411,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Delete)
         player.sendMessage(lang.get("confirm-delete"))
-        player.sendMessage(lang.get("confirm-hint"))
+        sendConfirmHint(player)
     }
 
     /*
@@ -440,7 +460,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         val cost = plugin.config.getDouble("balance.create", 1000.0)
         // 发送确认信息
         player.sendMessage(lang.get("confirm-create", "name" to guildName, "cost" to cost.toString()))
-        player.sendMessage(lang.get("confirm-hint"))
+        sendConfirmHint(player)
     }
 
     /*
@@ -462,7 +482,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Leave)
         player.sendMessage(lang.get("confirm-leave"))
-        player.sendMessage(lang.get("confirm-hint"))
+        sendConfirmHint(player)
     }
 
     /*
@@ -759,7 +779,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "no" to "desc-no",
             "reload" to "desc-reload",
             "buff <BuffName>" to "desc-buff",
-            "bank <add|get|log>" to "desc-bank",
+            "bank <add|take|log>" to "desc-bank",
             "chat <Message>" to "desc-chat",
             "rename <NewName>" to "desc-rename",
             "settp" to "desc-settp",
@@ -935,6 +955,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             plugin.server.scheduler.runTask(plugin, Runnable {
                 player.sendMessage(lang.get("rename-confirm", "name" to newName))
                 plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Rename(newName))
+                sendConfirmHint(player)
             })
         })
     }
@@ -961,6 +982,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             is GuildService.PendingAction.Leave -> performLeave(player)
             is GuildService.PendingAction.Transfer -> performTransfer(player, action.targetName)
             is GuildService.PendingAction.Rename -> performRename(player, action.newName)
+            is GuildService.PendingAction.Kick -> performKick(player, action.targetName)
         }
     }
 
@@ -1004,6 +1026,21 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                 player.sendMessage(lang.get("leave-success"))
             } else if (result is OperationResult.Error) {
                 player.sendMessage(result.message)
+            }
+        }
+    }
+
+    /*
+     * 执行踢人确认逻辑
+     */
+    private fun performKick(player: Player, targetName: String) {
+        val lang = plugin.langManager
+        plugin.guildService.kickMember(player, targetName) { result ->
+            when (result) {
+                is OperationResult.Success -> player.sendMessage(lang.get("kick-success-sender", "name" to targetName))
+                is OperationResult.NoPermission -> player.sendMessage(lang.get("not-staff"))
+                is OperationResult.Error -> player.sendMessage("§c${result.message}")
+                else -> {}
             }
         }
     }
@@ -1099,6 +1136,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             plugin.server.scheduler.runTask(plugin, Runnable {
                 player.sendMessage(lang.get("transfer-confirm-notice", "player" to targetName))
                 plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Transfer(targetName))
+                sendConfirmHint(player)
             })
         })
     }
@@ -2237,11 +2275,12 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         // 在此处添加 task 子指令
                         listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution")
                     } else emptyList()
-                    "bank" -> listOf("add", "get", "log")
+                    "bank" -> listOf("add", "take", "log")
                     "vault" -> (1..9).map { it.toString() }
                     "buff" -> if (sender is Player) getBuffTab(sender) else emptyList()
                     "invite" -> getCrossServerOnlinePlayers()
-                    "kick", "promote", "demote", "join", "accept", "deny", "transfer" -> null
+                    "kick", "promote", "demote", "transfer" -> getGuildMemberNames(sender)
+                    "join", "accept", "deny" -> null
                     else -> emptyList()
                 }
                 filterList(list, args[1])
@@ -2370,6 +2409,18 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         val level = plugin.dbManager.getGuildData(guildId)?.level ?: 1
         return plugin.levelsConfig.getStringList("levels.$level.use-buff")
     }
+
+    /**
+     * 辅助方法：获取公会成员列表（用于 tab 补全）
+     * @param sender 命令发送者（需要是玩家）
+     * @return 公会成员玩家名列表，如果玩家没有公会则返回 null
+     */
+    private fun getGuildMemberNames(sender: CommandSender): List<String>? {
+        if (sender !is Player) return null
+        val guildId = plugin.playerGuildCache[sender.uniqueId] ?: plugin.dbManager.getGuildIdByPlayer(sender.uniqueId)
+        if (guildId == null) return null
+        return plugin.guildService.getGuildMemberNames(guildId)
+    }
     /**
      * 根据在线状态渲染成员列表颜色
      */
@@ -2433,5 +2484,22 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
 
         sender.sendMessage(lang.get("no-permission"))
         return false
+    }
+
+    /**
+     * 辅助方法：发送确认提示（带可点击文本）
+     * @param player 要发送消息的玩家
+     */
+    private fun sendConfirmHint(player: Player) {
+        val lang = plugin.langManager
+        val prefix = TextComponent("§e若确定，请 30 秒内输入 §6/kg confirm §e或 ")
+        val clickBtn = MessageUtil.createClickableText(
+            "§6[点击此处]",
+            "§e点击确认操作",
+            "/kg confirm"
+        )
+        val suffix = TextComponent(" §e确认。")
+
+        player.spigot().sendMessage(prefix, clickBtn, suffix)
     }
 }

@@ -449,7 +449,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         plugin.server.scheduler.runTask(plugin, Runnable {
             when (type) {
                 "bank_add" -> player.performCommand("kg bank add $message")
-                "bank_get" -> player.performCommand("kg bank get $message")
+                "bank_take" -> player.performCommand("kg bank take $message")
                 "guild_rename" -> player.performCommand("kg rename $message")
                 "guild_create" -> player.performCommand("kg create $message")
                 "edit_motd" -> player.performCommand("kg motd $message")

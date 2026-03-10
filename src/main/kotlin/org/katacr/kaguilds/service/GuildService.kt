@@ -24,6 +24,7 @@ class GuildService(private val plugin: KaGuilds) {
         data class Create(val guildName: String) : PendingAction()
         data class Transfer(val targetName: String) : PendingAction()
         data class Rename(val newName: String) : PendingAction()
+        data class Kick(val targetName: String) : PendingAction()
         object Delete : PendingAction()
         object Leave : PendingAction()
     }
@@ -34,6 +35,8 @@ class GuildService(private val plugin: KaGuilds) {
     private val pendingConfirmations = mutableMapOf<UUID, PendingAction>()
     // 锁：Pair(公会ID, 仓库编号) -> 使用者的 UUID
     val vaultLocks = mutableMapOf<Pair<Int, Int>, UUID>()
+    // 缓存：公会ID -> 成员玩家名列表（用于 Tab 补全）
+    private val guildMemberNamesCache = mutableMapOf<Int, List<String>>()
 
     /**
      * 获取公会详细展示信息
@@ -54,16 +57,37 @@ class GuildService(private val plugin: KaGuilds) {
                 return@Runnable
             }
 
-            // 3. 获取成员名称列表 (逻辑复用我们之前的设计)
+            // 3. 获取成员名称列表
             val uuids = plugin.dbManager.getMemberUUIDs(guildId)
             var online = 0
+            val isProxy = plugin.config.getBoolean("proxy", false)
+
             val names = uuids.map { uuid ->
-                val p = plugin.server.getPlayer(uuid)
-                if (p != null && p.isOnline) {
-                    online++
-                    "§a${p.name}" // 在线显示绿色
+                if (isProxy) {
+                    // 代理模式：使用跨服在线玩家缓存判断
+                    val playerName = plugin.server.getOfflinePlayer(uuid).name ?: "未知"
+                    if (plugin.crossServerOnlinePlayers.containsKey(playerName)) {
+                        online++
+                        "§a${playerName}" // 在线显示绿色
+                    } else {
+                        // 即使不在跨服缓存中，也检查本地服务器
+                        val p = plugin.server.getPlayer(uuid)
+                        if (p != null && p.isOnline) {
+                            online++
+                            "§a${p.name}"
+                        } else {
+                            "§7${playerName}" // 离线显示灰色
+                        }
+                    }
                 } else {
-                    "§7${plugin.server.getOfflinePlayer(uuid).name ?: "未知"}" // 离线显示灰色
+                    // 单服模式：只检查本地服务器
+                    val p = plugin.server.getPlayer(uuid)
+                    if (p != null && p.isOnline) {
+                        online++
+                        "§a${p.name}" // 在线显示绿色
+                    } else {
+                        "§7${plugin.server.getOfflinePlayer(uuid).name ?: "未知"}" // 离线显示灰色
+                    }
                 }
             }
 
@@ -142,6 +166,9 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             if (plugin.dbManager.deleteGuild(guildId)) {
+                // 清理公会成员名称缓存
+                clearGuildMemberNamesCache(guildId)
+
                 // 立即清理所有该公会成员的缓存
                 // 在实际跨服中，这里还需要发送 SyncCache REMOVE_GUILD 消息
                 plugin.playerGuildCache.entries.removeIf { it.value == guildId }
@@ -184,10 +211,13 @@ class GuildService(private val plugin: KaGuilds) {
             if (plugin.dbManager.removeMember(guildId, targetUuid)) {
 
                 // --- 核心逻辑：跨服同步与通知 ---
-                // A. 同步全服缓存 (让所有子服知道该玩家已没公会)
+                // A. 更新公会成员名称缓存
+                updateGuildMemberNamesCache(guildId)
+
+                // B. 同步全服缓存 (让所有子服知道该玩家已没公会)
                 syncPlayerCache(targetUuid, -1)
 
-                // B. 发送踢出通知
+                // C. 发送踢出通知
                 dispatchKickNotification(guildId, targetName)
 
                 callback(OperationResult.Success)
@@ -552,6 +582,10 @@ class GuildService(private val plugin: KaGuilds) {
             if (plugin.dbManager.removeMember(guildId, player.uniqueId)) {
 
                 val playerName = player.name
+
+                // 更新公会成员名称缓存
+                updateGuildMemberNamesCache(guildId)
+
                 syncPlayerCache(player.uniqueId, -1)
 
                 broadcastMemberStatus(guildId, playerName, "LEAVE")
@@ -652,10 +686,13 @@ class GuildService(private val plugin: KaGuilds) {
                 // 4. 更新本地公会缓存
                 plugin.playerGuildCache[player.uniqueId] = guildId
 
-                // 5. 跨服同步：通知其他服务器该玩家入会了
+                // 5. 更新公会成员名称缓存
+                updateGuildMemberNamesCache(guildId)
+
+                // 6. 跨服同步：通知其他服务器该玩家入会了
                 syncPlayerCache(player.uniqueId, guildId)
 
-                // 6. 通知其他服务器该玩家入会了
+                // 7. 通知其他服务器该玩家入会了
                 broadcastMemberStatus(guildId, player.name, "JOIN")
 
                 callback(OperationResult.Success)
@@ -688,6 +725,32 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun declineInvite(player: Player) {
         plugin.inviteCache.remove(player.uniqueId)
+    }
+
+    /**
+     * 获取公会成员玩家名列表（带缓存）
+     */
+    fun getGuildMemberNames(guildId: Int): List<String> {
+        // 如果缓存存在，直接返回
+        return guildMemberNamesCache.getOrPut(guildId) {
+            // 缓存不存在，从数据库加载
+            plugin.dbManager.getGuildMemberNames(guildId)
+        }
+    }
+
+    /**
+     * 更新公会成员缓存（在成员变更时调用）
+     */
+    fun updateGuildMemberNamesCache(guildId: Int) {
+        // 从数据库重新加载成员列表
+        guildMemberNamesCache[guildId] = plugin.dbManager.getGuildMemberNames(guildId)
+    }
+
+    /**
+     * 清除公会成员缓存（在公会解散时调用）
+     */
+    fun clearGuildMemberNamesCache(guildId: Int) {
+        guildMemberNamesCache.remove(guildId)
     }
 
     /**
@@ -1223,13 +1286,42 @@ class GuildService(private val plugin: KaGuilds) {
                 return@Runnable
             }
 
-            // 2. 获取成员列表名称
-            val members = plugin.dbManager.getMemberNames(guildId)
+            // 2. 获取成员列表
+            val uuids = plugin.dbManager.getMemberUUIDs(guildId)
+            var online = 0
+            val isProxy = plugin.config.getBoolean("proxy", false)
 
-            // 3. 计算在线人数 (遍历全服缓存)
-            val onlineCount = plugin.playerGuildCache.values.count { it == guildId }
+            // 3. 获取成员名称列表并标记在线状态
+            val members = uuids.map { uuid ->
+                if (isProxy) {
+                    // 代理模式：使用跨服在线玩家缓存判断
+                    val playerName = plugin.server.getOfflinePlayer(uuid).name ?: "未知"
+                    if (plugin.crossServerOnlinePlayers.containsKey(playerName)) {
+                        online++
+                        "§a${playerName}" // 在线显示绿色
+                    } else {
+                        // 即使不在跨服缓存中，也检查本地服务器
+                        val p = plugin.server.getPlayer(uuid)
+                        if (p != null && p.isOnline) {
+                            online++
+                            "§a${p.name}"
+                        } else {
+                            "§7${playerName}" // 离线显示灰色
+                        }
+                    }
+                } else {
+                    // 单服模式：只检查本地服务器
+                    val p = plugin.server.getPlayer(uuid)
+                    if (p != null && p.isOnline) {
+                        online++
+                        "§a${p.name}" // 在线显示绿色
+                    } else {
+                        "§7${plugin.server.getOfflinePlayer(uuid).name ?: "未知"}" // 离线显示灰色
+                    }
+                }
+            }
 
-            val info = GuildInfo(data, members, onlineCount)
+            val info = GuildInfo(data, members, online)
             callback(OperationResult.Success, info)
         })
     }
@@ -1429,6 +1521,8 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 3. 调用你现有的 removeMember(Int, UUID)
             if (plugin.dbManager.removeMember(guildId, targetUuid)) {
+                // 更新公会成员名称缓存
+                updateGuildMemberNamesCache(guildId)
                 plugin.playerGuildCache.remove(targetUuid) // 刷新缓存
                 callback(OperationResult.Success)
             } else {
@@ -1450,6 +1544,8 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 2. 调用现有的 addMember(Int, UUID, String, String)
             if (plugin.dbManager.addMember(guildId, targetPlayer.uniqueId, targetPlayer.name, "MEMBER")) {
+                // 更新公会成员名称缓存
+                updateGuildMemberNamesCache(guildId)
                 plugin.playerGuildCache[targetPlayer.uniqueId] = guildId // 同步缓存
                 callback(OperationResult.Success)
             } else {
