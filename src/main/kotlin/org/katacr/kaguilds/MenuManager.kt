@@ -81,6 +81,7 @@ class MenuManager(private val plugin: KaGuilds) {
         // 检查按钮类型
         var isGuildList = false
         var isMemberList = false
+        var isAllPlayerList = false
         var isBuffList = false
         var isVaultList = false
         var isUpgradeList = false
@@ -92,6 +93,7 @@ class MenuManager(private val plugin: KaGuilds) {
             when (type) {
                 "GUILDS_LIST" -> isGuildList = true
                 "MEMBERS_LIST" -> isMemberList = true
+                "ALL_PLAYER" -> isAllPlayerList = true
                 "BUFF_LIST" -> isBuffList = true
                 "GUILD_VAULTS" -> isVaultList = true
                 "GUILD_UPGRADE" -> isUpgradeList = true
@@ -102,6 +104,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         when {
             isMemberList -> openMemberListMenu(player, menuName, page)
+            isAllPlayerList -> openAllPlayerMenu(player, menuName, page)
             isGuildList -> openGuildListMenu(player, menuName, page)
             isBuffList -> openBuffShopMenu(player, menuName, page)
             isVaultList -> openVaultMenu(player, menuName)
@@ -316,6 +319,121 @@ class MenuManager(private val plugin: KaGuilds) {
         }
 
         player.openInventory(inv)
+    }
+
+    /**
+     * 打开全服玩家列表菜单
+     * @param player 玩家
+     * @param menuName 菜单名称
+     * @param page 页码
+     */
+    fun openAllPlayerMenu(player: Player, menuName: String, page: Int = 0) {
+        val file = File(plugin.dataFolder, "gui/$menuName.yml")
+        val config = YamlConfiguration.loadConfiguration(file)
+        val layout = getLayout(config)
+        val buttons = getButtonsSection(config) ?: return
+
+        val allPlayers = getCrossServerOnlinePlayers()
+        val listSlots = mutableListOf<Int>()
+        for (r in layout.indices) {
+            for (c in layout[r].indices) {
+                val char = layout[r][c].toString()
+                if (buttons.getConfigurationSection(char)?.getString("type") == "ALL_PLAYER") {
+                    listSlots.add(r * 9 + c)
+                }
+            }
+        }
+
+        val playersPerPage = listSlots.size
+        val maxPages = ceil(allPlayers.size.toDouble() / playersPerPage.coerceAtLeast(1)).toInt().coerceAtLeast(1)
+        val currentPageData = allPlayers.drop(page * playersPerPage).take(playersPerPage)
+
+        val title = ChatColor.translateAlternateColorCodes('&', config.getString("title", "All Players")!!)
+        val holder = GuildMenuHolder(title, layout, buttons, page, menuName, player)
+        val inv = Bukkit.createInventory(holder, layout.size * 9, title)
+        holder.setInventory(inv)
+
+        // 初始填充逻辑
+        for (r in layout.indices) {
+            val line = layout[r]
+            for (c in line.indices) {
+                val slot = r * 9 + c
+                val char = line[c].toString()
+                val btnSection = buttons.getConfigurationSection(char) ?: continue
+
+                if (btnSection.getString("type") == "ALL_PLAYER") {
+                    val relativeIdx = listSlots.indexOf(slot)
+                    if (relativeIdx != -1 && relativeIdx < currentPageData.size) {
+                        val playerName = currentPageData[relativeIdx]
+                        val playerUUID = getUUIDByName(playerName)
+                        // 获取玩家的公会信息
+                        val guildName = playerUUID?.let { uuid ->
+                            val gid = plugin.dbManager.getGuildIdByPlayer(uuid)
+                            gid?.let { plugin.dbManager.getGuildData(it)?.name }
+                        } ?: plugin.langManager.get("no-guild")
+
+                        val placeholders = mapOf(
+                            "player_name" to playerName,
+                            "guild_name" to guildName
+                        )
+                        inv.setItem(slot, buildAllPlayerItem(btnSection, playerName, playerUUID, placeholders, player))
+                    }
+                } else {
+                    inv.setItem(slot, buildNormalItem(btnSection, holder, maxPages, player))
+                }
+            }
+        }
+
+        // --- 启动菜单级别的定时刷新任务 ---
+        val updateTicks = config.getLong("update", 0L)
+        if (updateTicks > 0) {
+            holder.updateTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
+                refreshMenu(holder)
+            }, updateTicks, updateTicks)
+        }
+
+        player.openInventory(inv)
+    }
+
+    /**
+     * 构建全服玩家项
+     * @param section 按钮配置
+     * @param playerName 玩家名
+     * @param playerUUID 玩家UUID
+     * @param placeholders 占位符映射
+     * @param viewer 查看者
+     * @return 玩家项
+     */
+    private fun buildAllPlayerItem(
+        section: ConfigurationSection,
+        playerName: String,
+        playerUUID: UUID?,
+        placeholders: Map<String, String>,
+        viewer: Player
+    ): ItemStack {
+        val item = ItemStack(Material.PLAYER_HEAD)
+        val meta = item.itemMeta as? SkullMeta ?: return item
+
+        // 设置玩家名称（用于显示头骨皮肤）
+        meta.owningPlayer = plugin.server.getOfflinePlayer(playerUUID ?: plugin.server.getOfflinePlayer(playerName).uniqueId)
+
+        // 写入 PDC 标识（UUID）
+        if (playerUUID != null) {
+            val key = NamespacedKey(plugin, "player_uuid")
+            meta.persistentDataContainer.set(key, PersistentDataType.STRING, playerUUID.toString())
+        }
+
+        meta.setDisplayName(applyPlaceholders(section.getConfigurationSection("display")?.getString("name") ?: "", placeholders, viewer))
+        meta.lore = section.getConfigurationSection("display")?.getStringList("lore")?.map { applyPlaceholders(it, placeholders, viewer) }
+
+        item.itemMeta = meta
+
+        // 异步加载皮肤
+        if (playerUUID != null) {
+            loadSkinAsync(item, playerUUID)
+        }
+
+        return item
     }
 
     /**
@@ -1185,5 +1303,32 @@ class MenuManager(private val plugin: KaGuilds) {
                 player.closeInventory()
             }
         }
+    }
+
+    /**
+     * 获取跨服在线玩家列表
+     * @return 玩家名列表
+     */
+    private fun getCrossServerOnlinePlayers(): List<String> {
+        val isProxy = plugin.config.getBoolean("proxy", false)
+        return if (isProxy) {
+            plugin.crossServerOnlinePlayers.keys.toList()
+        } else {
+            plugin.server.onlinePlayers.map { it.name }
+        }
+    }
+
+    /**
+     * 通过玩家名获取 UUID
+     * @param playerName 玩家名
+     * @return 玩家UUID，未找到返回null
+     */
+    private fun getUUIDByName(playerName: String): UUID? {
+        // 先尝试从在线玩家中获取
+        val onlinePlayer = plugin.server.onlinePlayers.firstOrNull { it.name.equals(playerName, ignoreCase = true) }
+        if (onlinePlayer != null) return onlinePlayer.uniqueId
+
+        // 如果在线玩家中没有，从数据库获取
+        return plugin.dbManager.getUuidByPlayerName(playerName)
     }
 }

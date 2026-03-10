@@ -2492,13 +2492,13 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
      */
     private fun sendConfirmHint(player: Player) {
         val lang = plugin.langManager
-        val prefix = TextComponent("§e若确定，请 30 秒内输入 §6/kg confirm §e或 ")
+        val prefix = TextComponent(lang.get("confirm-hint-prefix"))
         val clickBtn = MessageUtil.createClickableText(
-            "§6[点击此处]",
-            "§e点击确认操作",
+            lang.get("confirm-hint-button"),
+            lang.get("confirm-hint-button-hover"),
             "/kg confirm"
         )
-        val suffix = TextComponent(" §e确认。")
+        val suffix = TextComponent(lang.get("confirm-hint-suffix"))
 
         player.spigot().sendMessage(prefix, clickBtn, suffix)
     }

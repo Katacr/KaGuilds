@@ -333,6 +333,10 @@ confirm-delete: "§c§l注意！§e您正在尝试§4§l永久解散§e公会。
 confirm-leave: "§e您确定要退出当前公会吗？"
 confirm-kick: "§e您即将踢出玩家 §c%player% §e，此操作无法撤销！"
 confirm-hint: "§e若确定，请在 30 秒内输入 §6/kg confirm §e以执行。"
+confirm-hint-prefix: "§e若确定，请 30 秒内输入 §6/kg confirm §e或 "
+confirm-hint-button: "§6[点击此处]"
+confirm-hint-button-hover: "§e点击确认操作"
+confirm-hint-suffix: " §e确认。"
 
 # 管理员指令相关
 admin-usage: "§c用法: /kg admin <rename|delete|info|bank|transfer|kick|join|open|task|contribution>"

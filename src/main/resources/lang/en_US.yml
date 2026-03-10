@@ -320,6 +320,10 @@ confirm-delete: "§c§lAttention! §eYou are attempting to §4§lpermanently dis
 confirm-leave: "§eAre you sure you want to leave the current guild?"
 confirm-kick: "§eYou are about to kick player §c%player%§e, this operation cannot be undone!"
 confirm-hint: "§eIf confirmed, please type §6/kg confirm §ewithin 30 seconds to execute."
+confirm-hint-prefix: "§eIf confirmed, please type §6/kg confirm §eor "
+confirm-hint-button: "§6[Click Here]"
+confirm-hint-button-hover: "§eClick to confirm the operation"
+confirm-hint-suffix: " §eto confirm."
 
 # Admin Command Related
 admin-usage: "§cUsage: /kg admin <rename|delete|info|bank|transfer|kick|join|open|task|contribution>"

@@ -75,11 +75,13 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val buffKeyNameKey = org.bukkit.NamespacedKey(plugin, "buff_keyname")
         val guildIdKey = org.bukkit.NamespacedKey(plugin, "guild_id")
         val memberUuidKey = org.bukkit.NamespacedKey(plugin, "member_uuid")
+        val playerUuidKey = org.bukkit.NamespacedKey(plugin, "player_uuid")
         val vaultNumKey = org.bukkit.NamespacedKey(plugin, "vault_num")
         val upgradeLevelKey = org.bukkit.NamespacedKey(plugin, "upgrade_level_num")
 
         val clickedGuildId = clickedItem.itemMeta?.persistentDataContainer?.get(guildIdKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedMemberUuid = clickedItem.itemMeta?.persistentDataContainer?.get(memberUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
+                ?: clickedItem.itemMeta?.persistentDataContainer?.get(playerUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedBuffKey = clickedItem.itemMeta?.persistentDataContainer?.get(buffKeyNameKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedVaultNum = clickedItem.itemMeta?.persistentDataContainer?.get(vaultNumKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedUpgradeLevel = clickedItem.itemMeta?.persistentDataContainer?.get(upgradeLevelKey, org.bukkit.persistence.PersistentDataType.INTEGER)
@@ -148,6 +150,8 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             val targetPlayer = Bukkit.getOfflinePlayer(UUID.fromString(memberUuid))
             val memberName = targetPlayer.name ?: "Unknown"
             finalLine = finalLine.replace("{members_name}", memberName)
+            // 对于 ALL_PLAYER 菜单，也替换 {player_name}
+            finalLine = finalLine.replace("{player_name}", memberName)
         }
 
         // 3. 处理 Buff 相关内部变量 {buff_keyname}
@@ -326,6 +330,11 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
                     plugin.dbManager.getGuildMembers(guildId).size
                 }
+                holder.menuName.contains("player", ignoreCase = true) -> {
+                    // ALL_PLAYER 菜单：获取全服在线玩家数量
+                    val isProxy = plugin.config.getBoolean("proxy", false)
+                    if (isProxy) plugin.crossServerOnlinePlayers.size else plugin.server.onlinePlayers.size
+                }
                 holder.menuName.contains("buff", ignoreCase = true) -> {
                     plugin.buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
                 }
@@ -346,7 +355,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             // 2. 计算每页槽位数量 (通过布局中的特定标识符统计)
             val itemsPerPage = holder.layout.joinToString("").count { char ->
                 val type = holder.buttons?.getConfigurationSection(char.toString())?.getString("type")
-                type == "MEMBERS_LIST" || type == "GUILDS_LIST" || type == "BUFF_LIST" || type == "TASK_DAILY" || type == "TASK_GLOBAL"
+                type == "MEMBERS_LIST" || type == "GUILDS_LIST" || type == "BUFF_LIST" || type == "TASK_DAILY" || type == "TASK_GLOBAL" || type == "ALL_PLAYER"
             }.coerceAtLeast(1)
 
             val maxPages = kotlin.math.ceil(totalCount.toDouble() / itemsPerPage).toInt().coerceAtLeast(1)
@@ -370,7 +379,6 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val guildData = plugin.dbManager.getGuildData(guildId)
         val args = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawArgs
             .replace("{player}", player.name)
-            .replace("{player_name}", player.name)
             .replace("{player_uuid}", player.uniqueId.toString())
             .replace("{guild_id}", guildId.toString())
             .replace("{guild_name}", guildData?.name ?: "N/A"))
