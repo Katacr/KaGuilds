@@ -503,7 +503,12 @@ class MenuManager(private val plugin: KaGuilds) {
         val placeholders = mutableMapOf(
             "page" to (holder.currentPage + 1).toString(),
             "total_pages" to maxPages.toString(),
-            "player" to player.name
+            "player" to player.name,
+            "balance_rename" to plugin.config.getDouble("balance.rename", 3000.0).toString(),
+            "balance_settp" to plugin.config.getDouble("balance.settp", 1000.0).toString(),
+            "balance_seticon" to plugin.config.getDouble("balance.seticon", 1000.0).toString(),
+            "balance_setmotd" to plugin.config.getDouble("balance.setmotd", 100.0).toString(),
+            "balance_pvp" to plugin.config.getDouble("balance.pvp", 300.0).toString()
         )
 
         val guildId = plugin.playerGuildCache[player.uniqueId]
@@ -555,11 +560,14 @@ class MenuManager(private val plugin: KaGuilds) {
         val formatPattern = plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss")!!
         val createTimeStr = SimpleDateFormat(formatPattern).format(Date(guild.createTime))
 
+        // 获取当前等级的传送费用
+        val tpMoney = plugin.levelsConfig.getDouble("levels.${guild.level}.tp-money", 0.0)
+
         return mapOf(
             "id" to guild.id.toString(),
             "name" to guild.name,
             "level" to guild.level.toString(),
-            "members" to guild.memberCount.toString(),
+            "members" to plugin.dbManager.getMemberCount(guild.id).toString(),
             "max_members" to guild.maxMembers.toString(),
             "online" to onlineCount.toString(),
             "balance" to String.format("%.2f", guild.balance),
@@ -573,7 +581,8 @@ class MenuManager(private val plugin: KaGuilds) {
                 "ADMIN" -> "2"
                 "MEMBER" -> "1"
                 else -> "0"
-            }
+            },
+            "tp_money" to tpMoney.toString()
         )
     }
 
@@ -1092,6 +1101,7 @@ class MenuManager(private val plugin: KaGuilds) {
             "upgrade_max_vaults" to levelConfig.getInt("vaults").toString(),
             "upgrade_tp_money" to levelConfig.getInt("tp-money").toString(),
             "upgrade_use_buff" to (levelConfig.getStringList("use-buff").size).toString(),
+            "upgrade_bank-interest" to (levelConfig.getStringList("bank-interest").size).toString(),
             "upgrade_current_exp" to guildData.exp.toString(),
             "upgrade_need_exp" to levelConfig.getInt("need-exp").toString(),
             "upgrade_status" to status

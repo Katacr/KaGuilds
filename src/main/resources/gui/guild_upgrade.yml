@@ -20,6 +20,7 @@ button:
         - '&e金库上限: &6{upgrade_max_money}金币'
         - '&e仓库上限: &6{upgrade_max_vaults}个'
         - '&e传送费用: &6{upgrade_tp_money}金币/次'
+        - '&e银行利息: &6{upgrade_bank-interest}%/天'
         - '&e可用BUFF: &6{upgrade_use_buff}个'
         - ''
         - '&a所需经验: &a{upgrade_current_exp} &7/ &2{upgrade_need_exp}'

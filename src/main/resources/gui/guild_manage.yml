@@ -2,10 +2,8 @@ title: "公会管理"  # 标题
 
 Layout:   # 虚拟布局
   - '#########'
-  - '         '
-  - '  12345  '
-  - '  67890  '
-  - '         '
+  - '123456789'
+  - '0abcdefgh'
   - 'B########'
 
 button:
@@ -13,9 +11,16 @@ button:
     display:
       material: GRAY_STAINED_GLASS_PANE
       name: '边框板'
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c返回上级'
+    actions:
+      left:
+        - 'open: main_menu'
   "1":
     display:
-      material: LECTERN
+      material: WRITABLE_BOOK
       name: '&a公会请求'
       lore:
         - '&b当前有%kaguilds_pending_requests%个请求未处理'
@@ -58,15 +63,18 @@ button:
     actions:
       left:
         - 'command: kg bank log'
+        - 'close'
   "5":
     display:
       material: OAK_SIGN
       name: '&a公会公告'
       lore:
         - '&b编辑公会的公告'
+        - '&e这将消耗{balance_setmotd}金币'
         - '&e点击进入'
     actions:
       left:
+        - 'tell: 请打开聊天框输入新的公告，按回车确定。'
         - 'catcher: edit_motd'
         - 'close'
   "6":
@@ -75,9 +83,11 @@ button:
       name: '&a公会名称'
       lore:
         - '&b修改公会名称'
+        - '&e这将消耗{balance_rename}金币'
         - '&e点击进入'
     actions:
       left:
+        - 'tell: 请打开聊天框输入新的公会名称，按回车确定。'
         - 'catcher: guild_rename'
         - 'close'
   "7":
@@ -86,10 +96,11 @@ button:
       name: '&a公会图标'
       lore:
         - '&b修改公会列表中显示的图标'
+        - '&e这将消耗{balance_seticon}金币'
         - '&e点击进入'
     actions:
       left:
-        - 'tell: 将想要设置的物品放在主手，并使用指令/kg seticon。'
+        - 'hovertext: &6请将想要设置的物品拿在主手，然后<text=`&e[点击这里]`;command=`/kg seticon`;hover=`设置公会图标`>&6完成设置。'
         - 'close'
   "8":
     display:
@@ -97,8 +108,10 @@ button:
       name: '&a公会传送点'
       lore:
         - '&b设置公会基地的传送点'
+        - '&e设置传送点将消耗{balance_settp}金币'
+        - '&e玩家使用传送将消耗{tp_money}金币'
         - '&e点击设置'
     actions:
       left:
-        - 'command: kg settp'
+        - 'hovertext: &6请站在想要设置传送点的位置，然后<text=`&e[点击这里]`;command=`/kg settp`;hover=`设置公会传送点`>&6完成设置。'
         - 'close'

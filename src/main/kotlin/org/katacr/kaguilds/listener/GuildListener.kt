@@ -66,7 +66,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                     // 记录利息日志
                     plugin.dbManager.logBankTransaction(
                         guildId,
-                        "系统",
+                        "SYSTEM",
                         "INTEREST",
                         totalInterest
                     )

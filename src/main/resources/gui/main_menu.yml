@@ -13,6 +13,25 @@ button:
     display:
       material: GRAY_STAINED_GLASS_PANE
       name: '边框板'
+  "i":
+    display:
+      material: FIREWORK_ROCKET
+      name: '&a公会信息'
+      lore:
+        - '&b名称: &3{name}'
+        - '&bID: &3#{id}'
+        - '&b创建时间: &3{create_time}'
+        - '&b会长: &3{owner}'
+        - '&b等级: &3Lv. {level}'
+        - '&b成员: &3{members}/{max_members}'
+        - '&b银行: &3{balance}金币'
+  "m":
+    display:
+      material: OAK_SIGN
+      name: '&a公会公告'
+      lore:
+        - '&3{announcement}'
+
   "1":
     display:
       material: LECTERN
@@ -88,3 +107,23 @@ button:
     actions:
       left:
         - 'open: guild_upgrade'
+  "8":
+    display:
+      material: ENCHANTED_BOOK
+      name: '&a公会全体任务'
+      lore:
+        - '&b进入查看公会的全体任务'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'open: guild_global_task'
+  "9":
+    display:
+      material: BOOK
+      name: '&a公会个人任务'
+      lore:
+        - '&b进入查看公会的个人任务'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'open: guild_daily_task'

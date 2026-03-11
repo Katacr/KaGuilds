@@ -1867,7 +1867,7 @@ class GuildService(private val plugin: KaGuilds) {
         // 2. 异步处理
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 3. 获取费用并检查公会银行
-            val cost = plugin.config.getDouble("balance.motd", 100.0)
+            val cost = plugin.config.getDouble("balance.setmotd", 100.0)
             val guild = plugin.dbManager.getGuildById(guildId)
 
             if (guild == null || guild.balance < cost) {

@@ -2024,7 +2024,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
         plugin.guildService.setGuildMotd(player, content) { result ->
             when (result) {
                 is OperationResult.Success -> {
-                    val cost = plugin.config.getDouble("balance.motd", 100.0)
+                    val cost = plugin.config.getDouble("balance.setmotd", 100.0)
                     player.sendMessage(lang.get("motd-success", "cost" to cost.toString()))
 
                 }

@@ -1,5 +1,6 @@
 package org.katacr.kaguilds.listener
 
+import net.md_5.bungee.api.chat.TextComponent
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -11,6 +12,7 @@ import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.player.AsyncPlayerChatEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.katacr.kaguilds.KaGuilds
+import org.katacr.kaguilds.util.MessageUtil
 import java.util.UUID
 
 class MenuListener(private val plugin: KaGuilds) : Listener {
@@ -383,14 +385,32 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         // 统一处理颜色和通用内置变量
         val guildData = plugin.dbManager.getGuildData(guildId)
+
+        // 获取当前等级的传送费用
+        val tpMoney = if (guildData != null) {
+            plugin.levelsConfig.getDouble("levels.${guildData.level}.tp-money", 0.0)
+        } else {
+            0
+        }
+
         val args = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawArgs
             .replace("{player}", player.name)
             .replace("{player_uuid}", player.uniqueId.toString())
             .replace("{guild_id}", guildId.toString())
-            .replace("{guild_name}", guildData?.name ?: "N/A"))
+            .replace("{guild_name}", guildData?.name ?: "N/A")
+            .replace("{balance_rename}", plugin.config.getDouble("balance.rename", 3000.0).toString())
+            .replace("{balance_settp}", plugin.config.getDouble("balance.settp", 1000.0).toString())
+            .replace("{balance_seticon}", plugin.config.getDouble("balance.seticon", 1000.0).toString())
+            .replace("{balance_setmotd}", plugin.config.getDouble("balance.setmotd", 100.0).toString())
+            .replace("{balance_pvp}", plugin.config.getDouble("balance.pvp", 300.0).toString())
+            .replace("{tp_money}", tpMoney.toString()))
 
         when (type) {
             "tell" -> player.sendMessage(args)
+            "hovertext" -> {
+                val message = parseClickableText(args)
+                player.spigot().sendMessage(message)
+            }
             "command" -> player.performCommand(args)
             "console" -> plugin.server.dispatchCommand(plugin.server.consoleSender, args)
             "sound" -> {
@@ -422,6 +442,104 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     }
 
     private fun String.toDoubleDefault(default: Double): Double = this.toDoubleOrNull() ?: default
+
+    /**
+     * 解析包含可点击文本的消息
+     * 格式: <text='显示文字';hover='悬停文字';command='指令';newline='false'>
+     */
+    private fun parseClickableText(rawText: String): TextComponent {
+        val mainComponent = TextComponent()
+
+        var currentPos = 0
+
+        while (currentPos < rawText.length) {
+            val startIndex = rawText.indexOf('<', currentPos)
+
+            if (startIndex == -1) {
+                // 没有更多可点击部分，添加剩余文本
+                mainComponent.addExtra(MessageUtil.createText(rawText.substring(currentPos)))
+                break
+            }
+
+            // 添加可点击部分之前的普通文本
+            if (startIndex > currentPos) {
+                mainComponent.addExtra(MessageUtil.createText(rawText.substring(currentPos, startIndex)))
+            }
+
+            // 解析可点击部分
+            val endIndex = findClosingBracket(rawText, startIndex)
+            if (endIndex == -1) {
+                // 没有找到闭合的 >，将剩余部分作为普通文本
+                mainComponent.addExtra(MessageUtil.createText(rawText.substring(startIndex)))
+                break
+            }
+
+            val content = rawText.substring(startIndex + 1, endIndex)
+            val clickablePart = parseClickableComponent(content)
+
+            if (clickablePart != null) {
+                mainComponent.addExtra(clickablePart)
+            }
+
+            currentPos = endIndex + 1
+        }
+
+        return mainComponent
+    }
+
+    /**
+     * 查找匹配的闭合 > 符号
+     */
+    private fun findClosingBracket(text: String, startIndex: Int): Int {
+        var depth = 1
+        var i = startIndex + 1
+
+        while (i < text.length && depth > 0) {
+            when (text[i]) {
+                '<' -> depth++
+                '>' -> depth--
+            }
+            i++
+        }
+
+        return if (depth == 0) i - 1 else -1
+    }
+
+    /**
+     * 解析可点击组件的内容
+     * 格式: text=`xxx`;hover=`xxx`;command=`xxx`;newline=`false`
+     */
+    private fun parseClickableComponent(content: String): TextComponent? {
+        var text = ""
+        var hover = ""
+        var command = ""
+        var newline = false
+
+        // 解析各个属性
+        val parts = content.split(';')
+        for (part in parts) {
+            val trimmed = part.trim()
+            val eqIndex = trimmed.indexOf('=')
+
+            if (eqIndex != -1) {
+                val key = trimmed.take(eqIndex).trim().lowercase()
+                val value = trimmed.substring(eqIndex + 1).trim()
+
+                when (key) {
+                    "text" -> text = value.removeSurrounding("`")
+                    "hover" -> hover = value.removeSurrounding("`")
+                    "command" -> command = value.removeSurrounding("`")
+                    "newline" -> newline = value.removeSurrounding("`").equals("true", ignoreCase = true)
+                }
+            }
+        }
+
+        return if (text.isNotEmpty()) {
+            MessageUtil.createClickableText(text, hover, command, newline)
+        } else {
+            null
+        }
+    }
 
     @EventHandler
     fun onClose(event: InventoryCloseEvent) {
