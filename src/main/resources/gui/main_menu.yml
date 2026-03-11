@@ -3,15 +3,19 @@ title: "公会菜单"  # 标题
 Layout:   # 虚拟布局
   - '#########'
   - '   i m   '
-  - '         '
+  - '---------'
   - '  12345  '
   - '  67890  '
-  - 'B########'
+  - '#########'
 
 button:
   "#":
     display:
       material: GRAY_STAINED_GLASS_PANE
+      name: '边框板'
+  "-":
+    display:
+      material: LIME_STAINED_GLASS_PANE
       name: '边框板'
   "i":
     display:

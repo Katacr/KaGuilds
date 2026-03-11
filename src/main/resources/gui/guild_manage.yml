@@ -55,7 +55,7 @@ button:
         - 'open: guild_manage_member'
   "4":
     display:
-      material: BOOK_AND_QUILL
+      material: MAP
       name: '&a交易记录'
       lore:
         - '&b查看公会银行的交易记录'

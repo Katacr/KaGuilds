@@ -59,7 +59,7 @@ button:
       amount: 1
     actions:
       left:
-        - 'command: kg bank get 1000'
+        - 'command: kg bank take 1000'
         - 'close'
   "5":
     display:
@@ -68,7 +68,7 @@ button:
       amount: 10
     actions:
       left:
-        - 'command: kg bank get 10000'
+        - 'command: kg bank take 10000'
         - 'close'
   "6":
     display:
@@ -78,7 +78,7 @@ button:
     actions:
       left:
         - 'tell: 请打开聊天框输入要存入的金额。'
-        - 'catcher: bank_get' # 输入捕获器(玩家输入后：代执行指令/kg bank get [玩家输入的值]，同时取消chat动作，避免发送聊天消息)
+        - 'catcher: bank_take' # 输入捕获器(玩家输入后：代执行指令/kg bank take [玩家输入的值]，同时取消chat动作，避免发送聊天消息)
         - 'close'
 
 
