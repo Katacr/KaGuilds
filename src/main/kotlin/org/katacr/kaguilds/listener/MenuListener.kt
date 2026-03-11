@@ -68,7 +68,13 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         }
 
         // 4. 识别点击类型并获取对应的 action 列表
-        val clickTypeKey = if (event.click.isLeftClick) "left" else if (event.click.isRightClick) "right" else return
+        val clickTypeKey = when {
+            event.click == org.bukkit.event.inventory.ClickType.DROP -> "drop"
+            event.click.isLeftClick && event.isShiftClick -> "shift_left"
+            event.click.isLeftClick -> "left"
+            event.click.isRightClick -> "right"
+            else -> return
+        }
         val clickConfig = actionsSection.getList(clickTypeKey) ?: return
 
         // 5. 提取上下文变量 (PDC)
@@ -403,6 +409,14 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             "close" -> player.closeInventory()
             "catcher" -> {
                 chatCatchers[player.uniqueId] = rawArgs.lowercase()
+            }
+            "update" -> {
+                plugin.server.scheduler.runTaskLater(plugin, Runnable {
+                    val currentHolder = player.openInventory.topInventory.holder as? GuildMenuHolder
+                    if (currentHolder != null) {
+                        plugin.menuManager.openMenu(player, currentHolder.menuName, currentHolder.currentPage)
+                    }
+                }, 1L)
             }
         }
     }

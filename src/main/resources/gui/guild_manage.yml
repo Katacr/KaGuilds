@@ -1,0 +1,104 @@
+title: "公会管理"  # 标题
+
+Layout:   # 虚拟布局
+  - '#########'
+  - '         '
+  - '  12345  '
+  - '  67890  '
+  - '         '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: '边框板'
+  "1":
+    display:
+      material: LECTERN
+      name: '&a公会请求'
+      lore:
+        - '&b当前有%kaguilds_pending_requests%个请求未处理'
+        - '&e点击查看'
+    actions:
+      left:
+        - condition: "%kaguilds_pending_requests% > 0"
+          actions:
+            - 'command: kg requests'
+            - 'close'
+          deny:
+            - 'tell: &c✗ 当前没有未处理的公会请求'
+  "2":
+    display:
+      material: BELL
+      name: '&a邀请玩家'
+      lore:
+        - '&b邀请玩家加入公会'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'open: guild_manage_invite'
+  "3":
+    display:
+      material: IRON_BOOTS
+      name: '&a成员管理'
+      lore:
+        - '&b管理当前公会的成员'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'open: guild_manage_member'
+  "4":
+    display:
+      material: BOOK_AND_QUILL
+      name: '&a交易记录'
+      lore:
+        - '&b查看公会银行的交易记录'
+        - '&e点击查看'
+    actions:
+      left:
+        - 'command: kg bank log'
+  "5":
+    display:
+      material: OAK_SIGN
+      name: '&a公会公告'
+      lore:
+        - '&b编辑公会的公告'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'catcher: edit_motd'
+        - 'close'
+  "6":
+    display:
+      material: NAME_TAG
+      name: '&a公会名称'
+      lore:
+        - '&b修改公会名称'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'catcher: guild_rename'
+        - 'close'
+  "7":
+    display:
+      material: DIAMOND
+      name: '&a公会图标'
+      lore:
+        - '&b修改公会列表中显示的图标'
+        - '&e点击进入'
+    actions:
+      left:
+        - 'tell: 将想要设置的物品放在主手，并使用指令/kg seticon。'
+        - 'close'
+  "8":
+    display:
+      material: BEACON
+      name: '&a公会传送点'
+      lore:
+        - '&b设置公会基地的传送点'
+        - '&e点击设置'
+    actions:
+      left:
+        - 'command: kg settp'
+        - 'close'

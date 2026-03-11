@@ -1,0 +1,62 @@
+title: "&0全服成员列表"  # 标题 (支持颜色)
+
+Layout:   # 菜单布局 (6行)
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "1":
+    type: 'ALL_PLAYER'
+    display:
+      material: {player_head} # 成员头颅
+      name: '&a{player_name} ' # 成员名称
+      lore:
+        - '&7--------------------------'
+        - '&b公会: &f{guild_name}'  # 是否已经加入公会.若没有显示无公会
+        - '&7--------------------------'
+        - ''
+        - '&e[左键] &6邀请该玩家'
+    actions:
+      left:
+        - 'command: kg invite {player_name}'
+        - 'sound: entity.experience_orb.pickup'
+        - 'close'
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&c返回上一级'
+    actions:
+      left:
+        - 'open: guild_manage'
+
+  "<":
+    display:
+      material: PAPER
+      name: '&a上一页'
+      lore:
+        - '&7第 {page} / {total_pages} 页'
+        - '&e点击翻页'
+    actions:
+      left:
+        - 'PAGE_PREV'
+
+  ">":
+    display:
+      material: PAPER
+      name: '&a下一页'
+      lore:
+        - '&7第 {page} / {total_pages} 页'
+        - '&e点击翻页'
+    actions:
+      left:
+        - 'PAGE_NEXT'

@@ -385,7 +385,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     return@Runnable
                 }
 
-                player.sendMessage(lang.get("kick-confirm", "player" to targetName))
+                player.sendMessage(lang.get("confirm-kick", "player" to targetName))
         plugin.guildService.setPendingAction(player.uniqueId, GuildService.PendingAction.Kick(targetName))
         sendConfirmHint(player)
     })

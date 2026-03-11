@@ -1,4 +1,4 @@
-title: "&0全服成员列表"  # 标题 (支持颜色)
+title: "&0公会成员列表"  # 标题 (支持颜色)
 
 Layout:   # 菜单布局 (6行)
   - '#########'
@@ -15,29 +15,38 @@ button:
       name: ' '
 
   "1":
-    type: 'ALL_PLAYER'
+    type: 'MEMBERS_LIST'
     display:
-      material: {player_head} # 成员头颅
-      name: '&a{player_name} ' # 成员名称
+      material: {members_head} # 成员头颅
+      name: '&a{members_name} ' # 成员名称
       lore:
         - '&7--------------------------'
-        - '&b公会: &f{guild_name}'  # 是否已经加入公会.若没有显示无公会
+        - '&b公会职位: &f{members_role}'  # 成员职位
+        - '&b贡献度: &f{members_contribution}'
+        - '&b加入时间: &f{members_join_time}'  # 成员加入时间
         - '&7--------------------------'
         - ''
-        - '&e[左键] &6邀请该玩家'
+        - '&e[左键] &6设为管理员'
+        - '&e[右键] &6取消管理员身份'
+        - '&e[Q键] &6踢出该玩家'
     actions:
       left:
-        - 'command: kg invite {player_name}'
-        - 'sound: entity.experience_orb.pickup'
+        - 'command: kg promote {members_name}'
+        - 'update'
+      right:
+        - 'command: kg demote {members_name}'
+        - 'update'
+      drop:
+        - 'command: kg kick {members_name}'
         - 'close'
 
   "B":
     display:
       material: RED_STAINED_GLASS_PANE
-      name: '&c返回主菜单'
+      name: '&c返回上一级'
     actions:
       left:
-        - 'open: main_menu'
+        - 'open: guild_manage'
 
   "<":
     display:

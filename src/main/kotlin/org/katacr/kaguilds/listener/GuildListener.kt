@@ -19,6 +19,9 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
 
         // 玩家加入时，异步从数据库读取其公会ID并存入缓存
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            // 确保玩家在数据库中存在记录（用于支持跨服邀请等功能）
+            plugin.dbManager.ensurePlayerExists(player.uniqueId, player.name)
+
             val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
             if (guildId != null) {
                 plugin.playerGuildCache[player.uniqueId] = guildId

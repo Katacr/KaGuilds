@@ -2,10 +2,10 @@ title: "公会菜单"  # 标题
 
 Layout:   # 虚拟布局
   - '#########'
+  - '   i m   '
   - '         '
   - '  12345  '
   - '  67890  '
-  - '         '
   - 'B########'
 
 button:
@@ -15,16 +15,26 @@ button:
       name: '边框板'
   "1":
     display:
-      material: BOOK
-      name: '&a查询公会详情'
+      material: LECTERN
+      name: '&a公会管理'
+      lore:
+        - '&b管理公会的相关事务，'
+        - '&b仅限会长/管理员可用'
+        - '&e点击进入'
     actions:
       left:
-        - 'command: kg info'  # 直接执行，无需条件
-        - 'close'
+        - condition: "%kaguilds_is_staff% >= true"
+          actions:
+            - 'open: guild_manage'
+          deny:
+            - 'tell: &c✗ 该功能仅限会长/管理员可用'
   "2":
     display:
-      material: PAPER
+      material: OAK_SIGN
       name: '&a公会列表'
+      lore:
+        - '&b查看服务器全部公会列表'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guilds_list'
@@ -32,6 +42,9 @@ button:
     display:
       material: IRON_BOOTS
       name: '&a公会成员列表'
+      lore:
+        - '&b查看当前公会的成员列表'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guild_members'
@@ -39,6 +52,9 @@ button:
     display:
       material: HONEY_BOTTLE
       name: '&a公会BUFF商店'
+      lore:
+        - '&b进入公会的BUFF购买页面'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guild_buffs'
@@ -46,6 +62,9 @@ button:
     display:
       material: CHEST
       name: '&a公会金库'
+      lore:
+        - '&b进入公会的共享云存储页面'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guild_vaults'
@@ -53,6 +72,9 @@ button:
     display:
       material: EMERALD
       name: '&a公会银行'
+      lore:
+        - '&b进入公会银行'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guild_bank'
@@ -60,6 +82,9 @@ button:
     display:
       material: DIAMOND
       name: '&a公会升级'
+      lore:
+        - '&b进入查看公会的等级详情'
+        - '&e点击进入'
     actions:
       left:
         - 'open: guild_upgrade'

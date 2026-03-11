@@ -289,6 +289,15 @@ class GuildService(private val plugin: KaGuilds) {
             val isProxy = plugin.config.getBoolean("proxy", false)
 
             if (isProxy) {
+                // 跨服模式：先检查目标玩家是否已有公会
+                // 注意：这里只能检查玩家是否在 guild_members 表中且已有公会
+                // 对于从未加入过公会的玩家，无法通过数据库验证存在性
+                val targetUuid = plugin.dbManager.getUuidByPlayerName(targetName)
+                if (targetUuid != null && plugin.dbManager.getGuildIdByPlayer(targetUuid) != null) {
+                    callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
+                    return@Runnable
+                }
+
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     val out = createDataOutput()
                     out.outputStream.writeUTF("CrossInvite")
@@ -299,7 +308,6 @@ class GuildService(private val plugin: KaGuilds) {
 
                     sender.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
                 })
-                // 在跨服模式下，我们无法立即知道玩家是否在线，所以返回成功，提示"邀请已发出"
                 callback(OperationResult.Success)
 
             } else {

@@ -175,7 +175,7 @@ class DatabaseManager(val plugin: KaGuilds) {
      */
     fun getGuildIdByPlayer(uuid: UUID): Int? {
         connection.use { conn ->
-            val ps = conn.prepareStatement("SELECT guild_id FROM guild_members WHERE player_uuid = ?")
+            val ps = conn.prepareStatement("SELECT guild_id FROM guild_members WHERE player_uuid = ? AND guild_id > 0")
             ps.setString(1, uuid.toString())
             val rs = ps.executeQuery()
             if (rs.next()) return rs.getInt("guild_id")
@@ -357,7 +357,8 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 退出/踢出成员：从 guild_members 表删除记录
      */
     fun removeMember(guildId: Int, playerUuid: UUID): Boolean {
-        val sql = "DELETE FROM guild_members WHERE guild_id = ? AND player_uuid = ?"
+        // 更新 guild_id 为 -1，表示暂无公会，而不是删除记录
+        val sql = "UPDATE guild_members SET guild_id = -1, role = 'NONE' WHERE guild_id = ? AND player_uuid = ?"
         connection.use { conn ->
             val ps = conn.prepareStatement(sql)
             ps.setInt(1, guildId)
@@ -378,8 +379,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                 psReq.setInt(1, guildId)
                 psReq.executeUpdate()
 
-                // 2. 删除所有成员记录
-                val psMem = conn.prepareStatement("DELETE FROM guild_members WHERE guild_id = ?")
+                // 2. 将所有成员的 guild_id 设为 -1，而不是删除记录
+                val psMem = conn.prepareStatement("UPDATE guild_members SET guild_id = -1, role = 'NONE' WHERE guild_id = ?")
                 psMem.setInt(1, guildId)
                 psMem.executeUpdate()
 
@@ -404,8 +405,28 @@ class DatabaseManager(val plugin: KaGuilds) {
      * 添加公会成员 (增加 playerName 参数)
      */
     fun addMember(guildId: Int, playerUuid: UUID, playerName: String, role: String): Boolean {
-        val sql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time) VALUES (?, ?, ?, ?, ?)"
+        // 先检查是否存在 guild_id = -1 的记录（无公会玩家记录）
+        val checkSql = "SELECT id FROM guild_members WHERE player_uuid = ? AND guild_id = -1"
         connection.use { conn ->
+            conn.prepareStatement(checkSql).use { ps ->
+                ps.setString(1, playerUuid.toString())
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    // 更新现有记录
+                    val updateSql = "UPDATE guild_members SET guild_id = ?, player_name = ?, role = ?, join_time = ? WHERE player_uuid = ? AND guild_id = -1"
+                    conn.prepareStatement(updateSql).use { updatePs ->
+                        updatePs.setInt(1, guildId)
+                        updatePs.setString(2, playerName)
+                        updatePs.setString(3, role)
+                        updatePs.setLong(4, System.currentTimeMillis())
+                        updatePs.setString(5, playerUuid.toString())
+                        return updatePs.executeUpdate() > 0
+                    }
+                }
+            }
+
+            // 不存在，插入新记录
+            val sql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time) VALUES (?, ?, ?, ?, ?)"
             val ps = conn.prepareStatement(sql)
             ps.setInt(1, guildId)
             ps.setString(2, playerUuid.toString())
@@ -679,6 +700,48 @@ class DatabaseManager(val plugin: KaGuilds) {
             ps.setString(3, playerName)
             ps.setLong(4, System.currentTimeMillis())
             return ps.executeUpdate() > 0
+        }
+    }
+
+    /**
+     * 确保玩家在数据库中存在记录
+     * 如果不存在，则创建一条记录（guild_id 为 -1，表示暂无公会）
+     * 如果存在，则更新玩家名称（处理改名情况）
+     * @param playerUuid 玩家UUID
+     * @param playerName 玩家名称
+     * @return 是否成功
+     */
+    fun ensurePlayerExists(playerUuid: UUID, playerName: String): Boolean {
+        return try {
+            dataSource?.connection?.use { conn ->
+                // 先检查是否已存在且无公会（guild_id = -1）
+                val checkSql = "SELECT id FROM guild_members WHERE player_uuid = ? AND guild_id = -1 LIMIT 1"
+                conn.prepareStatement(checkSql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        // 已存在记录，更新玩家名称
+                        val updateSql = "UPDATE guild_members SET player_name = ? WHERE player_uuid = ? AND guild_id = -1"
+                        conn.prepareStatement(updateSql).use { updatePs ->
+                            updatePs.setString(1, playerName)
+                            updatePs.setString(2, playerUuid.toString())
+                            updatePs.executeUpdate()
+                        }
+                        return true
+                    }
+                }
+
+                // 不存在，创建新记录（guild_id 为 -1，表示暂无公会）
+                val insertSql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time, contribution) VALUES (-1, ?, ?, 'NONE', 0, 0)"
+                conn.prepareStatement(insertSql).use { ps ->
+                    ps.setString(1, playerUuid.toString())
+                    ps.setString(2, playerName)
+                    ps.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
