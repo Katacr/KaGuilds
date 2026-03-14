@@ -17,6 +17,17 @@ import java.util.UUID
 
 class MenuListener(private val plugin: KaGuilds) : Listener {
 
+    /**
+     * 延迟动作数据类
+     */
+    private data class DeferredAction(
+        val delay: Long,
+        val action: String,
+        val guildId: Int?,
+        val memberUuid: String?,
+        val buffKey: String?
+    )
+
     @EventHandler
     fun onClick(event: InventoryClickEvent) {
         val lang = plugin.langManager
@@ -95,6 +106,9 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val clickedUpgradeLevel = clickedItem.itemMeta?.persistentDataContainer?.get(upgradeLevelKey, org.bukkit.persistence.PersistentDataType.INTEGER)
 
         // 6. 遍历并执行动作
+        val actionsToExecute = mutableListOf<DeferredAction>()
+        var currentDelay = 0L
+
         for (item in clickConfig) {
             when (item) {
                 is String -> {
@@ -103,7 +117,13 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     if (clickedVaultNum != null) finalLine = finalLine.replace("{vault_num}", clickedVaultNum.toString())
                     if (clickedUpgradeLevel != null) finalLine = finalLine.replace("{upgrade_level}", clickedUpgradeLevel.toString())
 
-                    processAndExecute(player, finalLine, clickedGuildId, clickedMemberUuid, clickedBuffKey)
+                    // 检查是否是 wait 动作
+                    if (finalLine.startsWith("wait:", ignoreCase = true)) {
+                        val waitTime = finalLine.substring(5).trim().toLongOrNull() ?: 0L
+                        currentDelay += waitTime
+                    } else {
+                        actionsToExecute.add(DeferredAction(currentDelay, finalLine, clickedGuildId, clickedMemberUuid, clickedBuffKey))
+                    }
                 }
                 is Map<*, *> -> {
                     @Suppress("UNCHECKED_CAST")
@@ -112,23 +132,35 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     val successActions = (group["actions"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
                     val denyActions = (group["deny"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
 
-                    if (checkCondition(player, conditionStr)) {
-                        successActions.forEach { action ->
-                            var finalAction = action
-                            if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
-                            if (clickedUpgradeLevel != null) finalAction = finalAction.replace("{upgrade_level}", clickedUpgradeLevel.toString())
-                            processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
-                        }
+                    val actionsToUse = if (checkCondition(player, conditionStr)) {
+                        successActions
                     } else {
-                        denyActions.forEach { action ->
-                            var finalAction = action
-                            if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
-                            if (clickedUpgradeLevel != null) finalAction = finalAction.replace("{upgrade_level}", clickedUpgradeLevel.toString())
-                            processAndExecute(player, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey)
+                        denyActions
+                    }
+
+                    // 重置延迟为0，重新计算
+                    var groupDelay = 0L
+
+                    actionsToUse.forEach { action ->
+                        var finalAction = action
+                        if (clickedVaultNum != null) finalAction = finalAction.replace("{vault_num}", clickedVaultNum.toString())
+                        if (clickedUpgradeLevel != null) finalAction = finalAction.replace("{upgrade_level}", clickedUpgradeLevel.toString())
+
+                        // 检查是否是 wait 动作
+                        if (finalAction.startsWith("wait:", ignoreCase = true)) {
+                            val waitTime = finalAction.substring(5).trim().toLongOrNull() ?: 0L
+                            groupDelay += waitTime
+                        } else {
+                            actionsToExecute.add(DeferredAction(groupDelay, finalAction, clickedGuildId, clickedMemberUuid, clickedBuffKey))
                         }
                     }
                 }
             }
+        }
+
+        // 按延迟时间执行所有动作
+        actionsToExecute.forEach { deferred ->
+            executeDeferredAction(player, deferred)
         }
     }
 
@@ -407,6 +439,33 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         when (type) {
             "tell" -> player.sendMessage(args)
+            "actionbar" -> player.sendActionBar(args)
+            "title" -> {
+                var title = ""
+                var subtitle = ""
+                var fadeIn = 0
+                var stay = 60
+                var fadeOut = 20
+
+                // 解析参数
+                val params = args.split(";")
+                for (param in params) {
+                    val parts = param.split("=", limit = 2)
+                    if (parts.size == 2) {
+                        val key = parts[0].trim().lowercase()
+                        val value = parts[1].trim()
+                        when (key) {
+                            "title" -> title = value
+                            "subtitle" -> subtitle = value
+                            "in" -> fadeIn = value.toIntOrNull() ?: 0
+                            "keep" -> stay = value.toIntOrNull() ?: 60
+                            "out" -> fadeOut = value.toIntOrNull() ?: 20
+                        }
+                    }
+                }
+
+                player.sendTitle(title, subtitle, fadeIn, stay, fadeOut)
+            }
             "hovertext" -> {
                 val message = parseClickableText(args)
                 player.spigot().sendMessage(message)
@@ -438,6 +497,19 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     }
                 }, 1L)
             }
+        }
+    }
+
+    /**
+     * 执行延迟动作
+     */
+    private fun executeDeferredAction(player: Player, deferred: DeferredAction) {
+        if (deferred.delay > 0) {
+            plugin.server.scheduler.runTaskLater(plugin, Runnable {
+                processAndExecute(player, deferred.action, deferred.guildId, deferred.memberUuid, deferred.buffKey)
+            }, deferred.delay)
+        } else {
+            processAndExecute(player, deferred.action, deferred.guildId, deferred.memberUuid, deferred.buffKey)
         }
     }
 
