@@ -2,6 +2,7 @@ package org.katacr.kaguilds.listener
 
 import org.bukkit.GameMode
 import org.bukkit.Sound
+import org.bukkit.attribute.Attribute
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -34,7 +35,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
 
             // 1. 设置旁观状态
             player.gameMode = GameMode.SPECTATOR
-            player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+            player.health = player.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
             player.fireTicks = 0
             player.activePotionEffects.clear()
 

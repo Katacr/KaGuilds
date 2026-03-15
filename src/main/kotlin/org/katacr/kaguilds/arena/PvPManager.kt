@@ -1,6 +1,7 @@
 package org.katacr.kaguilds.arena
 
 import org.bukkit.GameMode
+import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
@@ -284,7 +285,7 @@ class PvPManager(private val plugin: KaGuilds) {
             val isRedTeam = (playerGuildId == match.redGuildId)
 
             // A. 状态重置
-            player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+            player.health = player.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
             player.foodLevel = 20
             player.fireTicks = 0
             player.activePotionEffects.clear()
@@ -392,7 +393,7 @@ class PvPManager(private val plugin: KaGuilds) {
                 val player = plugin.server.getPlayer(uuid) ?: return@forEach
 
                 // 状态重置
-                player.health = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
+                player.health = player.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.value ?: 20.0
                 player.foodLevel = 20
                 player.fireTicks = 0
                 player.activePotionEffects.clear()

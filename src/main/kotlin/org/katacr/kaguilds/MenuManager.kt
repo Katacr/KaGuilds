@@ -62,6 +62,102 @@ class MenuManager(private val plugin: KaGuilds) {
     }
 
     /**
+     * 辅助方法：设置物品模型（支持 1.21.4+ 的 ItemModel 和旧版本的 CustomModelData）
+     * @param meta 物品元数据
+     * @param display 显示配置
+     */
+    private fun setItemModel(meta: org.bukkit.inventory.meta.ItemMeta, display: ConfigurationSection) {
+        // 1. 尝试使用 1.21.4+ 的 ItemModel API
+        if (display.contains("item_model")) {
+            val itemModelString = display.getString("item_model") ?: return
+
+            try {
+                // 检查服务器版本
+                val serverVersion = Bukkit.getBukkitVersion()
+                val versionParts = serverVersion.split(".")
+                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
+                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
+
+                // 检查是否是 1.21.4 或更高版本
+                val isModernVersion = when {
+                    minorVersion == null -> false
+                    minorVersion > 21 -> true
+                    minorVersion == 21 -> {
+                        // 1.21.4 及以上才支持 ItemModel
+                        (patchVersion ?: 0) >= 4
+                    }
+                    else -> false
+                }
+
+                // 解析 item_model 字符串
+                val parts = itemModelString.split(":")
+
+                if (parts.size != 2) {
+                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
+                    applyCustomModelData(meta, display)
+                    return
+                }
+
+                val namespace = parts[0]
+                val key = parts[1]
+
+                // 对于旧版本，降级到 CustomModelData
+                if (!isModernVersion) {
+                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
+                    applyCustomModelData(meta, display)
+                    return
+                }
+
+                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
+                try {
+                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
+                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
+
+                    // 获取 setItemModel(NamespacedKey) 方法
+                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
+
+                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
+                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
+                        String::class.java,
+                        String::class.java
+                    ).newInstance(namespace, key)
+
+                    // 应用 ItemModel
+                    setItemModelMethod.invoke(meta, modelKey)
+                } catch (e: ClassNotFoundException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    applyCustomModelData(meta, display)
+                } catch (e: NoSuchMethodException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    applyCustomModelData(meta, display)
+                } catch (e: Exception) {
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    applyCustomModelData(meta, display)
+                }
+            } catch (e: Exception) {
+                plugin.logger.warning("Unexpected exception: ${e.message}")
+                plugin.logger.info("Falling back to CustomModelData")
+                applyCustomModelData(meta, display)
+            }
+        } else {
+            applyCustomModelData(meta, display)
+        }
+    }
+
+    /**
+     * 应用自定义模型数据（降级方案）
+     */
+    private fun applyCustomModelData(meta: org.bukkit.inventory.meta.ItemMeta, display: ConfigurationSection) {
+        if (display.contains("custom_data")) {
+            val customData = display.getInt("custom_data")
+            meta.setCustomModelData(customData)
+        }
+    }
+
+    /**
      * 菜单统一入口
      * @param player 玩家
      * @param menuName 菜单名称
@@ -242,9 +338,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(material, amount)
         val meta = item.itemMeta ?: return item
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
 
         val key = NamespacedKey(plugin, "guild_id")
         meta.persistentDataContainer.set(key, PersistentDataType.INTEGER, guild.id)
@@ -495,9 +589,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(Material.getMaterial(materialName) ?: Material.STONE, amount)
         val meta = item.itemMeta ?: return item
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
 
         // 基础变量
         val placeholders = mutableMapOf(
@@ -854,9 +946,8 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.GLASS_BOTTLE)
         val meta = item.itemMeta ?: return item
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
+
         // 准备变量替换
         val placeholders = mapOf(
             "buff_keyname" to buffKey,
@@ -955,9 +1046,8 @@ class MenuManager(private val plugin: KaGuilds) {
         val meta = item.itemMeta ?: return item
         val display = section.getConfigurationSection("display")!!
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
+
         val placeholders = mapOf(
             "vault_num" to vaultNum.toString(),
             "vault_status" to status
@@ -1089,9 +1179,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.BOOK)
         val meta = item.itemMeta ?: return item
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
 
         // 3. 准备占位符变量
         val placeholders = mapOf(
@@ -1266,9 +1354,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(material)
         val meta = item.itemMeta ?: return item
 
-        if (display.contains("custom_data")) {
-            meta.setCustomModelData(display.getInt("custom_data"))
-        }
+        setItemModel(meta, display)
 
         // 准备变量替换
         val placeholders = mapOf(
