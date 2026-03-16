@@ -191,13 +191,13 @@ guild:
   - 添加世界名称即可禁止
 
 ##### `cooldown`
-传送等待时间（秒）。
+传送冷却时间（秒）。
 
 - **默认值**: `3`
 - **类型**: 整数
 - **说明**: 
-  - 玩家使用 `/kg tp` 后的等待静止不动的时间
-  - 防止玩家瞬间传送以规避某些情况
+  - 玩家使用 `/kg tp` 后的冷却时间
+  - 防止玩家频繁传送
 
 ---
 
@@ -451,6 +451,54 @@ contribution:
 - **说明**: 
   - 提取 1 金币扣除多少贡献度
   - 示例: `1.0` 表示 1:1，`2.0` 表示提取 1 金币需扣除 2 贡献度
+
+---
+
+## 📚 更多配置
+
+其他配置文件的详细说明：
+
+- **[levels.yml](./levels.md)** - 等级系统配置
+- **[buffs.yml](./buffs.md)** - Buff 系统配置
+- **[task.yml](./tasks.md)** - 任务系统配置
+- **[语言文件](./language/)** - 多语言配置
+- **[GUI 菜单](../gui/)** - 菜单系统配置
+
+---
+
+## 💡 配置建议
+
+### 单服服务器
+```yaml
+proxy: false
+database:
+  type: "SQLite"
+```
+
+### 跨服服务器
+```yaml
+proxy: true
+server-id: "survival"  # 每个子服不同
+database:
+  type: "MySQL"
+```
+
+### 经济平衡
+```yaml
+balance:
+  create: 5000.0      # 降低创建门槛
+  rename: 1500.0       # 降低改名费用
+  pvp: 100.0          # 鼓励公会战
+```
+
+### 严格命名
+```yaml
+guild:
+  name-settings:
+    min-length: 4
+    max-length: 12
+    regex: "^[a-zA-Z0-9]+$"  # 仅允许字母和数字
+```
 
 ---
 
