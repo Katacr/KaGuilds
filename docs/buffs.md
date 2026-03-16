@@ -71,7 +71,7 @@ buffs:
 | `HERO_OF_THE_VILLAGE`` | 村庄英雄` | 村民交易折扣 |
 
 {% hint style="warning" %}
-**注意**: 该列表由AI整理，不同 Minecraft 版本支持的药水效果和名称可能不同。
+该列表由AI整理，不同 Minecraft 版本支持的药水效果和名称可能不同。
 {% endhint %}
 
 ### `price`（必需）
