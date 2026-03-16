@@ -37,7 +37,7 @@ buffs:
 - **可用选项**:
 
 | 枚举名 | 中文名 | 说明 |
-|-------|--------|------|
+|-------|------|------|
 | `SPEED` | 疾跑 | 提升移动速度 |
 | `SLOW` | 缓慢 | 降低移动速度 |
 | `FAST_DIGGING` | 急迫 | 提升挖掘和攻击速度 |
@@ -63,14 +63,13 @@ buffs:
 | `GLOWING` | 发光 | 玩家轮廓可见（可穿墙） |
 | `LEVITATION` | 漂浮 | 缓慢向上漂浮 |
 | `LUCK` | 幸运 | 增加战利品品质 |
-| `UNLUCK`` | 霉运 | 降低战利品品质 |
+| `UNLUCK` | 霉运 | 降低战利品品质 |
 | `SLOW_FALLING` | 缓降 | 缓慢下落，无摔落伤害 |
 | `CONDUIT_POWER` | 潮涌能量 | 水下速度、挖掘和夜视 |
-| `DOLPHINS_GRACE`` | 海豚的恩惠` | 水下移动加速 |
-| `BAD_OMEN`` | 不祥之兆` | 触发劫掠 |
-| `HERO_OF_THE_VILLAGE`` | 村庄英雄` | 村民交易折扣 |
+| `DOLPHINS_GRACE` | 海豚的恩惠 | 水下移动加速 |
+| `BAD_OMEN` | 不祥之兆 | 触发劫掠 |
+| `HERO_OF_THE_VILLAGE` | 村庄英雄 | 村民交易折扣 |
 
----
 {% hint style="warning" %}
 该列表由AI整理，不同 Minecraft 版本支持的药水效果和名称可能不同。
 {% endhint %}
