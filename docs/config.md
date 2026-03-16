@@ -4,27 +4,6 @@
 
 ---
 
-## 📁 配置文件结构
-
-KaGuilds 的配置文件位于 `plugins/KaGuilds/` 目录下：
-
-```
-plugins/KaGuilds/
-├── config.yml        # 主配置文件
-├── levels.yml       # 等级系统配置
-├── buffs.yml        # Buff 系统配置
-├── task.yml        # 任务系统配置
-├── lang/          # 语言文件目录
-│   ├── zh_CN.yml
-│   └── en_US.yml
-└── gui/           # GUI 菜单配置目录
-    ├── main_menu.yml
-    ├── guilds_list.yml
-    └── ...
-```
-
----
-
 ## 📄 config.yml - 主配置文件
 
 主配置文件包含插件的核心设置。
@@ -451,54 +430,6 @@ contribution:
 - **说明**: 
   - 提取 1 金币扣除多少贡献度
   - 示例: `1.0` 表示 1:1，`2.0` 表示提取 1 金币需扣除 2 贡献度
-
----
-
-## 📚 更多配置
-
-其他配置文件的详细说明：
-
-- **[levels.yml](./levels.md)** - 等级系统配置
-- **[buffs.yml](./buffs.md)** - Buff 系统配置
-- **[task.yml](./tasks.md)** - 任务系统配置
-- **[语言文件](./language/)** - 多语言配置
-- **[GUI 菜单](../gui/)** - 菜单系统配置
-
----
-
-## 💡 配置建议
-
-### 单服服务器
-```yaml
-proxy: false
-database:
-  type: "SQLite"
-```
-
-### 跨服服务器
-```yaml
-proxy: true
-server-id: "survival"  # 每个子服不同
-database:
-  type: "MySQL"
-```
-
-### 经济平衡
-```yaml
-balance:
-  create: 5000.0      # 降低创建门槛
-  rename: 1500.0       # 降低改名费用
-  pvp: 100.0          # 鼓励公会战
-```
-
-### 严格命名
-```yaml
-guild:
-  name-settings:
-    min-length: 4
-    max-length: 12
-    regex: "^[a-zA-Z0-9]+$"  # 仅允许字母和数字
-```
 
 ---
 
