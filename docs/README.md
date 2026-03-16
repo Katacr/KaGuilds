@@ -4,7 +4,7 @@ description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服
 
 # 🏠 首页
 
-> 一款专为 Minecraft 网络服务器（BungeeCord/Velocity）设计的深度定制公会插件
+> 一款专为 Minecraft 网络服务器（Velocity）设计的深度定制公会插件
 
 **KaGuilds** 是一款功能强大、高度可定制的 Minecraft 公会插件，专为现代网络服务器打造。它利用 **SQL 事务** 和 **跨服消息总线** 确保在分布式环境下的数据一致性和安全性，为玩家提供流畅的跨服公会体验。
 
@@ -14,7 +14,7 @@ description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服
 
 ### 🔄 完整的跨服同步
 
-基于 Velocity/BungeeCord 消息通道，实现：
+基于 Velocity 消息通道，实现：
 
 * 全局公会聊天、通知和邀请
 * 实时同步公会信息和权限
@@ -33,13 +33,12 @@ description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服
 三级权限结构：
 
 * **会长 (Owner)** - 完全控制权
-* **管理员 (Administrator)** - 管理权限
+* **管理员 (Admin)** - 管理权限
 * **成员 (Member)** - 基础权限
 * 支持晋升降职和所有权转移
 
 ### 📈 动态等级系统
 
-* 基于公会经验自动升级
 * 动态增加成员上限和功能
 * 每个等级解锁独特 Buff 和特权
 
@@ -68,18 +67,6 @@ description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服
 * **English**：`en_US.yml`
 * 完全本地化支持
 
-***
-
-## 📚 文档导航
-
-* [**快速开始**](start/) - 安装和配置指南
-* [**配置文件**](configuration/) - 配置文件详细说明
-* [**GUI 菜单**](gui/) - 自定义菜单系统指南
-* [**命令参考**](commands/) - 完整的命令列表和用法
-* [**权限说明**](permissions/) - 权限配置详解
-* [**API 文档**](api/) - 开发者 API 参考文档
-
-***
 
 ## 💰 支持与购买
 
