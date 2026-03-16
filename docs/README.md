@@ -1,37 +1,133 @@
 ---
-description: >-
-  KaGuilds 是一款 Minecraft
-  高版本服务器的创新公会插件。支持MySQL和SQlite数据库管理，支持多服务器跨服通讯，可高度自定义，且功能丰富，可以给玩家带来独特的公会游玩功能。
+description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服公会插件
 ---
 
-# 首页
+# 🛡️ KaGuilds
 
-## 主要功能
+> 一款专为 Minecraft 网络服务器（BungeeCord/Velocity）设计的深度定制公会插件
 
-* **基础功能**\
-  与市面上其他公会插件相同，拥有大部分公会插件的基础功能。
-* **公会对战**\
-  设置公会对战预设装备，BOSS条显示对战状态信息，自定义胜方/败方奖励。
-* **公会BUFF**\
-  自定义BUFF属性和参数，GUI界面，购买后跨服全员获得BUFF。
-* **公会云存储**\
-  支持跨服存储，多种判定防止刷物品，升级解锁云存储数量。
-* **公会任务系统**\
-  支持公会全体任务和个人任务，奖励与任务支持高度自定义，GUI界面。
-* **GUI菜单自定义**\
-  内置高级菜单自定义功能，编辑语法类似TrMenu插件。
-* **公会金库**\
-  支持跨服同步，支持设置利息，可使用金库购买各种物品。
+**KaGuilds** 是一款功能强大、高度可定制的 Minecraft 公会插件，专为现代网络服务器打造。它利用 **SQL 事务** 和 **跨服消息总线** 确保在分布式环境下的数据一致性和安全性，为玩家提供流畅的跨服公会体验。
 
-## 下载插件
+---
 
-该插件为付费开源插件，您可以在Github下载源代码并构建插件使用，如果您想支持开发者，也可以在各个插件平台购买和下载该插件。
+## ✨ 核心特性
+
+### 🔄 完整的跨服同步
+基于 Velocity/BungeeCord 消息通道，实现：
+- 全局公会聊天、通知和邀请
+- 实时同步公会信息和权限
+- 跨服玩家邀请和加入申请
+- 数据一致性保障
+
+### 💰 深度经济整合
+- **公会金库**：支持存取款，带交易日志
+- **仓库系统**：多个可锁定仓库，租期管理
+- **贡献度系统**：通过存取款获得贡献度
+- 完整的费用配置体系
+
+### 👥 严谨的职位体系
+三级权限结构：
+- **会长 (Owner)** - 完全控制权
+- **管理员 (Administrator)** - 管理权限
+- **成员 (Member)** - 基础权限
+- 支持晋升降职和所有权转移
+
+### 📈 动态等级系统
+- 基于公会经验自动升级
+- 动态增加成员上限和功能
+- 每个等级解锁独特 Buff 和特权
+
+### 🎮 PvP 竞技场
+- 公会对战，自定义装备包
+- 比赛计时和获胜条件
+- 统计追踪和奖励命令
+- BOSS 条实时状态显示
+
+### 🖼️ 高度可自定义的 GUI
+- 丰富的菜单系统
+- 支持自定义布局、材质、Lore
+- 类似 TrMenu 的编辑体验
+
+### 📊 PlaceholderAPI 支持
+- 记分板和聊天集成
+- 丰富的占位符变量
+- 实时数据更新
+
+### 🌍 多语言支持
+- **简体中文**：`zh_CN.yml`
+- **English**：`en_US.yml`
+- 完全本地化支持
+
+---
+
+## 🎮 快速开始
+
+### 系统要求
+
+| 项目 | 最低要求 | 推荐配置 |
+|------|---------|---------|
+| Minecraft 版本 | 1.16.1 | 1.20.4+ |
+| Java 版本 | Java 8 | Java 12+ |
+| 服务器类型 | Spigot/Paper | Paper |
+| 代理服务器（可选） | BungeeCord | Velocity |
+| 数据库 | SQLite | MySQL 5.7+ |
+
+### 安装步骤
+
+1. **下载插件**
+   {% embed url="https://github.com/Katacr/KaGuilds/releases" %}
+
+2. **安装依赖**
+   - [Vault](https://www.spigotmc.org/resources/vault.34315/) 插件
+   - [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) 插件（可选）
+
+3. **配置数据库**
+   ```yaml
+   database:
+     type: "MySQL"  # 或 "SQLite"
+     host: "localhost"
+     port: 3306
+     db: "kaguilds"
+     user: "root"
+     password: "your_password"
+   ```
+
+4. **启动服务器**
+   - 插件将自动创建数据库表
+   - 查看 `config.yml` 进行详细配置
+
+---
+
+## 📚 文档导航
+
+- **[安装指南](./installation/)** - 详细的安装和配置教程
+- **[配置文件](./configuration/)** - 配置文件详细说明
+- **[GUI 菜单](./gui/)** - 自定义菜单系统指南
+- **[命令参考](./commands/)** - 完整的命令列表和用法
+- **[权限说明](./permissions/)** - 权限配置详解
+- **[API 文档](./api/)** - 开发者 API 参考文档
+
+---
+
+## 💰 支持与购买
+
+KaGuilds 是一款付费开源插件，您可以在 GitHub 下载源代码并构建插件使用。
 
 {% embed url="https://github.com/Katacr/KaGuilds/" %}
 
+如果您想支持开发者，也可以在各个插件平台购买和下载该插件。
+
 {% hint style="info" %}
-需要注意的是：只有购买插件的用户才会受到技术支持。
+只有购买插件的用户才会受到技术支持。
 {% endhint %}
 
+---
 
+## 🤝 社区与反馈
 
+- **GitHub**: [Katacr/KaGuilds](https://github.com/Katacr/KaGuilds/)
+- **问题反馈**: [GitHub Issues](https://github.com/Katacr/KaGuilds/issues)
+
+## 📄 许可证
+
+本项目采用 [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) 许可证开源。
