@@ -4,10 +4,6 @@
 
 ---
 
-## 📄 config.yml - 主配置文件
-
-主配置文件包含插件的核心设置。
-
 ### 基础设置
 
 #### `language`
@@ -31,7 +27,7 @@ proxy: false
 - **默认值**: `false`
 - **可用选项**: `true`, `false`
 - **说明**: 
-  - `true`: 启用跨服同步，用于 BungeeCord/Velocity 网络
+  - `true`: 启用跨服同步，用于 Velocity 网络通讯
   - `false`: 单服模式，不进行跨服通信
 
 #### `server-id`

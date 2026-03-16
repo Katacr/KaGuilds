@@ -275,6 +275,4 @@ donate_global:
 ```yaml
 task:
   reset_time: "00:00:00"  # 每天凌晨重置
-  daily_boss_bar: true     # 显示每日任务进度
-  global_boss_bar: true   # 显示全局任务进度
 ```
