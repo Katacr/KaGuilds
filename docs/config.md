@@ -4,9 +4,9 @@
 
 ---
 
-### 基础设置
+## 基础设置
 
-#### `language`
+### `language`
 插件使用的语言文件。
 
 ```yaml
@@ -17,7 +17,7 @@ language: zh_CN  # 可选: zh_CN 或 en_US
 - **可用选项**: `zh_CN` (简体中文), `en_US` (English)
 - **说明**: 决定插件界面的显示语言
 
-#### `proxy`
+### `proxy`
 是否启用代理模式（跨服同步）。
 
 ```yaml
@@ -30,7 +30,7 @@ proxy: false
   - `true`: 启用跨服同步，用于 Velocity 网络通讯
   - `false`: 单服模式，不进行跨服通信
 
-#### `server-id`
+### `server-id`
 服务器的唯一标识符。
 
 ```yaml
@@ -44,7 +44,7 @@ server-id: server
   - 用于区分不同服务器发来的消息
   - 示例: `survival`, `creative`, `minigames`
 
-#### `date-format`
+### `date-format`
 日期和时间的显示格式。
 
 ```yaml
@@ -60,9 +60,9 @@ date-format: "yyyy-MM-dd HH:mm:ss"
 
 ---
 
-### 公会设置 (`guild`)
+## 公会设置 (`guild`)
 
-#### 名称设置 (`name-settings`)
+### 名称设置 (`name-settings`)
 
 ```yaml
 guild:
@@ -72,21 +72,21 @@ guild:
     regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
 ```
 
-##### `min-length`
+#### `min-length`
 公会名称的最小长度。
 
 - **默认值**: `3`
 - **类型**: 整数
 - **说明**: 玩家创建公会时，名称长度不能小于此值
 
-##### `max-length`
+#### `max-length`
 公会名称的最大长度。
 
 - **默认值**: `16`
 - **类型**: 整数
 - **说明**: 玩家创建公会时，名称长度不能超过此值
 
-##### `regex`
+#### `regex`
 公会名称的正则表达式验证规则。
 
 - **默认值**: `^[\\u4e00-\\u9fa5a-zA-Z0-9]+$`
@@ -97,7 +97,7 @@ guild:
   - `0-9`: 允许数字
   - 修改此规则可以自定义允许的字符
 
-#### `motd`
+### `motd`
 公会默认公告。
 
 ```yaml
@@ -111,7 +111,7 @@ guild:
   - 新创建的公会自动使用此公告
   - 可通过 `/kg motd` 命令修改
 
-#### `icon`
+### `icon`
 公会默认图标。
 
 ```yaml
@@ -126,7 +126,7 @@ guild:
   - 必须是 Minecraft 有效的 Material 名称
   - 可通过 `/kg seticon` 命令修改
 
-#### `chat-format`
+### `chat-format`
 公会聊天消息的格式。
 
 ```yaml
@@ -145,7 +145,7 @@ guild:
 
 ---
 
-#### 传送设置 (`teleport`)
+### 传送设置 (`teleport`)
 
 ```yaml
 guild:
@@ -156,7 +156,7 @@ guild:
     cooldown: 3
 ```
 
-##### `disabled-worlds`
+#### `disabled-worlds`
 禁止设置公会传送点的世界列表。
 
 - **默认值**: `["world_nether", "world_the_end"]`
@@ -165,7 +165,7 @@ guild:
   - 玩家不能在这些世界中设置传送点
   - 添加世界名称即可禁止
 
-##### `cooldown`
+#### `cooldown`
 传送冷却时间（秒）。
 
 - **默认值**: `3`
@@ -176,7 +176,7 @@ guild:
 
 ---
 
-#### PvP 竞技场设置 (`arena`)
+### PvP 竞技场设置 (`arena`)
 
 ```yaml
 guild:
@@ -194,7 +194,7 @@ guild:
       - 'kg admin exp {lose_id} add 50'
 ```
 
-##### `cooldown`
+#### `cooldown`
 公会战冷却时间（秒）。
 
 - **默认值**: `300` (5 分钟)
@@ -203,7 +203,7 @@ guild:
   - 同一公会两次对战之间的最小间隔
   - 防止公会频繁发起对战
 
-##### `min-players`
+#### `min-players`
 单方队伍的最小人数。
 
 - **默认值**: `2`
@@ -212,7 +212,7 @@ guild:
   - 每方至少需要多少人才能开始对战
   - 确保对战的公平性
 
-##### `max-players`
+#### `max-players`
 单方队伍的最大人数。
 
 - **默认值**: `5`
@@ -221,7 +221,7 @@ guild:
   - 每方最多可以有多少人参与对战
   - 超出此人数的玩家无法加入
 
-##### `ready-time`
+#### `ready-time`
 准备阶段时间（秒）。
 
 - **默认值**: `30`
@@ -230,7 +230,7 @@ guild:
   - 对战开始前的准备时间
   - 玩家在此时间内可以准备装备和策略
 
-##### `pvp-time`
+#### `pvp-time`
 对战时间（秒）。
 
 - **默认值**: `600` (10 分钟)
@@ -239,7 +239,7 @@ guild:
   - 对战的最大持续时间
   - 超时后根据击杀数判定胜负
 
-##### `kit`
+#### `kit`
 是否启用预设装备。
 
 - **默认值**: `true`
@@ -248,7 +248,7 @@ guild:
   - `true`: 玩家进入竞技场时获得预设装备
   - `false`: 玩家使用自己的装备
 
-##### `reward-command`
+#### `reward-command`
 对战奖励命令列表。
 
 - **默认值**: 见上方示例
