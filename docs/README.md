@@ -60,47 +60,9 @@ description: KaGuilds - 专为 Minecraft 网络服务器设计的高性能跨服
 
 ---
 
-## 🎮 快速开始
-
-### 系统要求
-
-| 项目 | 最低要求 | 推荐配置 |
-|------|---------|---------|
-| Minecraft 版本 | 1.16.1 | 1.20.4+ |
-| Java 版本 | Java 8 | Java 12+ |
-| 服务器类型 | Spigot/Paper | Paper |
-| 代理服务器（可选） | BungeeCord | Velocity |
-| 数据库 | SQLite | MySQL 5.7+ |
-
-### 安装步骤
-
-1. **下载插件**
-   {% embed url="https://github.com/Katacr/KaGuilds/releases" %}
-
-2. **安装依赖**
-   - [Vault](https://www.spigotmc.org/resources/vault.34315/) 插件
-   - [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) 插件（可选）
-
-3. **配置数据库**
-   ```yaml
-   database:
-     type: "MySQL"  # 或 "SQLite"
-     host: "localhost"
-     port: 3306
-     db: "kaguilds"
-     user: "root"
-     password: "your_password"
-   ```
-
-4. **启动服务器**
-   - 插件将自动创建数据库表
-   - 查看 `config.yml` 进行详细配置
-
----
-
 ## 📚 文档导航
 
-- **[安装指南](./installation/)** - 详细的安装和配置教程
+- **[快速开始](./start/)** - 安装和配置指南
 - **[配置文件](./configuration/)** - 配置文件详细说明
 - **[GUI 菜单](./gui/)** - 自定义菜单系统指南
 - **[命令参考](./commands/)** - 完整的命令列表和用法
