@@ -10,3 +10,7 @@
 * [🤵 指令和权限](perm/README.md)
   * [🔐 权限列表](perm/permissions.md)
   * [⌨️ 指令列表](perm/commands.md)
+* [🤵 自定义菜单](menu/README.md)
+    * [🔐 视图](menu/layout.md)
+    * [🔐 图标](menu/display.md)
+    * [⌨️ 动作](menu/actions.md)
