@@ -1,0 +1,277 @@
+# ========================================
+# KaGuilds Configuration File
+# This is the English version with English comments.
+# Copy this file and replace config.yml with it, then modify the configuration.
+# ========================================
+# Basic Settings
+# ========================================
+
+# Plugin Language Setting
+# Available options: zh_CN (Simplified Chinese), en_US (English)
+# Note: Reload the plugin after changing the language
+language: en_US
+
+# ========================================
+# Proxy Mode Settings (Velocity/BungeeCord)
+# ========================================
+
+# Enable proxy mode
+# true: Enable cross-server features, use MySQL database
+# false: Single server mode, can use SQLite or MySQL
+proxy: false
+
+# Unique server identifier
+# Purpose: Distinguish different servers in cross-server environment
+# Note: Each server in the same network must have a unique server-id
+# Examples: "survival", "creative", "lobby", "minigames"
+server-id: server
+
+# ========================================
+# Date Format Settings
+# ========================================
+
+# Date and time format string
+# Used for displaying guild creation time, task reset time, etc.
+# Format description:
+#   yyyy - Year (4 digits)
+#   MM   - Month (01-12)
+#   dd   - Day (01-31)
+#   HH   - Hour (00-23)
+#   mm   - Minute (00-59)
+#   ss   - Second (00-59)
+# Example: "yyyy-MM-dd HH:mm:ss" → "2024-01-15 10:30:00"
+date-format: "yyyy-MM-dd HH:mm:ss"
+
+# ========================================
+# Guild Settings
+# ========================================
+guild:
+  # Guild name settings
+  name-settings:
+    # Minimum guild name length
+    min-length: 3
+    
+    # Maximum guild name length
+    max-length: 16
+    
+    # Regular expression for guild name validation
+    # Limits allowed character types, prevents special characters
+    # \u4e00-\u9fa5 - Chinese characters range
+    # a-zA-Z      - English letters
+    # 0-9         - Numbers
+    # Note: Make sure you understand regex syntax before modifying this rule
+    regex: "^[\\u4e00-\\u9fa5a-zA-Z0-9]+$"
+  
+  # Default guild announcement (MOTD - Message of the Day)
+  # Default announcement text when creating a new guild
+  # Color codes supported: &a - Green, &b - Aqua, &c - Red, &d - Purple, &e - Yellow, &f - White
+  motd: "Welcome to my guild"
+  
+  # Default guild icon
+  # Default icon material when creating a new guild
+  # Available values: Any Minecraft item material (e.g., SHIELD, DIAMOND, GOLD_BLOCK)
+  # Recommendation: Use recognizable items as icons
+  icon: "SHIELD"
+  
+  # Guild chat format
+  # Defines the display format of guild chat messages
+  # Available variables:
+  #   {role}         - Player role (Owner/Admin/Member)
+  #   {player}       - Player name
+  #   {player_level} - Player level (requires level plugin)
+  #   {message}      - Chat message content
+  # Note: If using PlaceholderAPI, you can use variables like %vault_prefix%
+  chat-format: "&7[&eGuild Chat&7] &f{role} &f%vault_prefix% &6{player}&f: {message}"
+  
+  # Guild teleport settings
+  teleport:
+    # List of worlds where teleport points cannot be set
+    # Players cannot set guild teleport points in these worlds
+    # Common: "world_nether" (Nether), "world_the_end" (End)
+    # Purpose: Prevent players from setting teleport points in dangerous dimensions
+    disabled-worlds:
+      - "world_nether"
+      - "world_the_end"
+    
+    # Waiting time before teleport (seconds)
+    # Time players need to wait after clicking teleport
+    # Recommendation: 3-10 seconds to prevent accidental operations
+    # Note: Teleport is cancelled if the player moves during waiting
+    cooldown: 3
+  
+  # Guild war (Arena) settings
+  arena:
+    # Guild war cooldown time (seconds)
+    # Minimum interval between two guild wars
+    # Recommendation: 300 (5 minutes) - 1800 (30 minutes)
+    cooldown: 300
+    
+    # Minimum team size
+    # Cannot start guild war below this number
+    # Recommendation: 2-5 players
+    min-players: 2
+    
+    # Maximum team size
+    # Maximum number of players from each guild who can participate in guild war
+    # Recommendation: 5-10 players
+    max-players: 5
+    
+    # Guild war preparation time (seconds)
+    # Preparation phase before battle starts
+    # Recommendation: 30-60 seconds
+    ready-time: 30
+    
+    # Guild war duration (seconds)
+    # Time from battle start to end
+    # Recommendation: 300 (5 minutes) - 1800 (30 minutes)
+    pvp-time: 600
+    
+    # Enable preset kit
+    # true: Participating players get unified equipment
+    # false: Players use their own equipment
+    # Note: Preset kits need to be configured in-game
+    kit: true
+    
+    # Guild war reward commands
+    # Commands executed by console after battle ends
+    # Available variables:
+    #   {win_id}  - Winning guild ID
+    #   {lose_id} - Losing guild ID
+    # Command examples:
+    #   - kg admin bank {win_id} add 1000  # Add coins to winning guild
+    #   - kg admin exp {win_id} add 500   # Add experience to winning guild
+    reward-command:
+      - 'kg admin bank {win_id} add 1000'  # Winning guild coin reward
+      - 'kg admin exp {win_id} add 500'   # Winning guild experience reward
+      - 'kg admin bank {lose_id} add 100'  # Losing guild coin reward
+      - 'kg admin exp {lose_id} add 50'    # Losing guild experience reward
+
+# ========================================
+# Database Settings
+# ========================================
+database:
+  # Database type
+  # SQLite: Local file database, no extra configuration needed, suitable for small servers
+  # MySQL: Remote database, suitable for multi-server or large servers
+  # Note: Must use MySQL when proxy mode is enabled (proxy: true)
+  type: "SQLite"
+  
+  # MySQL database configuration (only effective when type: MySQL)
+  # ==================================================
+  
+  # Database server address
+  # Local: "localhost" or "127.0.0.1"
+  # Remote: IP address or domain name of the server
+  host: "localhost"
+  
+  # Database port
+  # MySQL default port: 3306
+  # Note: Make sure the firewall has opened this port
+  port: 3306
+  
+  # Database name
+  # Database name used by KaGuilds
+  # Recommendation: Use a separate database, like "kaguilds"
+  db: "kaguilds"
+  
+  # Database username
+  # Account needs permissions to create tables, insert, update, delete
+  # Warning: Do not use the root account, it is recommended to create a dedicated account
+  user: "root"
+  
+  # Database password
+  # Warning: Please use a strong password to protect database security
+  password: "password"
+
+# ========================================
+# Economy System Settings
+# ========================================
+# Note: Requires Vault plugin and a pre-installed economy plugin (e.g., EssentialsX)
+
+balance:
+  # Coins required to create a guild
+  # Amount players need to pay when creating a new guild
+  # Recommendation: Adjust based on server economy level, usually 5000-20000
+  create: 10000.0
+  
+  # Coins required to rename a guild
+  # Amount the guild leader needs to pay when changing guild name
+  # Recommendation: 20%-50% of creation fee
+  rename: 3000.0
+  
+  # Coins required to set guild teleport point
+  # Amount guild leader or admin needs to pay when setting teleport point
+  # Recommendation: 500-2000
+  settp: 1000.0
+  
+  # Coins required to set guild icon
+  # Amount needed to pay when changing guild icon material
+  # Recommendation: 500-2000
+  seticon: 1000.0
+  
+  # Coins required to set guild announcement
+  # Amount needed to pay when changing guild announcement text
+  # Recommendation: Lower to encourage activity, like 50-200
+  setmotd: 100.0
+  
+  # Coins required to initiate guild war
+  # Amount needed to pay when challenging another guild to a guild war
+  # Recommendation: 200-500
+  pvp: 300.0
+
+# ========================================
+# Task System Settings
+# ========================================
+task:
+  # Daily task BossBar display
+  # Whether to display BossBar when players complete daily tasks and make progress
+  # true: Display progress bar and task description
+  # false: Do not display
+  daily_boss_bar: true
+  
+  # Global task BossBar display
+  # Whether to display BossBar when guild members complete global tasks and make progress
+  # true: All guild members see the progress
+  # false: Do not display
+  global_boss_bar: true
+  
+  # Daily task reset time
+  # Format: HH:mm:ss (24-hour format)
+  # At this time every day, all daily tasks will be reset
+  # Common settings:
+  #   "00:00:00" - Midnight
+  #   "06:00:00" - 6 AM
+  #   "12:00:00" - Noon
+  # Note: After reset time, players can complete tasks again
+  reset_time: "00:00:00"
+
+# ========================================
+# Contribution System Settings
+# ========================================
+# The contribution system rewards players for their economic contributions to the guild
+
+contribution:
+  # Enable contribution system
+  # true: Enable, player depositing/withdrawing coins affects contribution
+  # false: Disable, do not track contribution
+  enabled: true
+  
+  # Contribution gain ratio when depositing coins
+  # Contribution points gained for every 1 coin deposited
+  # Example: 1.0 means depositing 100 coins gives 100 contribution points
+  # Recommendation: 0.5-2.0, adjust based on server economy balance
+  bank-deposit-ratio: 1.0
+  
+  # Contribution deduction ratio when withdrawing coins
+  # Contribution points deducted for every 1 coin withdrawn
+  # Example: 1.0 means withdrawing 100 coins deducts 100 contribution points
+  # Note: Cannot withdraw coins if contribution points are insufficient
+  # Recommendation: Usually same as deposit ratio, or slightly higher to penalize excessive withdrawals
+  bank-withdraw-ratio: 1.0
+
+# ========================================
+# End of Configuration File
+# ========================================
+# After modifying the configuration, please use /kg reload to reload the plugin
+# For help, please check the plugin documentation or contact support
+# ========================================

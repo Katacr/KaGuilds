@@ -95,6 +95,7 @@ class KaGuilds : JavaPlugin() {
         loadBuffsConfig()
         loadLevelsConfig()
         loadTasksConfig()
+        loadEnglishConfig()
         menuManager = MenuManager(this)
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
@@ -208,12 +209,22 @@ class KaGuilds : JavaPlugin() {
         loadBuffsConfig()
         loadLevelsConfig()
         loadTasksConfig()
+        loadEnglishConfig()
         taskManager.reload()
         langManager.load()
         menuManager.reload()
         sender.sendMessage(langManager.get("reload-success"))
     }
 
+    /**
+     * 加载 英文版 配置文件
+     */
+    private fun loadEnglishConfig() {
+        val englishFile = File(dataFolder, "config_en.yml")
+        if (!englishFile.exists()) {
+            saveResource("config_en.yml", false)
+        }
+    }
     /**
      * 加载 Buffs 配置文件
      */
