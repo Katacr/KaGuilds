@@ -449,7 +449,6 @@ actions:
 | 运算符  | 说明        | 优先级 |
 | ---- | --------- | --- |
 | `&&` | 逻辑与（并且）   | 高   |
-| \`   |           | \`  |
 | `()` | 括号（改变优先级） | 最高  |
 
 **示例:**
@@ -460,7 +459,7 @@ actions:
   left:
     - condition: "%player_level% >= 10"
       actions:
-        - "tell: &a你的等级足够！"
+        - "tell: &a你的等级大于或等于10级！"
       deny:
         - "tell: &c你的等级不足！"
 ```
@@ -471,7 +470,7 @@ actions:
   left:
     - condition: "%player_level% >= 10 && %player_level% < 20"
       actions:
-        - "tell: &a你是中级玩家！"
+        - "tell: &a你是等级10~20级之间的中级玩家！"
       deny:
         - "tell: &c你不是中级玩家！"
 ```
@@ -480,9 +479,9 @@ actions:
 # 多个条件 (OR)
 actions:
   left:
-    - condition: "%player_level% < 10 || %player_level% >= 20"
+    - condition: "%player_level% < 10 || %player_level% > 20"
       actions:
-        - "tell: &a你是新手或高级玩家！"
+        - "tell: &a你是小于10级的新手或大于20级的高级玩家！"
 ```
 
 ```yaml
@@ -491,7 +490,7 @@ actions:
   left:
     - condition: "(%player_level% >= 10 && %player_level% < 20) || %player_has_permission% == true"
       actions:
-        - "tell: &a你有权限！"
+        - "tell: &a你的等级处于10~20之间，或你有权限！"
 ```
 
 ***
@@ -508,7 +507,7 @@ buttons:
       name: "&a执行命令"
     actions:
       left:
-        - "command: /kg info"
+        - "command: kg info"
         - "sound: entity.experience_orb.pickup"
       right:
         - "open: main_menu"
@@ -526,7 +525,7 @@ buttons:
       left:
         - condition: "{role_node} >= 2"
           actions:
-            - "command: /kg promote {members_name}"
+            - "command: kg promote {members_name}"
             - "tell: &a已提升 {members_name} 的职位"
           deny:
             - "tell: &c你没有权限提升成员职位！"
@@ -562,7 +561,7 @@ buttons:
       right:
         - "open: member_info_menu"
       shift_left:
-        - "command: /kg promote {members_name}"
+        - "command: kg promote {members_name}"
         - "tell: &a已提升职位"
       drop:
         - "tell: &c你按了 Q 键"

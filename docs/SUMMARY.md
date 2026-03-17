@@ -2,6 +2,7 @@
 
 * [🏠 首页](README.md)
   * [🚀 开始](home/start.md)
+  * [🌐 Velocity](home/velocity.md)
 * [⚙️ 配置插件](config/README.md)
   * [⛳ 配置文件:config.yml](config/config.md)
   * [📆 任务系统:task.yml](config/task.md)

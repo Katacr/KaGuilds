@@ -230,28 +230,28 @@ display:
 
 当 `type` 设置为特殊列表类型时，会自动根据数据源动态生成多个图标项，并支持分页。
 
-### 布局设计建议
+### 布局设计参考
 
 ```yaml
 # 示例布局
 layout:
   - "#########"
-  - "#MMMMMMM#"  # M = 成员列表，自动填充 21 个字符的位置
+  - "#MMMMMMM#"  # 若 M = 成员列表，自动填充 21 个字符的位置
   - "#MMMMMMM#"
   - "#MMMMMMM#"
   - "#<     >#"  # '<' = 上一页, '>' = 下一页
   - "#########"
 ```
-
+插件会自动计算该示例视图中的`M`键的数量，并通过下方配置进行构建。若字符数量大于列表的数量，多的部分会显示空气。
 ### 配置模板
  
 ```yaml
 buttons:
-  X:
-    type: LIST_TYPE  # 替换为实际类型
+  M:
+    type: LIST_TYPE  # 替换为构建的列表类型
     display:
       material: MATERIAL_NAME
-      name: "&6Display Name with {variable}"
+      name: "&6Display Name with {variable}" 
       lore:
         - "&7Line 1: {variable_1}"
         - "&7Line 2: {variable_2}"
@@ -261,7 +261,7 @@ buttons:
       left:
         - "command: your command {variable}"
 ```
-
+每个类型都有不同的内置变量，详情可查看下方表格。
 
 #### 📋 支持的列表类型
 
@@ -357,12 +357,12 @@ buttons:
         - "&7加入时间: &f{members_join_time}"
         - ""
         - "&8左键: 查看详情"
-        - "&8右键: 管理选项"
+        - "&8右键: 踢出成员"
     actions:
       left:
         - "tell: 查看了成员 {members_name} 的信息"
       right:
-        - "catcher: guild:kick:{members_name}"
+        - "command: guild kick {members_name}"
 ```
 
 ---
@@ -439,7 +439,7 @@ buttons:
         - "&8左键: 购买/激活"
     actions:
       left:
-        - "command: guild buybuff {buff_keyname}"
+        - "command: guild buff {buff_keyname}"
 ```
 
 ---
@@ -458,7 +458,6 @@ buttons:
 #### 特性
 - 未解锁时材质为 `MINECART`（矿车）
 - 已解锁时材质为 `CHEST_MINECART`（运输矿车）
-- actions 中可使用 `{vault_num}` 变量
 
 #### 配置示例
 
@@ -499,11 +498,6 @@ buttons:
 | `{upgrade_need_exp}` | 需要经验值 | `2000` |
 | `{upgrade_status}` | 状态（语言化） | `可升级` / `经验不足` / `已锁定` |
 
-#### 状态说明
-- **已达成**：等级 >= 目标等级，材质为 `ENCHANTED_BOOK`（附魔书）
-- **可升级**：等级 = 目标等级 -1 且经验充足，状态码为 `1`
-- **经验不足**：等级 = 目标等级 -1 但经验不足，状态码为 `2`
-- **已锁定**：等级 < 目标等级 -1，状态码为 `0`，材质为 `BOOK`（书）
 
 #### 配置示例
 
@@ -528,7 +522,7 @@ buttons:
         - "&8左键: 升级公会"
     actions:
       left:
-        - "command: guild upgrade {upgrade_level}"
+        - "command: guild upgrade"
 ```
 
 ---
@@ -568,11 +562,6 @@ buttons:
         - ""
         - "&7进度: &f{task_progress}/{task_amount}"
         - "&7状态: {task_status}"
-        - ""
-        - "&8左键: 领取奖励"
-    actions:
-      left:
-        - "command: guild claimtask {task_key}"
 ```
 
 ---

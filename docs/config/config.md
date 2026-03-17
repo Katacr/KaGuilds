@@ -20,7 +20,7 @@ language: zh_CN  # 可选: zh_CN 或 en_US
  
 ### `proxy`
 
-是否启用代理模式（跨服同步）。
+是否启用代理模式（跨服通讯）。
 
 ```yaml
 proxy: false
