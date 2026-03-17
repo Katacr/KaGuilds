@@ -17,7 +17,7 @@ plugins/KaGuilds/levels.yml
 ```yaml
 # KaGuilds Levels 配置文件
 # 公会等级设置 - 此文件包含所有公会等级的配置信息
-
+ 
 levels:
   1:
     need-exp: 0

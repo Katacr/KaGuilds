@@ -244,7 +244,7 @@ layout:
 ```
 
 ### 配置模板
-
+ 
 ```yaml
 buttons:
   X:

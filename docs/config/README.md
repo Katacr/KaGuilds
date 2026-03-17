@@ -21,6 +21,6 @@ plugins/KaGuilds/
     ├── main_menu.yml
     ├── guilds_list.yml
     └── ...
-```
+``` 
 
 ---

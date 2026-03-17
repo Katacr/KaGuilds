@@ -17,7 +17,7 @@ language: zh_CN  # 可选: zh_CN 或 en_US
 * **默认值**: `zh_CN`
 * **可用选项**: `zh_CN` (简体中文), `en_US` (English)
 * **说明**: 决定插件界面的显示语言
-
+ 
 ### `proxy`
 
 是否启用代理模式（跨服同步）。

@@ -144,7 +144,7 @@ update: 10
 **刷新内容:**
 
 刷新功能会更新以下内容:
-
+ 
 1. **动态变量**
    * PAPI 变量: `%player_level%`、`%player_health%` 等
    * 插件内部变量: `{balance}`、`{online}`、`{online}` 等

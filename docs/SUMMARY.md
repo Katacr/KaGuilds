@@ -15,3 +15,4 @@
   * [🎲 图标](menu/display.md)
   * [🤖 动作](menu/actions.md)
 * [🔖 PlaceholderAPI](PlaceholderAPI.md)
+ 

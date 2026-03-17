@@ -25,7 +25,7 @@ tasks:
       - "console: <command>"
       - "tell: <message>"
 ```
-
+ 
 ***
 
 ## 🔧 配置选项详解
