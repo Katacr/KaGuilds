@@ -44,7 +44,11 @@ button:
       name: '&cBack to Main Menu'
     actions:
       left:
-        - 'open: main_menu'
+        - condition: "%kaguilds_has_guild% == true"
+          actions:
+            - 'open: main_menu'
+          deny:
+            - 'open: guild_create'
 
   "<":
     display:

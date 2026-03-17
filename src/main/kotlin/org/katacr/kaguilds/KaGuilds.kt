@@ -276,12 +276,12 @@ class KaGuilds : JavaPlugin() {
     private fun setupGuiFolder() {
         val guiFolder = File(dataFolder, "gui")
 
-        // 如果文件夹不存在或为空，则创建并释放所有默认 GUI 文件
+        // 如果文件夹不存在或为空，则创建并释放所有默认 GUI 文件（默认使用英文版）
         if (!guiFolder.exists() || guiFolder.listFiles()?.isEmpty() == true) {
             guiFolder.mkdirs()
 
             try {
-                // 获取 JAR 包中 gui 文件夹下的所有资源
+                // 获取 JAR 包中 gui_EN 文件夹下的所有资源
                 val resourcePath = "gui_EN/"
                 val urls = javaClass.classLoader.getResources(resourcePath)
 
@@ -299,14 +299,23 @@ class KaGuilds : JavaPlugin() {
                             val entry = entries.nextElement()
                             val name = entry.name
 
-                            // 只处理 gui 文件夹下的 .yml 文件
+                            // 只处理 gui_EN 文件夹下的 .yml 文件
                             if (name.startsWith(resourcePath) && name.endsWith(".yml") && !entry.isDirectory) {
                                 val fileName = name.substring(resourcePath.length)
                                 val destFile = File(guiFolder, fileName)
 
                                 // 只在目标文件不存在时才释放
                                 if (!destFile.exists()) {
-                                    saveResource(name, false)
+                                    try {
+                                        // 从 JAR 中读取资源内容并写入到 gui 文件夹
+                                        jarFile.getInputStream(entry).use { inputStream ->
+                                            destFile.outputStream().use { outputStream ->
+                                                inputStream.copyTo(outputStream)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        logger.warning("Failed to extract file '$fileName': ${e.message}")
+                                    }
                                 }
                             }
                         }
@@ -318,7 +327,12 @@ class KaGuilds : JavaPlugin() {
                             guiResourceFolder.listFiles()?.filter { it.isFile && it.extension == "yml" }?.forEach { file ->
                                 val destFile = File(guiFolder, file.name)
                                 if (!destFile.exists()) {
-                                    saveResource("$resourcePath${file.name}", false)
+                                    try {
+                                        // 复制文件到 gui 文件夹
+                                        file.copyTo(destFile, overwrite = false)
+                                    } catch (e: Exception) {
+                                        logger.warning("Failed to extract file '${file.name}': ${e.message}")
+                                    }
                                 }
                             }
                         }
@@ -391,9 +405,14 @@ class KaGuilds : JavaPlugin() {
                             val destFile = File(guiFolder, fileName)
 
                             try {
-                                // 复制文件，覆盖已有文件
-                                saveResource(name, true)
+                                // 从 JAR 中读取资源内容
+                                jarFile.getInputStream(entry).use { inputStream ->
+                                    destFile.outputStream().use { outputStream ->
+                                        inputStream.copyTo(outputStream)
+                                    }
+                                }
                                 successCount++
+                                logger.info("Released menu file: $fileName")
                             } catch (e: Exception) {
                                 logger.warning("Failed to release file '$fileName': ${e.message}")
                             }
@@ -411,6 +430,7 @@ class KaGuilds : JavaPlugin() {
                                 // 复制文件，覆盖已有文件
                                 file.copyTo(destFile, overwrite = true)
                                 successCount++
+                                logger.info("Released menu file: ${file.name}")
                             } catch (e: Exception) {
                                 logger.warning("Failed to release file '${file.name}': ${e.message}")
                             }

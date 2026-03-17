@@ -485,6 +485,7 @@ papi-role-none: "Visitor"
 papi-boolean-true: "Yes"
 papi-boolean-false: "No"
 papi-contribution: "Contribution"
+papi-reset-countdown: "%h%h %m%m %s%s"
 
 # Admin release command
 admin-release-usage: "§cUsage: /kg admin release <CN|EN>"

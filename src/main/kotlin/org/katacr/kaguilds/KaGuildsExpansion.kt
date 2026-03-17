@@ -22,6 +22,21 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 
         val lang = plugin.langManager
 
+        // 特殊变量：检查玩家是否已加入公会
+        if (params == "has_guild") {
+            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            return if (guildId != null) {
+                lang.get("papi-boolean-true")
+            } else {
+                lang.get("papi-boolean-false")
+            }
+        }
+
+        // 特殊变量：每日任务重置倒计时
+        if (params == "reset_countdown") {
+            return getResetCountdown()
+        }
+
         // 1. 获取该玩家所属的公会 ID
         val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
             ?: return lang.get("papi-no-guild")
@@ -95,6 +110,58 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             }
 
             else -> null
+        }
+    }
+
+    /**
+     * 计算到每日任务重置时间的倒计时
+     * @return 格式化的倒计时字符串（例如：5小时30分钟20秒）
+     */
+    private fun getResetCountdown(): String {
+        val lang = plugin.langManager
+        try {
+            // 从配置中获取重置时间（格式：HH:mm:ss）
+            val resetTimeStr = plugin.config.getString("task.reset_time", "00:00:00") ?: "00:00:00"
+            val parts = resetTimeStr.split(":")
+            if (parts.size != 3) return lang.get("papi-error")
+
+            val resetHour = parts[0].toIntOrNull() ?: 0
+            val resetMinute = parts[1].toIntOrNull() ?: 0
+            val resetSecond = parts[2].toIntOrNull() ?: 0
+
+            // 获取当前时间
+            val calendar = java.util.Calendar.getInstance()
+            val currentHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+            val currentMinute = calendar.get(java.util.Calendar.MINUTE)
+            val currentSecond = calendar.get(java.util.Calendar.SECOND)
+
+            // 计算当前时间距离重置时间的秒数
+            val currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
+            val resetTotalSeconds = resetHour * 3600 + resetMinute * 60 + resetSecond
+
+            val remainingSeconds = if (resetTotalSeconds > currentTotalSeconds) {
+                // 今天还未到重置时间
+                resetTotalSeconds - currentTotalSeconds
+            } else {
+                // 今天已过重置时间，计算到明天的重置时间
+                (24 * 3600) - currentTotalSeconds + resetTotalSeconds
+            }
+
+            // 计算小时、分钟、秒
+            val hours = remainingSeconds / 3600
+            val minutes = (remainingSeconds % 3600) / 60
+            val seconds = remainingSeconds % 60
+
+            // 获取格式化字符串并替换变量
+            val formatPattern = lang.get("papi-reset-countdown")
+            return formatPattern
+                .replace("%h%", hours.toString())
+                .replace("%m%", minutes.toString())
+                .replace("%s%", seconds.toString())
+
+        } catch (e: Exception) {
+            plugin.logger.warning("Failed to calculate reset countdown: ${e.message}")
+            return lang.get("papi-error")
         }
     }
 }
