@@ -57,7 +57,7 @@ title: "&eBuff商店 &7(第 &f{page}&7 页)"
 **注意事项:**
 
 * 标题长度有限制,过长的标题会被截断
-* 支持 PAPI 变量: `%%player_name%%`、`%%player_level%%` 等
+* 支持 PAPI 变量: `%player_name%`、`%player_level%` 等
 * 支持插件内部变量: `{player}`、`{guild_name}`、`{page}` 等
 
 ***
@@ -146,7 +146,7 @@ update: 10
 刷新功能会更新以下内容:
 
 1. **动态变量**
-   * PAPI 变量: `%%player_level%%`、`%%player_health%%` 等
+   * PAPI 变量: `%player_level%`、`%player_health%` 等
    * 插件内部变量: `{balance}`、`{online}`、`{online}` 等
 2. **动态列表**
    * 成员列表 (`MEMBERS_LIST`)

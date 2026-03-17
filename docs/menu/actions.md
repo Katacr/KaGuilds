@@ -437,12 +437,12 @@ actions:
 
 | 运算符  | 说明   | 示例                       |
 | ---- | ---- | ------------------------ |
-| `==` | 等于   | `%%player_level%% == 10` |
-| `!=` | 不等于  | `%%player_level%% != 10` |
-| `>`  | 大于   | `%%player_health%% > 10` |
-| `<`  | 小于   | `%%player_health%% < 10` |
-| `>=` | 大于等于 | `%%player_level%% >= 10` |
-| `<=` | 小于等于 | `%%player_level%% <= 10` |
+| `==` | 等于   | `%player_level% == 10` |
+| `!=` | 不等于  | `%player_level% != 10` |
+| `>`  | 大于   | `%player_health% > 10` |
+| `<`  | 小于   | `%player_health% < 10` |
+| `>=` | 大于等于 | `%player_level% >= 10` |
+| `<=` | 小于等于 | `%player_level% <= 10` |
 
 **逻辑运算符:**
 
@@ -458,7 +458,7 @@ actions:
 # 单个条件
 actions:
   left:
-    - condition: "%%player_level%% >= 10"
+    - condition: "%player_level% >= 10"
       actions:
         - "tell: &a你的等级足够！"
       deny:
@@ -469,7 +469,7 @@ actions:
 # 多个条件 (AND)
 actions:
   left:
-    - condition: "%%player_level%% >= 10 && %%player_level%% < 20"
+    - condition: "%player_level% >= 10 && %player_level% < 20"
       actions:
         - "tell: &a你是中级玩家！"
       deny:
@@ -480,7 +480,7 @@ actions:
 # 多个条件 (OR)
 actions:
   left:
-    - condition: "%%player_level%% < 10 || %%player_level%% >= 20"
+    - condition: "%player_level% < 10 || %player_level% >= 20"
       actions:
         - "tell: &a你是新手或高级玩家！"
 ```
@@ -489,7 +489,7 @@ actions:
 # 使用括号
 actions:
   left:
-    - condition: "(%%player_level%% >= 10 && %%player_level%% < 20) || %%player_has_permission%% == true"
+    - condition: "(%player_level% >= 10 && %player_level% < 20) || %player_has_permission% == true"
       actions:
         - "tell: &a你有权限！"
 ```

@@ -37,7 +37,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "level" -> guild.level.toString()
             "owner" -> guild.ownerName
             "balance" -> guild.balance.toString()
-            "announcement" -> guild.announcement
+            "motd" -> guild.announcement
             "member_count" -> plugin.dbManager.getMemberCount(guildId).toString()
             "max_members" -> guild.maxMembers.toString()
             "exp" -> guild.exp.toString()
