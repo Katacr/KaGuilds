@@ -1,0 +1,91 @@
+title: "&0Guild Bank"  # Title (supports colors)
+update: 20
+
+Layout:   # Menu layout (5 rows)
+  - '#########'
+  - '  1   4  '
+  - ' 2  G  5 '
+  - '  3   6  '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "G":
+    display:
+      material: "EMERALD"
+      name: '&7[ &aGuild Bank &7] '
+      lore:
+        - '&7--------------------------'
+        - '&bBalance: {balance}'  # Balance
+        - '&7--------------------------'
+  "1":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &aDeposit &7[ &b1,000 coins &7]'
+      amount: 1
+      custom_data: 10001
+    actions:
+      left:
+        - 'command: kg bank add 1000'
+        - 'close'
+  "2":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &aDeposit &7[ &b10,000 coins &7]'
+      amount: 10
+    actions:
+      left:
+        - 'command: kg bank add 10000'
+        - 'close'
+  "3":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: ' &aDeposit &7[ &bCustom Amount &7]'
+      amount: 64
+    actions:
+      left:
+        - 'tell: Please open chat and enter the amount to deposit.'
+        - 'catcher: bank_add'
+        - 'close'
+
+  "4":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &eWithdraw &7[ &b1,000 coins &7]'
+      amount: 1
+    actions:
+      left:
+        - 'command: kg bank take 1000'
+        - 'close'
+  "5":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &eWithdraw &7[ &b10,000 coins &7]'
+      amount: 10
+    actions:
+      left:
+        - 'command: kg bank take 10000'
+        - 'close'
+  "6":
+    display:
+      material: PINK_STAINED_GLASS_PANE
+      name: ' &eWithdraw &7[ &bCustom Amount &7]'
+      amount: 64
+    actions:
+      left:
+        - 'tell: Please open chat and enter the amount to deposit.'
+        - 'catcher: bank_take' # Input catcher (after player input: execute command /kg bank take [player input value], also cancel chat action to avoid sending chat message)
+        - 'close'
+
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&cBack to Main Menu'
+    actions:
+      left:
+        - 'open: main_menu'

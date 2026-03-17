@@ -1,0 +1,133 @@
+title: "Guild Menu"  # Title
+
+Layout:   # Virtual layout
+  - '#########'
+  - '   i m   '
+  - '---------'
+  - '  12345  '
+  - '  67890  '
+  - '#########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: 'Border'
+  "-":
+    display:
+      material: LIME_STAINED_GLASS_PANE
+      name: 'Border'
+  "i":
+    display:
+      material: FIREWORK_ROCKET
+      name: '&aGuild Info'
+      lore:
+        - '&bName: &3{name}'
+        - '&bID: &3#{id}'
+        - '&bCreated: &3{create_time}'
+        - '&bOwner: &3{owner}'
+        - '&bLevel: &3Lv. {level}'
+        - '&bMembers: &3{members}/{max_members}'
+        - '&bBank: &3{balance} coins'
+  "m":
+    display:
+      material: OAK_SIGN
+      name: '&aGuild Announcement'
+      lore:
+        - '&3{announcement}'
+
+  "1":
+    display:
+      material: LECTERN
+      name: '&aGuild Management'
+      lore:
+        - '&bManage guild affairs,'
+        - '&bOnly available to Owner/Admin'
+        - '&eClick to enter'
+    actions:
+      left:
+        - condition: "%kaguilds_is_staff% >= true"
+          actions:
+            - 'open: guild_manage'
+          deny:
+            - 'tell: &c✗ This feature is only available to Owner/Admin'
+  "2":
+    display:
+      material: OAK_SIGN
+      name: '&aGuild List'
+      lore:
+        - '&bView all guilds on the server'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guilds_list'
+  "3":
+    display:
+      material: IRON_BOOTS
+      name: '&aGuild Member List'
+      lore:
+        - '&bView current guild member list'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_members'
+  "4":
+    display:
+      material: HONEY_BOTTLE
+      name: '&aGuild BUFF Shop'
+      lore:
+        - '&bEnter guild BUFF purchase page'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_buffs'
+  "5":
+    display:
+      material: CHEST
+      name: '&aGuild Vault'
+      lore:
+        - '&bEnter guild shared cloud storage'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_vaults'
+  "6":
+    display:
+      material: EMERALD
+      name: '&aGuild Bank'
+      lore:
+        - '&bEnter guild bank'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_bank'
+  "7":
+    display:
+      material: DIAMOND
+      name: '&aGuild Upgrade'
+      lore:
+        - '&bView guild level details'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_upgrade'
+  "8":
+    display:
+      material: ENCHANTED_BOOK
+      name: '&aGuild Global Tasks'
+      lore:
+        - '&bView guild global tasks'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_global_task'
+  "9":
+    display:
+      material: BOOK
+      name: '&aGuild Daily Tasks'
+      lore:
+        - '&bView guild personal tasks'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_daily_task'

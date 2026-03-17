@@ -1,0 +1,69 @@
+title: "&0Guild List"  # Title (supports colors)
+
+Layout:   # Menu layout (6 rows)
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "1":
+    type: 'GUILDS_LIST'
+    display:
+      # Code automatically reads guild icon, defaults to PAPER if guild has no icon
+      material: PAPER
+      name: '&a{name} &8[ID: #{id}]'
+      lore:
+        - '&7--------------------------'
+        - '&bGuild Owner: &f{owner}'
+        - '&bGuild Level: &eLv.{level}'
+        - '&bGuild Members: &f{members} &8/ &7{max_members}'
+        - '&bGuild Funds: &6{balance}'
+        - '&bCreated Time: &f{create_time}'
+        - ' '
+        - '&bGuild Announcement:'
+        - '&f{announcement}'
+        - '&7--------------------------'
+        - '&e[Left Click] &6Apply to join this guild'
+    actions:
+      left:
+        - 'command: kg join {id}'
+        - 'sound: entity.experience_orb.pickup' # Example: supports playing sounds
+        - 'close'
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&cBack to Main Menu'
+    actions:
+      left:
+        - 'open: main_menu'
+
+  "<":
+    display:
+      material: PAPER
+      name: '&aPrevious Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_PREV'
+
+  ">":
+    display:
+      material: PAPER
+      name: '&aNext Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_NEXT'

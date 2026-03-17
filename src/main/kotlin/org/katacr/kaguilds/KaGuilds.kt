@@ -282,7 +282,7 @@ class KaGuilds : JavaPlugin() {
 
             try {
                 // 获取 JAR 包中 gui 文件夹下的所有资源
-                val resourcePath = "gui/"
+                val resourcePath = "gui_EN/"
                 val urls = javaClass.classLoader.getResources(resourcePath)
 
                 while (urls.hasMoreElements()) {
@@ -344,6 +344,101 @@ class KaGuilds : JavaPlugin() {
             }
         }
     }
+
+    /**
+     * 释放 GUI 文件（管理员命令使用）
+     * @param langType 语言类型 (CN 或 EN)
+     * @return 释放结果（成功状态、文件数量、错误信息）
+     */
+    fun releaseGuiFiles(langType: String): ReleaseResult {
+        val sourceFolder = if (langType == "CN") "gui_CN" else "gui_EN"
+        val guiFolder = File(dataFolder, "gui")
+
+        // 确保 gui 文件夹存在
+        if (!guiFolder.exists()) {
+            guiFolder.mkdirs()
+        }
+
+        var successCount = 0
+        var error: String? = null
+
+        try {
+            val resourcePath = "$sourceFolder/"
+            val urls = javaClass.classLoader.getResources(resourcePath)
+
+            if (!urls.hasMoreElements()) {
+                error = "Source folder '$sourceFolder' not found in plugin resources"
+                return ReleaseResult(false, 0, error)
+            }
+
+            while (urls.hasMoreElements()) {
+                val url = urls.nextElement()
+                val protocol = url.protocol
+
+                if (protocol == "jar") {
+                    // JAR 包中的资源
+                    val jarPath = url.path.substring(5, url.path.indexOf("!"))
+                    val jarFile = java.util.jar.JarFile(jarPath)
+
+                    val entries = jarFile.entries()
+                    while (entries.hasMoreElements()) {
+                        val entry = entries.nextElement()
+                        val name = entry.name
+
+                        // 只处理指定语言文件夹下的 .yml 文件
+                        if (name.startsWith(resourcePath) && name.endsWith(".yml") && !entry.isDirectory) {
+                            val fileName = name.substring(resourcePath.length)
+                            val destFile = File(guiFolder, fileName)
+
+                            try {
+                                // 复制文件，覆盖已有文件
+                                saveResource(name, true)
+                                successCount++
+                            } catch (e: Exception) {
+                                logger.warning("Failed to release file '$fileName': ${e.message}")
+                            }
+                        }
+                    }
+                    jarFile.close()
+                } else if (protocol == "file") {
+                    // 开发环境：从文件系统读取
+                    val guiResourceFolder = File(url.toURI())
+                    if (guiResourceFolder.exists() && guiResourceFolder.isDirectory) {
+                        guiResourceFolder.listFiles()?.filter { it.isFile && it.extension == "yml" }?.forEach { file ->
+                            val destFile = File(guiFolder, file.name)
+
+                            try {
+                                // 复制文件，覆盖已有文件
+                                file.copyTo(destFile, overwrite = true)
+                                successCount++
+                            } catch (e: Exception) {
+                                logger.warning("Failed to release file '${file.name}': ${e.message}")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 重新加载菜单文件
+            loadGuiMenus()
+
+        } catch (e: Exception) {
+            error = e.message ?: "Unknown error"
+            logger.severe("Failed to release GUI files: $error")
+            e.printStackTrace()
+        }
+
+        return ReleaseResult(successCount > 0, successCount, error)
+    }
+
+    /**
+     * 释放结果数据类
+     */
+    data class ReleaseResult(
+        val success: Boolean,
+        val count: Int,
+        val error: String?
+    )
 
     /**
      * 打印LOGO

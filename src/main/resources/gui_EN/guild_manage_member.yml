@@ -1,0 +1,71 @@
+title: "&0Guild Member List"  # Title (supports colors)
+
+Layout:   # Menu layout (6 rows)
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "1":
+    type: 'MEMBERS_LIST'
+    display:
+      material: {members_head} # Member head
+      name: '&a{members_name} ' # Member name
+      lore:
+        - '&7--------------------------'
+        - '&bGuild Role: &f{members_role}'  # Member role
+        - '&bContribution: &f{members_contribution}'
+        - '&bJoin Time: &f{members_join_time}'  # Member join time
+        - '&7--------------------------'
+        - ''
+        - '&e[Left Click] &6Promote to Admin'
+        - '&e[Right Click] &6Demote from Admin'
+        - '&e[Q Key] &6Kick this player'
+    actions:
+      left:
+        - 'command: kg promote {members_name}'
+        - 'update'
+      right:
+        - 'command: kg demote {members_name}'
+        - 'update'
+      drop:
+        - 'command: kg kick {members_name}'
+        - 'close'
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&cBack'
+    actions:
+      left:
+        - 'open: guild_manage'
+
+  "<":
+    display:
+      material: PAPER
+      name: '&aPrevious Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_PREV'
+
+  ">":
+    display:
+      material: PAPER
+      name: '&aNext Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_NEXT'

@@ -1910,6 +1910,39 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     }
                 })
             }
+            "release" -> {
+                if (!checkAdminPermission(sender, "release")) {
+                    return
+                }
+                // 格式: /kg admin release CN/EN
+                if (args.size < 3) {
+                    sender.sendMessage(lang.get("admin-release-usage"))
+                    return
+                }
+
+                val langType = args[2].uppercase()
+                if (langType != "CN" && langType != "EN") {
+                    sender.sendMessage(lang.get("admin-release-invalid-type"))
+                    return
+                }
+
+                // 异步执行文件释放，避免阻塞主线程
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    val result = plugin.releaseGuiFiles(langType)
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        if (result.success) {
+                            sender.sendMessage(lang.get("admin-release-success",
+                                "type" to langType,
+                                "count" to result.count.toString()
+                            ))
+                        } else {
+                            sender.sendMessage(lang.get("admin-release-failed",
+                                "error" to (result.error ?: "Unknown error")
+                            ))
+                        }
+                    })
+                })
+            }
 
             else -> {
                 sender.sendMessage(lang.get("admin-usage"))

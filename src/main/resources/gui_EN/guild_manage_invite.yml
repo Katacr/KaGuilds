@@ -1,0 +1,62 @@
+title: "&0Server Member List"  # Title (supports colors)
+
+Layout:   # Menu layout (6 rows)
+  - '#########'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - '111111111'
+  - 'B######<>'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: ' '
+
+  "1":
+    type: 'ALL_PLAYER'
+    display:
+      material: {player_head} # Member head
+      name: '&a{player_name} ' # Member name
+      lore:
+        - '&7--------------------------'
+        - '&bGuild: &f{guild_name}'  # Whether already joined guild, shows No Guild if none
+        - '&7--------------------------'
+        - ''
+        - '&e[Left Click] &6Invite this player'
+    actions:
+      left:
+        - 'command: kg invite {player_name}'
+        - 'sound: entity.experience_orb.pickup'
+        - 'close'
+
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&cBack'
+    actions:
+      left:
+        - 'open: guild_manage'
+
+  "<":
+    display:
+      material: PAPER
+      name: '&aPrevious Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_PREV'
+
+  ">":
+    display:
+      material: PAPER
+      name: '&aNext Page'
+      lore:
+        - '&7Page {page} / {total_pages}'
+        - '&eClick to turn page'
+    actions:
+      left:
+        - 'PAGE_NEXT'

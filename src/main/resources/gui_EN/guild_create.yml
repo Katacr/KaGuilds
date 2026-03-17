@@ -1,0 +1,30 @@
+title: "Not in a Guild"  # Title
+
+Layout:   # Virtual layout
+  - '#########'
+  - '         '
+  - '   1 2   '
+  - '         '
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: 'Border'
+  "1":
+    display:
+      material: BOOK
+      name: '&aCreate Guild'
+    actions:
+      left:
+        - 'tell: Please open chat and enter the guild name you want to create. Creating a guild costs 10000 coins.'
+        - 'catcher: guild_create'
+        - 'close'
+  "2":
+    display:
+      material: PAPER
+      name: '&aGuild List'
+    actions:
+      left:
+        - 'open: guilds_list'

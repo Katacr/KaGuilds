@@ -485,3 +485,9 @@ papi-role-none: "Visitor"
 papi-boolean-true: "Yes"
 papi-boolean-false: "No"
 papi-contribution: "Contribution"
+
+# Admin release command
+admin-release-usage: "§cUsage: /kg admin release <CN|EN>"
+admin-release-invalid-type: "§cInvalid type! Please use CN or EN"
+admin-release-success: "§aSuccessfully released §e%type% §aversion menu files, total §e%count% §afiles"
+admin-release-failed: "§cFailed to release menu files: §e%error%"

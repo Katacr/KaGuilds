@@ -1,0 +1,117 @@
+title: "Guild Management"  # Title
+
+Layout:   # Virtual layout
+  - '#########'
+  - '123456789'
+  - '0abcdefgh'
+  - 'B########'
+
+button:
+  "#":
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: 'Border'
+  "B":
+    display:
+      material: RED_STAINED_GLASS_PANE
+      name: '&cBack'
+    actions:
+      left:
+        - 'open: main_menu'
+  "1":
+    display:
+      material: WRITABLE_BOOK
+      name: '&aGuild Requests'
+      lore:
+        - '&bThere are %kaguilds_pending_requests% pending requests'
+        - '&eClick to view'
+    actions:
+      left:
+        - condition: "%kaguilds_pending_requests% > 0"
+          actions:
+            - 'command: kg requests'
+            - 'close'
+          deny:
+            - 'tell: &c✗ No pending guild requests'
+  "2":
+    display:
+      material: BELL
+      name: '&aInvite Player'
+      lore:
+        - '&bInvite a player to join the guild'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_manage_invite'
+  "3":
+    display:
+      material: IRON_BOOTS
+      name: '&aMember Management'
+      lore:
+        - '&bManage current guild members'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'open: guild_manage_member'
+  "4":
+    display:
+      material: MAP
+      name: '&aTransaction Log'
+      lore:
+        - '&bView guild bank transaction history'
+        - '&eClick to view'
+    actions:
+      left:
+        - 'command: kg bank log'
+        - 'close'
+  "5":
+    display:
+      material: OAK_SIGN
+      name: '&aGuild Announcement'
+      lore:
+        - '&bEdit guild announcement'
+        - '&eThis will cost {balance_setmotd} coins'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'tell: Please open chat and enter new announcement, press Enter to confirm.'
+        - 'catcher: edit_motd'
+        - 'close'
+  "6":
+    display:
+      material: NAME_TAG
+      name: '&aGuild Name'
+      lore:
+        - '&bRename guild'
+        - '&eThis will cost {balance_rename} coins'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'tell: Please open chat and enter new guild name, press Enter to confirm.'
+        - 'catcher: guild_rename'
+        - 'close'
+  "7":
+    display:
+      material: DIAMOND
+      name: '&aGuild Icon'
+      lore:
+        - '&bChange icon displayed in guild list'
+        - '&eThis will cost {balance_seticon} coins'
+        - '&eClick to enter'
+    actions:
+      left:
+        - 'hovertext: &6Hold the item you want to set as icon in main hand, then <text=`&e[Click Here]`;command=`/kg seticon`;hover=`Set Guild Icon`>&6complete the setting.'
+        - 'close'
+  "8":
+    display:
+      material: BEACON
+      name: '&aGuild Teleport Point'
+      lore:
+        - '&bSet guild base teleport point'
+        - '&eSetting teleport point will cost {balance_settp} coins'
+        - '&ePlayers will pay {tp_money} coins to use teleport'
+        - '&eClick to set'
+    actions:
+      left:
+        - 'hovertext: &6Stand at the location you want to set teleport point, then <text=`&e[Click Here]`;command=`/kg settp`;hover=`Set Guild Teleport Point`>&6complete the setting.'
+        - 'close'

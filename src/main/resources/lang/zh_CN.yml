@@ -500,3 +500,9 @@ papi-role-none: "游客"
 papi-boolean-true: "true"
 papi-boolean-false: "false"
 papi-contribution: "贡献度"
+
+# 管理员 release 命令
+admin-release-usage: "§c用法: /kg admin release <CN|EN>"
+admin-release-invalid-type: "§c错误类型! 请使用 CN 或 EN"
+admin-release-success: "§a成功释放 §e%type% §a版本的菜单文件, 共 §e%count% §a个文件"
+admin-release-failed: "§c释放菜单文件失败: §e%error%"
