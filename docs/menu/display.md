@@ -142,20 +142,6 @@ display:
   custom_data: 1001
   name: "&a光之剑"
 ```
-```yaml
-# 自定义材质的盔甲
-display:
-  material: DIAMOND_CHESTPLATE
-  custom_data: 2005
-  name: "&b龙鳞胸甲"
-```
-```yaml
-# 自定义材质的装饰品
-display:
-  material: BOOK
-  custom_data: 3012
-  name: "&e魔法书"
-```
 
 
 **注意事项:**
@@ -228,39 +214,6 @@ display:
   material: DIAMOND_SWORD
   name: "&a发光剑"
   glow: true
-
-display:
-  material: BOOK
-  name: "&e魔法书"
-  glow: true
-```
-
-**使用场景:**
-
-```yaml
-# 特殊物品标识
-display:
-  material: DIAMOND
-  name: "&a特殊钻石"
-  glow: true
-  lore:
-    - "&7这是一个珍贵的物品"
-
-# 功能按钮强调
-display:
-  material: BOOK
-  name: "&6&l重要操作"
-  glow: true
-  lore:
-    - "&7点击执行重要操作"
-
-# 可购买物品
-display:
-  material: ENCHANTED_BOOK
-  name: "&a可购买 Buff"
-  glow: true
-  lore:
-    - "&7点击购买"
 ```
 
 ---
