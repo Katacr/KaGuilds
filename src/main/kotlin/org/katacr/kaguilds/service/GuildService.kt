@@ -3,6 +3,7 @@ package org.katacr.kaguilds.service
 import org.bukkit.command.CommandSender
 import org.katacr.kaguilds.KaGuilds
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
 import org.katacr.kaguilds.DatabaseManager
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -1815,9 +1816,14 @@ class GuildService(private val plugin: KaGuilds) {
             return callback(OperationResult.NoPermission)
         }
 
-        // 2. 异步处理
+        // 2. 获取手持物品的 item_model 和 custom_data
+        val item = player.inventory.itemInMainHand
+        val itemModel = getItemModel(item)
+        val customData = getCustomModelData(item) // 如果没有设置 custom_data，返回 null
+
+        // 3. 异步处理
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 3. 获取费用并检查公会银行
+            // 4. 获取费用并检查公会银行
             val cost = plugin.config.getDouble("balance.seticon", 1000.0)
             val guild = plugin.dbManager.getGuildById(guildId)
 
@@ -1834,8 +1840,8 @@ class GuildService(private val plugin: KaGuilds) {
                 return@Runnable
             }
 
-            // 4. 执行数据库更新
-            if (plugin.dbManager.updateGuildIcon(guildId, materialName)) {
+            // 5. 执行数据库更新（customData 为 null 时会清空数据库中的值）
+            if (plugin.dbManager.updateGuildIcon(guildId, materialName, itemModel, customData)) {
 
                 // --- 核心扣费与记录细化日志 ---
                 plugin.dbManager.updateGuildBalance(guildId, -cost)
@@ -1850,6 +1856,52 @@ class GuildService(private val plugin: KaGuilds) {
                 })
             }
         })
+    }
+
+    /**
+     * 获取物品的 ItemModel（仅 1.21.4+）
+     */
+    private fun getItemModel(item: ItemStack): String? {
+        try {
+            val meta = item.itemMeta ?: return null
+            val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
+
+            // 尝试获取 ItemModel
+            val getItemModelMethod = itemMetaClass.getMethod("getItemModel")
+            val model = getItemModelMethod.invoke(meta)
+
+            if (model == null) {
+                return null
+            }
+
+            // NamespacedKey.toString() 返回 "namespace:key" 格式
+            return model.toString()
+        } catch (e: ClassNotFoundException) {
+            // 旧版本不支持 ItemModel API
+            return null
+        } catch (e: NoSuchMethodException) {
+            // 旧版本不支持 ItemModel API
+            return null
+        } catch (e: Exception) {
+            // 其他错误
+            plugin.logger.warning("Error getting ItemModel: ${e.message}")
+            e.printStackTrace()
+            return null
+        }
+    }
+
+    /**
+     * 获取物品的 CustomModelData
+     * @return 如果物品没有设置 custom_model_data，返回 null
+     */
+    private fun getCustomModelData(item: ItemStack): Int? {
+        val meta = item.itemMeta ?: return null
+        // customModelData 为 0 时表示没有设置
+        return if (meta.hasCustomModelData()) {
+            meta.customModelData
+        } else {
+            null
+        }
     }
 
     /**

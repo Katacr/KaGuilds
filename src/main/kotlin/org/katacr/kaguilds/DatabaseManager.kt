@@ -64,6 +64,8 @@ class DatabaseManager(val plugin: KaGuilds) {
                 balance DOUBLE DEFAULT 0.0,
                 announcement TEXT,
                 icon VARCHAR(32) DEFAULT 'SHIELD',
+                icon_item_model VARCHAR(128) DEFAULT NULL,
+                icon_custom_data INT DEFAULT 0,
                 max_members INT DEFAULT 20,
                 teleport_location TEXT DEFAULT NULL,
                 create_time BIGINT,
@@ -161,6 +163,23 @@ class DatabaseManager(val plugin: KaGuilds) {
                     plugin.logger.fine("设置 guild_task_progress 引擎时出错（可能已存在）: ${e.message}")
                 }
             }
+
+            // 数据库迁移：添加公会图标扩展字段
+            try {
+                // 添加 icon_item_model 字段
+                statement.execute("ALTER TABLE guild_data ADD COLUMN icon_item_model VARCHAR(128) DEFAULT NULL")
+            } catch (e: Exception) {
+                // 忽略错误（字段可能已存在）
+                plugin.logger.fine("添加 icon_item_model 字段时出错（可能已存在）: ${e.message}")
+            }
+
+            try {
+                // 添加 icon_custom_data 字段
+                statement.execute("ALTER TABLE guild_data ADD COLUMN icon_custom_data INT DEFAULT 0")
+            } catch (e: Exception) {
+                // 忽略错误（字段可能已存在）
+                plugin.logger.fine("添加 icon_custom_data 字段时出错（可能已存在）: ${e.message}")
+            }
         }
     }
 
@@ -193,6 +212,13 @@ class DatabaseManager(val plugin: KaGuilds) {
                 ps.setInt(1, id)
                 ps.executeQuery().use { rs ->
                     if (rs.next()) {
+                        val icon = rs.getString("icon")
+                        val iconItemModel = try { rs.getString("icon_item_model") } catch (e: Exception) { null }
+                        val iconCustomData = try {
+                            val value = rs.getInt("icon_custom_data")
+                            if (rs.wasNull()) null else value
+                        } catch (e: Exception) { null }
+
                         return GuildData(
                             id = rs.getInt("id"),
                             name = rs.getString("name") ?: "Unknown",
@@ -204,7 +230,10 @@ class DatabaseManager(val plugin: KaGuilds) {
                             announcement = rs.getString("announcement") ?: "暂无公告",
                             maxMembers = rs.getInt("max_members"),
                             teleportLocation = rs.getString("teleport_location"), // <-- 读取新增字段
-                            createTime = rs.getLong("create_time")
+                            createTime = rs.getLong("create_time"),
+                            icon = icon,
+                            iconItemModel = iconItemModel,
+                            iconCustomData = iconCustomData
                         )
                     }
                 }
@@ -487,7 +516,13 @@ class DatabaseManager(val plugin: KaGuilds) {
                         maxMembers = rs.getInt("max_members"),
                         teleportLocation = rs.getString("teleport_location"), // <-- 读取新增字段
                         createTime = rs.getLong("create_time"),
-                        lastInterestDate = rs.getLong("last_interest_date")
+                        lastInterestDate = rs.getLong("last_interest_date"),
+                        icon = rs.getString("icon"),
+                        iconItemModel = try { rs.getString("icon_item_model") } catch (e: Exception) { null },
+                        iconCustomData = try {
+                            val value = rs.getInt("icon_custom_data")
+                            if (rs.wasNull()) null else value
+                        } catch (e: Exception) { null }
                     )
                 }
                 null
@@ -608,9 +643,9 @@ class DatabaseManager(val plugin: KaGuilds) {
         // 1. 更新 SQL 语句，包含新增的字段
         val config = plugin.config
         val sqlGuild = """
-        INSERT INTO guild_data 
-        (name, owner_uuid, owner_name, level, balance, exp, icon, create_time, announcement, max_members) 
-        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, ?);
+        INSERT INTO guild_data
+        (name, owner_uuid, owner_name, level, balance, exp, icon, icon_item_model, icon_custom_data, create_time, announcement, max_members)
+        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, ?, ?, ?);
         """.trimIndent()
 
         return dataSource?.connection?.use { conn ->
@@ -623,10 +658,13 @@ class DatabaseManager(val plugin: KaGuilds) {
                     ps.setString(3, ownerName)
 
                     // --- 新增初始化数据 ---
-                    ps.setString(4, config.get("guild.icon") as String? ?: "SHIELD") // 默认图标 (material)
-                    ps.setLong(5, System.currentTimeMillis())
-                    ps.setString(6, config.get("guild.motd", "name" to name) as String? ?: "welcome to guilds") // 初始公告
-                    ps.setInt(7, config.get("level.1.max-members", 10) as Int? ?: 10)
+                    val iconConfig = config.getConfigurationSection("guild.icon")
+                    ps.setString(4, iconConfig?.getString("material") ?: "SHIELD") // 默认图标 (material)
+                    ps.setString(5, iconConfig?.getString("item_model")) // icon_item_model
+                    ps.setInt(6, iconConfig?.getInt("custom_data") ?: 0) // icon_custom_data
+                    ps.setLong(7, System.currentTimeMillis())
+                    ps.setString(8, config.get("guild.motd", "name" to name) as String? ?: "welcome to guilds") // 初始公告
+                    ps.setInt(9, config.get("level.1.max-members", 10) as Int? ?: 10)
 
                     ps.executeUpdate()
 
@@ -1035,12 +1073,19 @@ class DatabaseManager(val plugin: KaGuilds) {
     /**
      * 更新公会图标
      */
-    fun updateGuildIcon(guildId: Int, materialName: String): Boolean {
-        val sql = "UPDATE guild_data SET icon = ? WHERE id = ?"
+    fun updateGuildIcon(guildId: Int, materialName: String, itemModel: String? = null, customData: Int? = null): Boolean {
+        val sql = "UPDATE guild_data SET icon = ?, icon_item_model = ?, icon_custom_data = ? WHERE id = ?"
+
         return dataSource?.connection?.use { conn ->
             conn.prepareStatement(sql).use { ps ->
                 ps.setString(1, materialName)
-                ps.setInt(2, guildId)
+                ps.setString(2, itemModel) // itemModel 为 null 时会清空该字段
+                if (customData == null) {
+                    ps.setNull(3, java.sql.Types.INTEGER) // customData 为 null 时会清空该字段
+                } else {
+                    ps.setInt(3, customData)
+                }
+                ps.setInt(4, guildId)
                 ps.executeUpdate() > 0
             }
         } ?: false
@@ -1144,7 +1189,12 @@ class DatabaseManager(val plugin: KaGuilds) {
             createTime = rs.getLong("create_time"),
             // 复用传入的连接来查询成员数量
             memberCount = getMemberCount(guildId, conn),
-            icon = rs.getString("icon") ?: "SHIELD"
+            icon = rs.getString("icon") ?: "SHIELD",
+            iconItemModel = try { rs.getString("icon_item_model") } catch (e: Exception) { null },
+            iconCustomData = try {
+                val value = rs.getInt("icon_custom_data")
+                if (rs.wasNull()) null else value
+            } catch (e: Exception) { null }
         )
     }
 
@@ -1335,7 +1385,13 @@ class DatabaseManager(val plugin: KaGuilds) {
                             announcement = rs.getString("announcement"),
                             maxMembers = rs.getInt("max_members"),
                             teleportLocation = rs.getString("teleport_location"),
-                            createTime = rs.getLong("create_time")
+                            createTime = rs.getLong("create_time"),
+                            icon = rs.getString("icon"),
+                            iconItemModel = try { rs.getString("icon_item_model") } catch (e: Exception) { null },
+                            iconCustomData = try {
+                                val value = rs.getInt("icon_custom_data")
+                                if (rs.wasNull()) null else value
+                            } catch (e: Exception) { null }
                         )
                     }
                 }
@@ -1363,6 +1419,8 @@ class DatabaseManager(val plugin: KaGuilds) {
         val createTime: Long,
         val memberCount: Int = 0,
         val icon: String? = null,
+        val iconItemModel: String? = null,
+        val iconCustomData: Int? = null, // 改为可空类型
         val pvpWins: Int = 0,
         val pvpLosses: Int = 0,
         val pvpDraws: Int = 0,

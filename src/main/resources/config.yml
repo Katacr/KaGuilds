@@ -69,7 +69,10 @@ guild:
   # 创建新公会时使用的默认图标材质
   # 可选值: 任何 Minecraft 物品材质 (如: SHIELD, DIAMOND, GOLD_BLOCK)
   # 建议: 使用具有辨识度的物品作为图标
-  icon: "SHIELD"
+  icon:
+    material: "SHIELD"
+    item_model: "minecraft:shield"
+    custom_data: 0
   
   # 公会聊天格式
   # 定义公会聊天消息的显示格式

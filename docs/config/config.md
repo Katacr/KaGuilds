@@ -121,19 +121,23 @@ guild:
 
 ### `icon`
 
-公会默认图标。
+公会默认图标配置，支持材质、自定义模型数据和物品模型。
 
 ```yaml
-guild:
-  icon: "SHIELD"
+icon:
+  material: "SHIELD"
+  item_model: "minecraft:shield"
+  custom_data: 0
 ```
 
-* **默认值**: `"SHIELD"`
-* **类型**: 字符串 (Material 枚举名)
 * **说明**:
-  * 新创建的公会自动使用此材质作为图标
-  * 必须是 Minecraft 有效的 Material 名称
-  * 可通过 `/kg seticon` 命令修改
+  * 新创建的公会自动使用此配置作为图标
+  * 可通过 `/kg seticon` 命令设置手持物品的图标
+  * 支持版本兼容性：
+    * 1.21.4+: 优先使用 `item_model`
+    * 1.21.4-: 使用 `custom_data`
+    * 如果都没有配置，则使用 `material`
+
 
 ### `chat-format`
 

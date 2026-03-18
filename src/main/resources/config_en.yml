@@ -71,7 +71,10 @@ guild:
   # Default icon material when creating a new guild
   # Available values: Any Minecraft item material (e.g., SHIELD, DIAMOND, GOLD_BLOCK)
   # Recommendation: Use recognizable items as icons
-  icon: "SHIELD"
+  icon:
+    material: "SHIELD"
+    item_model: "minecraft:shield"
+    custom_data: 0
   
   # Guild chat format
   # Defines the display format of guild chat messages

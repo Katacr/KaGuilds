@@ -588,7 +588,13 @@ class MenuManager(private val plugin: KaGuilds) {
         val item = ItemStack(material, amount)
         val meta = item.itemMeta ?: return item
 
-        setItemModel(meta, display)
+        // 优先使用 display 配置中的 item_model/custom_data，其次使用数据库中的公会图标配置
+        if (!display.contains("item_model") && !display.contains("custom_data")) {
+            // 如果 display 没有配置，则使用数据库中的公会图标
+            applyGuildIcon(meta, guild)
+        } else {
+            setItemModel(meta, display)
+        }
 
         val key = NamespacedKey(plugin, "guild_id")
         meta.persistentDataContainer.set(key, PersistentDataType.INTEGER, guild.id)
@@ -598,7 +604,93 @@ class MenuManager(private val plugin: KaGuilds) {
         meta.lore = display.getStringList("lore").map { applyPlaceholders(it, placeholders, player) }
 
         item.itemMeta = meta
+
+        // 安全地获取 customModelData（如果 ItemModel 已设置，customModelData 可能不可用）
+        val customModelData = if (meta.hasCustomModelData()) {
+            meta.customModelData
+        } else {
+            null
+        }
         return item
+    }
+
+    /**
+     * 应用公会图标配置
+     */
+    private fun applyGuildIcon(meta: org.bukkit.inventory.meta.ItemMeta, guild: DatabaseManager.GuildData) {
+        // 优先使用 icon_item_model
+        if (!guild.iconItemModel.isNullOrEmpty()) {
+            try {
+                // 检查服务器版本
+                val serverVersion = Bukkit.getBukkitVersion()
+                val versionParts = serverVersion.split(".")
+                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
+                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
+
+                // 检查是否是 1.21.4 或更高版本
+                val isModernVersion = when {
+                    minorVersion == null -> false
+                    minorVersion > 21 -> true
+                    minorVersion == 21 -> {
+                        // 1.21.4 及以上才支持 ItemModel
+                        (patchVersion ?: 0) >= 4
+                    }
+                    else -> false
+                }
+
+                if (isModernVersion) {
+                    // 解析 item_model 字符串
+                    val parts = guild.iconItemModel.split(":")
+                    if (parts.size == 2) {
+                        val namespace = parts[0]
+                        val key = parts[1]
+
+                        try {
+                            val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
+                            val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
+
+                            // 获取 setItemModel(NamespacedKey) 方法
+                            val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
+
+                            // 创建 NamespacedKey
+                            val modelKey = namespacedKeyClass.getDeclaredConstructor(
+                                String::class.java,
+                                String::class.java
+                            ).newInstance(namespace, key)
+
+                            // 应用 ItemModel
+                            setItemModelMethod.invoke(meta, modelKey)
+                        } catch (e: Exception) {
+                            // 失败则尝试使用 CustomModelData
+                            plugin.logger.warning("Failed to apply ItemModel: ${e.message}")
+                            if (guild.iconCustomData != null) {
+                                meta.setCustomModelData(guild.iconCustomData)
+                            }
+                        }
+                    } else {
+                        plugin.logger.warning("Invalid ItemModel format: ${guild.iconItemModel}")
+                        if (guild.iconCustomData != null) {
+                            // 格式不正确，使用 CustomModelData
+                            meta.setCustomModelData(guild.iconCustomData)
+                        }
+                    }
+                } else {
+                    // 旧版本，使用 CustomModelData
+                    if (guild.iconCustomData != null) {
+                        meta.setCustomModelData(guild.iconCustomData)
+                    }
+                }
+            } catch (e: Exception) {
+                // 解析失败，忽略
+                plugin.logger.warning("Error in applyGuildIcon: ${e.message}")
+                e.printStackTrace()
+            }
+        } else {
+            // 使用 CustomModelData
+            if (guild.iconCustomData != null) {
+                meta.setCustomModelData(guild.iconCustomData)
+            }
+        }
     }
 
     /**
