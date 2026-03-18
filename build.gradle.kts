@@ -42,7 +42,7 @@ dependencies {
     implementation("net.byteflux:libby-bukkit:1.3.0")
     implementation("org.bstats:bstats-bukkit:3.1.0")
     compileOnly(fileTree("libs") { include("*.jar") })
-    compileOnly("com.destroystokyo.paper:paper-api:1.16.1-R0.1-SNAPSHOT")
+    compileOnly("org.spigotmc:spigot-api:1.16.5-R0.1-SNAPSHOT")
     compileOnly("com.mojang:authlib:1.5.25")
     compileOnly("org.jetbrains.kotlin:kotlin-stdlib")
     compileOnly("com.zaxxer:HikariCP:5.0.1")

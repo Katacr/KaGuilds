@@ -270,6 +270,109 @@ contribution:
   bank-withdraw-ratio: 1.0
 
 # ========================================
+# Menu Default Icon Settings
+# ========================================
+# Used to customize default item icons in different menus
+# Supports four menu types:
+#   - tasks (Task Menu)
+#   - buffs (Buff Shop)
+#   - levels (Guild Upgrade)
+#   - vaults (Guild Vault)
+# Each menu supports two states: lock (locked), unlock (unlocked) or unfinished/finished
+
+menu-default-icon:
+  # Task Menu Icons
+  # Used when task configuration (task.yml) doesn't have display key configured
+  tasks:
+    # Unfinished task icon
+    unfinished:
+      # Item material name
+      # Available values: Any Minecraft item material (e.g., BOOK, PAPER, BARRIER)
+      # Note: Material names must be uppercase
+      material: "BOOK"
+      # Custom model data (only for versions below 1.21.4)
+      # Used to customize item appearance, requires resource pack
+      custom_data: 0
+      # Item model (only for versions 1.21.4 and above)
+      # Format: "namespace:model_key"
+      # Examples: "kaguilds:task_unfinished", "minecraft:book"
+      # Note: Must define corresponding model in resource pack
+      item_model: "minecraft:book"
+    # Finished task icon
+    finished:
+      material: "ENCHANTED_BOOK"
+#     custom_data: 0
+#     item_model: "minecraft:enchanted_book"
+
+  # Buff Shop Menu Icons
+  buffs:
+     # Icon for locked buffs
+     lock:
+       # Item material name
+       # Available values: Any Minecraft item material (e.g., PAPER, BARRIER, IRON_BARS)
+       # Note: Material names must be uppercase
+       material: "GLASS_BOTTLE"
+       # Custom model data (only for versions below 1.21.4)
+       # Used to customize item appearance, requires resource pack
+       custom_data: 0
+       # Item model (only for versions 1.21.4 and above)
+       # Format: "namespace:model_key"
+       # Examples: "kaguilds:lock_item", "minecraft:enchanted_book"
+       # Note: Must define corresponding model in resource pack
+       item_model: "minecraft:glass_bottle"
+     # Icon for unlocked buffs
+     unlock:
+       material: "HONEY_BOTTLE"
+#      custom_data: 123
+#      item_model: "kaguilds:unlock_item"
+
+  # Guild Upgrade Menu Icons
+  levels:
+    # Icon for locked levels (unlocked levels)
+    lock:
+      material: "BOOK"
+#     custom_data: 123
+#     item_model: "kaguilds:lock_item"
+    # Icon for unlocked levels (unlocked/upgradable levels)
+    unlock:
+      material: "ENCHANTED_BOOK"
+#     custom_data: 123
+#     item_model: "kaguilds:unlock_item"
+
+  # Guild Vault Menu Icons
+  vaults:
+    # Icon for locked vaults (unlocked vaults)
+    lock:
+      material: "MINECART"
+#     custom_data: 123
+#     item_model: "kaguilds:lock_item"
+    # Icon for unlocked vaults (unlocked vaults)
+    unlock:
+      material: "CHEST_MINECART"
+#     custom_data: 123
+#     item_model: "kaguilds:unlock_item"
+
+# ========================================
+# Icon Configuration Notes
+# ========================================
+# 1. Priority: item_model > custom_data > material
+# 2. Version Compatibility:
+#    - 1.21.4+: Prioritize using item_model
+#    - 1.21.4-: Use custom_data
+#    - If neither exists, use material
+# 3. Task Icon Configuration Special Notes:
+#    - The display configuration in task.yml has higher priority than default config in config.yml
+#    - If a task has display configured in task.yml, the task's own configuration will be used
+#    - If a task doesn't have display configured, the default configuration from config.yml will be used
+# 4. Reload plugin with /kg reload after modification for changes to take effect
+# 5. item_model Examples:
+#    - "kaguilds:lock_icon" - Custom namespace model
+#    - "minecraft:enchanted_book" - Minecraft vanilla model
+#    - "oraxen:custom_item" - Oraxen plugin model
+# ========================================
+
+
+# ========================================
 # End of Configuration File
 # ========================================
 # After modifying the configuration, please use /kg reload to reload the plugin

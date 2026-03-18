@@ -1,8 +1,14 @@
 tasks:
   global_1:  # 任务标识符
     display: # 用于任务菜单显示
-      material: "DIAMOND_SWORD"
-      custom_data: 0
+      unfinished:
+        material: "PAPER"
+        custom_data: 0
+        item_model: "minecraft:book"
+      finished:
+        material: "PAPER"
+        custom_data: 0
+        item_model: "minecraft:enchanted_book"
     name: "§a累计任务: 公会战斗" # 任务名称
     type: "global" # global:全局任务, daily:每日任务
     event:
@@ -17,8 +23,10 @@ tasks:
       - "console: kg admin exp %kaguilds_id% add 80"
   daily_1:  # 任务标识符
     display:
-      material: "DIAMOND_SWORD"
-      custom_data: 0
+      unfinished:
+        material: "book"
+      finished:
+        material: "enchanted_book"
     name: "§a每日任务: 上线" # 任务名称
     type: "daily" # global:全局任务, daily:每日任务
     event:
@@ -33,6 +41,11 @@ tasks:
 
   # 钓鱼任务示例
   fishing_daily:
+    display:
+      unfinished:
+        material: "fishing_rod"
+      finished:
+        material: "carrot_on_a_stick"
     name: "§a每日任务: 渔夫"
     type: "daily"
     event:

@@ -439,7 +439,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         when (type) {
             "tell" -> player.sendMessage(args)
-            "actionbar" -> player.sendActionBar(args)
+            "actionbar" -> sendActionBar(player, args)
             "title" -> {
                 var title = ""
                 var subtitle = ""
@@ -715,5 +715,62 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             }
         }
         return null
+    }
+
+    /**
+     * 兼容 Paper 和 Spigot 的 ActionBar 发送方法
+     */
+    private fun sendActionBar(player: Player, message: String) {
+        try {
+            // 尝试使用 Paper 的 sendActionBar 方法
+            val method = player.javaClass.getMethod("sendActionBar", String::class.java)
+            method.invoke(player, message)
+        } catch (e: NoSuchMethodException) {
+            // 回退到 Spigot 的方式：使用 Packet 发送
+            try {
+                val actionBarPacket = createActionBarPacket(message)
+                sendPacket(player, actionBarPacket)
+            } catch (ex: Exception) {
+                // 如果都失败，就发送普通消息
+                player.sendMessage(message)
+            }
+        }
+    }
+
+    /**
+     * 创建 ActionBar 数据包（Spigot 兼容方式）
+     */
+    private fun createActionBarPacket(message: String): Any {
+        val chatComponentClass = Class.forName("net.minecraft.network.chat.IChatBaseComponent")
+        val serializerClass = Class.forName("net.minecraft.network.chat.IChatBaseComponent\$ChatSerializer")
+        val craftPlayerClass = Class.forName("org.bukkit.craftbukkit.entity.CraftPlayer")
+
+        val jsonMessage = """{"text":"$message"}"""
+        val component = serializerClass.getDeclaredMethod("a", String::class.java)
+            .invoke(null, jsonMessage)
+
+        val packetClass = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutChat")
+        val packetConstructor = packetClass.getConstructor(chatComponentClass, java.lang.Byte.TYPE)
+
+        return packetConstructor.newInstance(component, 2.toByte())
+    }
+
+    /**
+     * 发送数据包给玩家（Spigot 兼容方式）
+     */
+    private fun sendPacket(player: Player, packet: Any) {
+        val craftPlayerClass = Class.forName("org.bukkit.craftbukkit.entity.CraftPlayer")
+        val craftPlayer = craftPlayerClass.cast(player)
+
+        val connectionMethod = craftPlayerClass.getMethod("getHandle")
+        val entityPlayer = connectionMethod.invoke(craftPlayer)
+
+        val playerConnectionClass = entityPlayer.javaClass
+        val connectionField = playerConnectionClass.getDeclaredField("b")
+        connectionField.isAccessible = true
+
+        val connection = connectionField.get(entityPlayer)
+        val sendMethod = connection.javaClass.getMethod("sendPacket", Class.forName("net.minecraft.network.protocol.Packet"))
+        sendMethod.invoke(connection, packet)
     }
 }

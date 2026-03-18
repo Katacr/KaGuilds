@@ -22,6 +22,93 @@ import kotlin.math.ceil
 class MenuManager(private val plugin: KaGuilds) {
     private val menuCache = mutableMapOf<String, YamlConfiguration>()
 
+    // 默认图标配置
+    private val menuDefaultIcons = mutableMapOf<String, MenuDefaultIcon>()
+
+    init {
+        loadMenuDefaultIcons()
+    }
+
+    /**
+     * 加载菜单默认图标配置
+     */
+    private fun loadMenuDefaultIcons() {
+        val config = plugin.config.getConfigurationSection("menu-default-icon")
+        if (config == null) {
+            plugin.logger.warning("menu-default-icon 配置未找到，使用默认图标")
+            return
+        }
+
+        // 加载 tasks 配置
+        val tasksSection = config.getConfigurationSection("tasks")
+        if (tasksSection != null) {
+            menuDefaultIcons["tasks_unfinished"] = MenuDefaultIcon(
+                tasksSection.getString("unfinished.material") ?: "BOOK",
+                tasksSection.getInt("unfinished.custom_data", 0),
+                tasksSection.getString("unfinished.item_model")
+            )
+            menuDefaultIcons["tasks_finished"] = MenuDefaultIcon(
+                tasksSection.getString("finished.material") ?: "ENCHANTED_BOOK",
+                tasksSection.getInt("finished.custom_data", 0),
+                tasksSection.getString("finished.item_model")
+            )
+        }
+
+        // 加载 buffs 配置
+        val buffsSection = config.getConfigurationSection("buffs")
+        if (buffsSection != null) {
+            menuDefaultIcons["buffs_lock"] = MenuDefaultIcon(
+                buffsSection.getString("lock.material") ?: "PAPER",
+                buffsSection.getInt("lock.custom_data", 0),
+                buffsSection.getString("lock.item_model")
+            )
+            menuDefaultIcons["buffs_unlock"] = MenuDefaultIcon(
+                buffsSection.getString("unlock.material") ?: "PAPER",
+                buffsSection.getInt("unlock.custom_data", 0),
+                buffsSection.getString("unlock.item_model")
+            )
+        }
+
+        // 加载 levels 配置
+        val levelsSection = config.getConfigurationSection("levels")
+        if (levelsSection != null) {
+            menuDefaultIcons["levels_lock"] = MenuDefaultIcon(
+                levelsSection.getString("lock.material") ?: "PAPER",
+                levelsSection.getInt("lock.custom_data", 0),
+                levelsSection.getString("lock.item_model")
+            )
+            menuDefaultIcons["levels_unlock"] = MenuDefaultIcon(
+                levelsSection.getString("unlock.material") ?: "PAPER",
+                levelsSection.getInt("unlock.custom_data", 0),
+                levelsSection.getString("unlock.item_model")
+            )
+        }
+
+        // 加载 vaults 配置
+        val vaultsSection = config.getConfigurationSection("vaults")
+        if (vaultsSection != null) {
+            menuDefaultIcons["vaults_lock"] = MenuDefaultIcon(
+                vaultsSection.getString("lock.material") ?: "PAPER",
+                vaultsSection.getInt("lock.custom_data", 0),
+                vaultsSection.getString("lock.item_model")
+            )
+            menuDefaultIcons["vaults_unlock"] = MenuDefaultIcon(
+                vaultsSection.getString("unlock.material") ?: "PAPER",
+                vaultsSection.getInt("unlock.custom_data", 0),
+                vaultsSection.getString("unlock.item_model")
+            )
+        }
+    }
+
+    /**
+     * 菜单默认图标数据类
+     */
+    data class MenuDefaultIcon(
+        val material: String,
+        val customData: Int = 0,
+        val itemModel: String? = null
+    )
+
     /**
      * 辅助方法：获取布局配置（支持多种键名变体）
      */
@@ -154,6 +241,180 @@ class MenuManager(private val plugin: KaGuilds) {
         if (display.contains("custom_data")) {
             val customData = display.getInt("custom_data")
             meta.setCustomModelData(customData)
+        }
+    }
+
+    /**
+     * 应用菜单默认图标配置
+     * @param meta 物品元数据
+     * @param iconKey 图标键 (如 "buffs_lock", "buffs_unlock")
+     */
+    private fun applyMenuDefaultIcon(meta: org.bukkit.inventory.meta.ItemMeta, iconKey: String) {
+        val iconConfig = menuDefaultIcons[iconKey] ?: return
+
+        // 1. 尝试使用 1.21.4+ 的 ItemModel API
+        if (iconConfig.itemModel != null) {
+            val itemModelString = iconConfig.itemModel
+
+            try {
+                // 检查服务器版本
+                val serverVersion = Bukkit.getBukkitVersion()
+                val versionParts = serverVersion.split(".")
+                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
+                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
+
+                // 检查是否是 1.21.4 或更高版本
+                val isModernVersion = when {
+                    minorVersion == null -> false
+                    minorVersion > 21 -> true
+                    minorVersion == 21 -> {
+                        // 1.21.4 及以上才支持 ItemModel
+                        (patchVersion ?: 0) >= 4
+                    }
+                    else -> false
+                }
+
+                // 解析 item_model 字符串
+                val parts = itemModelString.split(":")
+
+                if (parts.size != 2) {
+                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
+                    meta.setCustomModelData(iconConfig.customData)
+                    return
+                }
+
+                val namespace = parts[0]
+                val key = parts[1]
+
+                // 对于旧版本，降级到 CustomModelData
+                if (!isModernVersion) {
+                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
+                    meta.setCustomModelData(iconConfig.customData)
+                    return
+                }
+
+                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
+                try {
+                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
+                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
+
+                    // 获取 setItemModel(NamespacedKey) 方法
+                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
+
+                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
+                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
+                        String::class.java,
+                        String::class.java
+                    ).newInstance(namespace, key)
+
+                    // 应用 ItemModel
+                    setItemModelMethod.invoke(meta, modelKey)
+                } catch (e: ClassNotFoundException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(iconConfig.customData)
+                } catch (e: NoSuchMethodException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(iconConfig.customData)
+                } catch (e: Exception) {
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(iconConfig.customData)
+                }
+            } catch (e: Exception) {
+                plugin.logger.warning("Unexpected exception: ${e.message}")
+                plugin.logger.info("Falling back to CustomModelData")
+                meta.setCustomModelData(iconConfig.customData)
+            }
+        } else {
+            // 降级到 CustomModelData
+            meta.setCustomModelData(iconConfig.customData)
+        }
+    }
+
+    /**
+     * 应用任务定义的物品显示配置
+     */
+    private fun applyTaskItemDisplay(meta: org.bukkit.inventory.meta.ItemMeta, taskDisplay: TaskManager.TaskItemDisplay) {
+        // 1. 尝试使用 1.21.4+ 的 ItemModel API
+        if (taskDisplay.itemModel != null) {
+            val itemModelString = taskDisplay.itemModel
+
+            try {
+                // 检查服务器版本
+                val serverVersion = Bukkit.getBukkitVersion()
+                val versionParts = serverVersion.split(".")
+                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
+                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
+
+                // 检查是否是 1.21.4 或更高版本
+                val isModernVersion = when {
+                    minorVersion == null -> false
+                    minorVersion > 21 -> true
+                    minorVersion == 21 -> {
+                        // 1.21.4 及以上才支持 ItemModel
+                        (patchVersion ?: 0) >= 4
+                    }
+                    else -> false
+                }
+
+                // 解析 item_model 字符串
+                val parts = itemModelString.split(":")
+
+                if (parts.size != 2) {
+                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
+                    meta.setCustomModelData(taskDisplay.customData)
+                    return
+                }
+
+                val namespace = parts[0]
+                val key = parts[1]
+
+                // 对于旧版本，降级到 CustomModelData
+                if (!isModernVersion) {
+                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
+                    meta.setCustomModelData(taskDisplay.customData)
+                    return
+                }
+
+                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
+                try {
+                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
+                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
+
+                    // 获取 setItemModel(NamespacedKey) 方法
+                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
+
+                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
+                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
+                        String::class.java,
+                        String::class.java
+                    ).newInstance(namespace, key)
+
+                    // 应用 ItemModel
+                    setItemModelMethod.invoke(meta, modelKey)
+                } catch (e: ClassNotFoundException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(taskDisplay.customData)
+                } catch (e: NoSuchMethodException) {
+                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(taskDisplay.customData)
+                } catch (e: Exception) {
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
+                    plugin.logger.info("Falling back to CustomModelData")
+                    meta.setCustomModelData(taskDisplay.customData)
+                }
+            } catch (e: Exception) {
+                plugin.logger.warning("Unexpected exception: ${e.message}")
+                plugin.logger.info("Falling back to CustomModelData")
+                meta.setCustomModelData(taskDisplay.customData)
+            }
+        } else {
+            // 降级到 CustomModelData
+            meta.setCustomModelData(taskDisplay.customData)
         }
     }
 
@@ -937,16 +1198,25 @@ class MenuManager(private val plugin: KaGuilds) {
     private fun buildBuffItem(section: ConfigurationSection, buffKey: String, isUnlocked: Boolean, viewer: Player): ItemStack {
         val lang = plugin.langManager
         val buffConfig = plugin.buffsConfig.getConfigurationSection("buffs.$buffKey") ?: return ItemStack(Material.BARRIER)
-        val display = section.getConfigurationSection("display") ?: return ItemStack(Material.GLASS_BOTTLE)
+        val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
 
         // 判断材质和状态
-        val materialName = if (isUnlocked) "HONEY_BOTTLE" else "GLASS_BOTTLE"
+        val iconKey = if (isUnlocked) "buffs_unlock" else "buffs_lock"
         val status = if (isUnlocked) { lang.get("menu-text-buff-unlocked") } else { lang.get("menu-text-buff-locked") }
 
-        val item = ItemStack(Material.matchMaterial(materialName) ?: Material.GLASS_BOTTLE)
+        // 使用配置的图标，如果配置不存在则使用默认的 PAPER
+        val iconConfig = menuDefaultIcons[iconKey]
+        val materialName = iconConfig?.material ?: if (isUnlocked) "HONEY_BOTTLE" else "GLASS_BOTTLE"
+
+        val item = ItemStack(Material.matchMaterial(materialName) ?: Material.PAPER)
         val meta = item.itemMeta ?: return item
 
-        setItemModel(meta, display)
+        // 如果有配置图标，应用配置的图标
+        if (iconConfig != null) {
+            applyMenuDefaultIcon(meta, iconKey)
+        } else {
+            setItemModel(meta, display)
+        }
 
         // 准备变量替换
         val placeholders = mapOf(
@@ -1039,14 +1309,23 @@ class MenuManager(private val plugin: KaGuilds) {
     private fun buildVaultItem(viewer: Player, vaultNum: Int, unlockedCount: Int, section: ConfigurationSection): ItemStack {
         val lang = plugin.langManager
         val isUnlocked = vaultNum <= unlockedCount
-        val materialName = if (isUnlocked) "CHEST_MINECART" else "MINECART"
+        val iconKey = if (isUnlocked) "vaults_unlock" else "vaults_lock"
         val status = if (isUnlocked) { lang.get("menu-text-vault-unlocked") } else { lang.get("menu-text-vault-locked") }
+
+        // 使用配置的图标，如果配置不存在则使用默认的材质
+        val iconConfig = menuDefaultIcons[iconKey]
+        val materialName = iconConfig?.material ?: if (isUnlocked) "CHEST_MINECART" else "MINECART"
 
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.CHEST_MINECART)
         val meta = item.itemMeta ?: return item
         val display = section.getConfigurationSection("display")!!
 
-        setItemModel(meta, display)
+        // 如果有配置图标，应用配置的图标
+        if (iconConfig != null) {
+            applyMenuDefaultIcon(meta, iconKey)
+        } else {
+            setItemModel(meta, display)
+        }
 
         val placeholders = mapOf(
             "vault_num" to vaultNum.toString(),
@@ -1174,12 +1453,29 @@ class MenuManager(private val plugin: KaGuilds) {
             }
         }
 
-        // 2. 动态材质 (已达成的用附魔书，未达成的用普通书)
-        val materialName = if (guildData.level >= targetLevel) "ENCHANTED_BOOK" else "BOOK"
+        // 2. 状态判断图标键
+        val iconKey = when {
+            guildData.level >= targetLevel -> "levels_unlock"  // 已达成
+            guildData.level == targetLevel - 1 -> {
+                val needExp = levelConfig.getInt("need-exp")
+                if (guildData.exp >= needExp) "levels_unlock" else "levels_lock"
+            }
+            else -> "levels_lock"  // 锁定
+        }
+
+        // 3. 动态材质 (使用配置的图标，如果配置不存在则使用默认的材质)
+        val iconConfig = menuDefaultIcons[iconKey]
+        val materialName = iconConfig?.material ?: if (guildData.level >= targetLevel) "ENCHANTED_BOOK" else "BOOK"
+
         val item = ItemStack(Material.matchMaterial(materialName) ?: Material.BOOK)
         val meta = item.itemMeta ?: return item
 
-        setItemModel(meta, display)
+        // 如果有配置图标，应用配置的图标
+        if (iconConfig != null) {
+            applyMenuDefaultIcon(meta, iconKey)
+        } else {
+            setItemModel(meta, display)
+        }
 
         // 3. 准备占位符变量
         val placeholders = mapOf(
@@ -1343,18 +1639,66 @@ class MenuManager(private val plugin: KaGuilds) {
         val currentProgress = progress?.progress ?: 0
         val isCompleted = currentProgress >= task.amount
 
-        // 动态材质
-        val materialName = if (display.getString("material") == "{task_item}") {
-            if (isCompleted) "ENCHANTED_BOOK" else "BOOK"
-        } else {
-            display.getString("material") ?: "BOOK"
-        }
-        val material = Material.matchMaterial(materialName) ?: Material.BOOK
+        // 使用任务定义中的 display 配置（如果存在）
+        if (task.display != null) {
+            val taskItemDisplay = if (isCompleted) task.display.finished else task.display.unfinished
 
+            // 使用任务定义的 display 配置
+            val material = Material.matchMaterial(taskItemDisplay.material) ?: Material.PAPER
+            val item = ItemStack(material)
+            val meta = item.itemMeta ?: return item
+
+            // 应用显示配置
+            applyTaskItemDisplay(meta, taskItemDisplay)
+
+            // 准备变量替换
+            val placeholders = mapOf(
+                "task_key" to task.key,
+                "task_name" to task.name,
+                "task_lore" to task.lore.joinToString("\n"),
+                "task_progress" to currentProgress.toString(),
+                "task_amount" to task.amount.toString(),
+                "task_status" to (if (isCompleted) lang.get("task-status-completed") else lang.get("task-status-incomplete"))
+            )
+
+            meta.setDisplayName(applyPlaceholders(display.getString("name", "")!!, placeholders, viewer))
+
+            // 构建lore列表，支持多行描述
+            val loreLines = mutableListOf<String>()
+            display.getStringList("lore").forEach { line ->
+                val processedLine = applyPlaceholders(line, placeholders, viewer)
+                // 如果行中包含换行符，拆分成多行
+                if (processedLine.contains("\n")) {
+                    loreLines.addAll(processedLine.split("\n"))
+                } else {
+                    loreLines.add(processedLine)
+                }
+            }
+            meta.lore = loreLines
+
+            // 写入 PDC 供监听器检查
+            val taskKey = NamespacedKey(plugin, "task_key")
+            meta.persistentDataContainer.set(taskKey, PersistentDataType.STRING, task.key)
+
+            item.itemMeta = meta
+            return item
+        }
+
+        // 任务没有配置 display，使用 config 中的默认图标
+        val iconKey = if (isCompleted) "tasks_finished" else "tasks_unfinished"
+        val iconConfig = menuDefaultIcons[iconKey]
+        val materialName = iconConfig?.material ?: if (isCompleted) "ENCHANTED_BOOK" else "BOOK"
+        val material = Material.matchMaterial(materialName) ?: Material.BOOK
         val item = ItemStack(material)
         val meta = item.itemMeta ?: return item
 
-        setItemModel(meta, display)
+        // 如果有配置图标，应用配置的图标
+        if (iconConfig != null) {
+            applyMenuDefaultIcon(meta, iconKey)
+        } else {
+            // 回退到菜单配置的 display
+            setItemModel(meta, display)
+        }
 
         // 准备变量替换
         val placeholders = mapOf(
@@ -1391,6 +1735,8 @@ class MenuManager(private val plugin: KaGuilds) {
 
     fun reload() {
         menuCache.clear()
+        menuDefaultIcons.clear()
+        loadMenuDefaultIcons()
         val guiFolder = File(plugin.dataFolder, "gui")
         if (!guiFolder.exists()) guiFolder.mkdirs()
 

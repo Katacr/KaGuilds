@@ -134,7 +134,7 @@ class PvPListener(private val plugin: org.katacr.kaguilds.KaGuilds) : Listener {
             val minZ = minOf(pos1.z, pos2.z)
             val maxZ = maxOf(pos1.z, pos2.z)
 
-            if (loc.x !in minX..maxX || loc.z < minZ || loc.z > maxZ || loc.y < minY || loc.y > maxY) {
+            if (loc?.let { it.x !in minX..maxX } == true || loc?.let { it.z < minZ } == true || loc?.let { it.z > maxZ } == true || loc?.let { it.y < minY } == true || loc?.let { it.y > maxY } == true) {
                 player.sendMessage(lang.get("arena-pvp-out-of-bounds"))
                 // 传回对应的出生点
                 val spawn = if (plugin.playerGuildCache[player.uniqueId] == match.redGuildId) arena.redSpawn else arena.blueSpawn

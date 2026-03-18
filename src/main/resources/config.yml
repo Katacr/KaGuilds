@@ -268,6 +268,109 @@ contribution:
   bank-withdraw-ratio: 1.0
 
 # ========================================
+# 菜单默认图标设置
+# ========================================
+# 用于自定义不同菜单中物品的默认图标
+# 支持四种菜单类型：
+#   - tasks（任务菜单）
+#   - buffs（Buff商店）
+#   - levels（公会升级）
+#   - vaults（公会存储）
+# 每种菜单支持两种状态：lock（锁定）、unlock（解锁）或unfinished/f
+
+menu-default-icon:
+  # 任务菜单图标
+  # 当任务配置（task.yml）中没有配置 display 键时使用此配置
+  tasks:
+    # 未完成任务图标
+    unfinished:
+      # 物品材质名称
+      # 可选值: 任何 Minecraft 物品材质 (如: BOOK, PAPER, BARRIER)
+      # 注意: 材质名称必须大写
+      material: "BOOK"
+      # 自定义模型数据 (仅适用于 1.21.4 以下版本)
+      # 用于自定义物品外观，需要配合资源包使用
+      custom_data: 0
+      # 物品模型 (仅适用于 1.21.4 及以上版本)
+      # 格式: "命名空间:模型键"
+      # 示例: "kaguilds:task_unfinished", "minecraft:book"
+      # 注意: 需要在资源包中定义对应的模型
+      item_model: "minecraft:book"
+    # 已完成任务图标
+    finished:
+      material: "ENCHANTED_BOOK"
+#     custom_data: 0
+#     item_model: "minecraft:enchanted_book"
+
+  # Buff 商店菜单图标
+  buffs:
+     # 未解锁 Buff 的图标
+     lock:
+       # 物品材质名称
+       # 可选值: 任何 Minecraft 物品材质 (如: PAPER, BARRIER, IRON_BARS)
+       # 注意: 材质名称必须大写
+       material: "GLASS_BOTTLE"
+       # 自定义模型数据 (仅适用于 1.21.4 以下版本)
+       # 用于自定义物品外观，需要配合资源包使用
+       custom_data: 0
+       # 物品模型 (仅适用于 1.21.4 及以上版本)
+       # 格式: "命名空间:模型键"
+       # 示例: "kaguilds:lock_item", "minecraft:enchanted_book"
+       # 注意: 需要在资源包中定义对应的模型
+       item_model: "minecraft:glass_bottle"
+     # 已解锁 Buff 的图标
+     unlock:
+       material: "HONEY_BOTTLE"
+#      custom_data: 123
+#      item_model: "kaguilds:unlock_item"
+
+  # 公会升级菜单图标
+  levels:
+    # 锁定等级的图标 (未解锁的等级)
+    lock:
+      material: "BOOK"
+#     custom_data: 123
+#     item_model: "kaguilds:lock_item"
+    # 解锁等级的图标 (已解锁/可升级的等级)
+    unlock:
+      material: "ENCHANTED_BOOK"
+#     custom_data: 123
+#     item_model: "kaguilds:unlock_item"
+
+  # 公会存储菜单图标
+  vaults:
+    # 锁定金库的图标 (未解锁的金库)
+    lock:
+      material: "MINECART"
+#     custom_data: 123
+#     item_model: "kaguilds:lock_item"
+    # 解锁金库的图标 (已解锁的金库)
+    unlock:
+      material: "CHEST_MINECART"
+#     custom_data: 123
+#     item_model: "kaguilds:unlock_item"
+
+# ========================================
+# 图标配置说明
+# ========================================
+# 1. 优先级: item_model > custom_data > material
+# 2. 版本兼容性:
+#    - 1.21.4+: 优先使用 item_model
+#    - 1.21.4-: 使用 custom_data
+#    - 如果两者都不存在，使用 material
+# 3. 任务图标配置特殊说明:
+#    - task.yml 中的 display 配置优先级高于 config.yml 中的默认配置
+#    - 如果任务在 task.yml 中配置了 display，则使用任务自己的配置
+#    - 如果任务没有配置 display，则使用 config.yml 中的默认配置
+# 4. 修改后使用 /kg reload 重载插件即可生效
+# 5. item_model 示例:
+#    - "kaguilds:lock_icon" - 自定义命名空间模型
+#    - "minecraft:enchanted_book" - Minecraft 原版模型
+#    - "oraxen:custom_item" - Oraxen 插件模型
+# ========================================
+
+
+# ========================================
 # 配置文件结束
 # ========================================
 # 修改配置后，请使用 /kg reload 重载插件

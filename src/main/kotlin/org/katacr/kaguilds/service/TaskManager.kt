@@ -32,6 +32,23 @@ class TaskManager(val plugin: KaGuilds) {
     private val globalBossBarTimerCache = mutableMapOf<Int, MutableMap<String, Int>>()
 
     /**
+     * 任务显示配置数据类
+     */
+    data class TaskDisplay(
+        val unfinished: TaskItemDisplay,
+        val finished: TaskItemDisplay
+    )
+
+    /**
+     * 任务物品显示配置数据类
+     */
+    data class TaskItemDisplay(
+        val material: String,
+        val customData: Int = 0,
+        val itemModel: String? = null
+    )
+
+    /**
      * 任务定义数据类
      */
     data class TaskDefinition(
@@ -42,7 +59,8 @@ class TaskManager(val plugin: KaGuilds) {
         val target: String,        // 任务目标(实体/方块类型等), * 表示任意
         val amount: Int,           // 目标数量
         val lore: List<String>,    // 任务描述
-        val actions: List<String>  // 完成后执行的动作
+        val actions: List<String>,  // 完成后执行的动作
+        val display: TaskDisplay?  // 任务菜单显示配置（可选）
     )
 
     val taskDefinitions = mutableMapOf<String, TaskDefinition>()
@@ -379,6 +397,27 @@ class TaskManager(val plugin: KaGuilds) {
             val taskSection = tasksSection.getConfigurationSection(taskKey) ?: continue
             val eventSection = taskSection.getConfigurationSection("event") ?: continue
 
+            // 解析 display 配置
+            val display = taskSection.getConfigurationSection("display")?.let { displaySection ->
+                val unfinished = displaySection.getConfigurationSection("unfinished")?.let { unfinishedSection ->
+                    TaskItemDisplay(
+                        material = unfinishedSection.getString("material", "PAPER") ?: "PAPER",
+                        customData = unfinishedSection.getInt("custom_data", 0),
+                        itemModel = unfinishedSection.getString("item_model")
+                    )
+                } ?: TaskItemDisplay(material = "PAPER")
+
+                val finished = displaySection.getConfigurationSection("finished")?.let { finishedSection ->
+                    TaskItemDisplay(
+                        material = finishedSection.getString("material", "PAPER") ?: "PAPER",
+                        customData = finishedSection.getInt("custom_data", 0),
+                        itemModel = finishedSection.getString("item_model")
+                    )
+                } ?: TaskItemDisplay(material = "PAPER")
+
+                TaskDisplay(unfinished, finished)
+            }
+
             val task = TaskDefinition(
                 key = taskKey,
                 name = taskSection.getString("name", taskKey) ?: taskKey,
@@ -387,7 +426,8 @@ class TaskManager(val plugin: KaGuilds) {
                 target = eventSection.getString("target", "*") ?: "*",
                 amount = eventSection.getInt("amount", 1),
                 lore = taskSection.getStringList("lore"),
-                actions = taskSection.getStringList("actions")
+                actions = taskSection.getStringList("actions"),
+                display = display
             )
 
             taskDefinitions[taskKey] = task

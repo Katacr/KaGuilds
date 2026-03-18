@@ -310,6 +310,7 @@ class DatabaseManager(val plugin: KaGuilds) {
             }
             false
         } catch (e: Exception) {
+            plugin.logger.severe("[DEBUG] isStaff check error: ${e.message}")
             e.printStackTrace()
             false
         }
@@ -318,11 +319,18 @@ class DatabaseManager(val plugin: KaGuilds) {
     /**
      * 获取玩家在公会中的角色
      */
-    fun getPlayerRole(uuid: UUID): String? {
-        val sql = "SELECT role FROM guild_members WHERE player_uuid = ?"
+    fun getPlayerRole(uuid: UUID, guildId: Int? = null): String? {
+        val sql = if (guildId != null) {
+            "SELECT role FROM guild_members WHERE player_uuid = ? AND guild_id = ?"
+        } else {
+            "SELECT role FROM guild_members WHERE player_uuid = ? AND guild_id > 0"
+        }
         return connection.use { conn ->
             val ps = conn.prepareStatement(sql)
             ps.setString(1, uuid.toString())
+            if (guildId != null) {
+                ps.setInt(2, guildId)
+            }
             val rs = ps.executeQuery()
             if (rs.next()) rs.getString("role") else null
         }

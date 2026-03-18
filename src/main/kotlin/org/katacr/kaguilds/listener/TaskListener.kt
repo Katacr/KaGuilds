@@ -53,7 +53,6 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     fun onEntityDeath(event: EntityDeathEvent) {
-        if (event.isCancelled) return
         val killer = event.entity.killer ?: return
 
         // 获取实体类型
