@@ -212,16 +212,13 @@ class MenuManager(private val plugin: KaGuilds) {
                     // 应用 ItemModel
                     setItemModelMethod.invoke(meta, modelKey)
                 } catch (e: ClassNotFoundException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     applyCustomModelData(meta, display)
                 } catch (e: NoSuchMethodException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     applyCustomModelData(meta, display)
                 } catch (e: Exception) {
                     plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    plugin.logger.info("Falling back to CustomModelData")
                     applyCustomModelData(meta, display)
                 }
             } catch (e: Exception) {
@@ -310,21 +307,17 @@ class MenuManager(private val plugin: KaGuilds) {
                     // 应用 ItemModel
                     setItemModelMethod.invoke(meta, modelKey)
                 } catch (e: ClassNotFoundException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     meta.setCustomModelData(iconConfig.customData)
                 } catch (e: NoSuchMethodException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     meta.setCustomModelData(iconConfig.customData)
                 } catch (e: Exception) {
                     plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    plugin.logger.info("Falling back to CustomModelData")
                     meta.setCustomModelData(iconConfig.customData)
                 }
             } catch (e: Exception) {
                 plugin.logger.warning("Unexpected exception: ${e.message}")
-                plugin.logger.info("Falling back to CustomModelData")
                 meta.setCustomModelData(iconConfig.customData)
             }
         } else {
@@ -395,21 +388,17 @@ class MenuManager(private val plugin: KaGuilds) {
                     // 应用 ItemModel
                     setItemModelMethod.invoke(meta, modelKey)
                 } catch (e: ClassNotFoundException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     meta.setCustomModelData(taskDisplay.customData)
                 } catch (e: NoSuchMethodException) {
-                    plugin.logger.info("This version of Paper does not support ItemModel API yet")
-                    plugin.logger.info("Falling back to CustomModelData")
+                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
                     meta.setCustomModelData(taskDisplay.customData)
                 } catch (e: Exception) {
                     plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    plugin.logger.info("Falling back to CustomModelData")
                     meta.setCustomModelData(taskDisplay.customData)
                 }
             } catch (e: Exception) {
                 plugin.logger.warning("Unexpected exception: ${e.message}")
-                plugin.logger.info("Falling back to CustomModelData")
                 meta.setCustomModelData(taskDisplay.customData)
             }
         } else {
@@ -725,7 +714,7 @@ class MenuManager(private val plugin: KaGuilds) {
                         val guildName = playerUUID?.let { uuid ->
                             val gid = plugin.dbManager.getGuildIdByPlayer(uuid)
                             gid?.let { plugin.dbManager.getGuildData(it)?.name }
-                        } ?: plugin.langManager.get("no-guild")
+                        } ?: plugin.langManager.get("papi-no-guild")
 
                         val placeholders = mapOf(
                             "player_name" to playerName,

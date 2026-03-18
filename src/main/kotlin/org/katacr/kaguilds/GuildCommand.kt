@@ -2306,7 +2306,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                     "pvp" -> listOf("start", "accept", "ready", "exit")
                     "admin" -> if (sender.hasPermission("kaguilds.admin")) {
                         // 在此处添加 task 子指令
-                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution")
+                        listOf("rename", "delete", "info", "bank", "transfer", "kick", "join", "vault", "unlockall", "setlevel", "exp", "arena", "open", "task", "contribution", "release")
                     } else emptyList()
                     "bank" -> listOf("add", "take", "log")
                     "vault" -> (1..9).map { it.toString() }
@@ -2330,6 +2330,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
                         "arena" -> filterList(listOf("setpos", "setspawn", "setkit", "info"), args[2])
                         "unlockall" -> emptyList()
                         "open" -> filterList(plugin.guiMenuFiles, args[2])
+                        "release" -> filterList(listOf("CN", "EN"), args[2]) // /kg admin release CN/EN
                         "task", "contribution" -> filterList(listOf("<公会ID>"), args[2]) // 提示输入公会ID
                         else -> filterList(listOf("#"), args[2]) // 其他指令提示 ID
                     }

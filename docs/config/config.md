@@ -461,6 +461,164 @@ contribution:
 
 ***
 
+## 🎨 menu-default-icon - 菜单默认图标设置
+
+用于配置各种菜单的默认图标，当菜单项没有单独配置图标时使用。
+
+```yaml
+menu-default-icon:
+  tasks:
+    unfinished:
+      material: "BOOK"
+      custom_data: 0
+      item_model: "minecraft:book"
+    finished:
+      material: "ENCHANTED_BOOK"
+  buffs:
+    lock:
+      material: "GLASS_BOTTLE"
+      custom_data: 0
+      item_model: "minecraft:glass_bottle"
+    unlock:
+      material: "HONEY_BOTTLE"
+  levels:
+    lock:
+      material: "BOOK"
+    unlock:
+      material: "ENCHANTED_BOOK"
+  vaults:
+    lock:
+      material: "MINECART"
+    unlock:
+      material: "CHEST_MINECART"
+```
+
+### 配置优先级
+
+* **优先级**: `item_model` > `custom_data` > `material`
+* **说明**:
+  * 1.21.4+: 优先使用 `item_model`
+  * 1.21.4-: 使用 `custom_data`
+  * 如果都没有配置，则使用 `material`
+
+---
+
+### `tasks` - 任务菜单图标
+
+当任务配置（task.yml）中没有配置 `display` 键时使用此配置。
+
+#### `unfinished` - 未完成任务图标
+
+```yaml
+tasks:
+  unfinished:
+    material: "BOOK"
+    custom_data: 0
+    item_model: "minecraft:book"
+```
+
+* **material**: 物品材质名称（必须大写），如 `BOOK`, `PAPER`, `BARRIER`
+* **custom_data**: 自定义模型数据（仅 1.21.4 以下版本），默认 `0`
+* **item_model**: 物品模型（仅 1.21.4+），格式为 `命名空间:模型键`，如 `kaguilds:task_unfinished`
+
+#### `finished` - 已完成任务图标
+
+```yaml
+tasks:
+  finished:
+    material: "ENCHANTED_BOOK"
+```
+
+配置项同上。
+
+---
+
+### `buffs` - Buff 商店菜单图标
+
+用于公会 Buff 商店的图标显示。
+
+#### `lock` - 未解锁 Buff 图标
+
+```yaml
+buffs:
+  lock:
+    material: "GLASS_BOTTLE"
+    custom_data: 0
+    item_model: "minecraft:glass_bottle"
+```
+
+* **material**: 物品材质名称（必须大写）
+* **custom_data**: 自定义模型数据（仅 1.21.4 以下版本）
+* **item_model**: 物品模型（仅 1.21.4+）
+
+#### `unlock` - 已解锁 Buff 图标
+
+```yaml
+buffs:
+  unlock:
+    material: "HONEY_BOTTLE"
+```
+
+配置项同上。
+
+---
+
+### `levels` - 公会升级菜单图标
+
+用于公会升级菜单中等级图标的显示。
+
+#### `lock` - 锁定等级图标（未解锁的等级）
+
+```yaml
+levels:
+  lock:
+    material: "BOOK"
+```
+
+* **material**: 物品材质名称（必须大写）
+* **custom_data**: 自定义模型数据（仅 1.21.4 以下版本）
+* **item_model**: 物品模型（仅 1.21.4+）
+
+#### `unlock` - 解锁等级图标（已解锁/可升级的等级）
+
+```yaml
+levels:
+  unlock:
+    material: "ENCHANTED_BOOK"
+```
+
+配置项同上。
+
+---
+
+### `vaults` - 公会存储菜单图标
+
+用于公会存储菜单中金库图标的显示。
+
+#### `lock` - 锁定金库图标（未解锁的金库）
+
+```yaml
+vaults:
+  lock:
+    material: "MINECART"
+```
+
+* **material**: 物品材质名称（必须大写）
+* **custom_data**: 自定义模型数据（仅 1.21.4 以下版本）
+* **item_model**: 物品模型（仅 1.21.4+）
+
+#### `unlock` - 解锁金库图标（已解锁的金库）
+
+```yaml
+vaults:
+  unlock:
+    material: "CHEST_MINECART"
+```
+
+配置项同上。
+
+***
+
 ## 🔧 重新加载配置
 
 修改配置文件后，使用以下命令重新加载：
