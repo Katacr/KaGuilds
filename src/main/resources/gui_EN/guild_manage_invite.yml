@@ -21,7 +21,7 @@ button:
       name: '&a{player_name} ' # Member name
       lore:
         - '&7--------------------------'
-        - '&bGuild: &f{guild_name}'  # Whether already joined guild, shows No Guild if none
+        - '&bGuild: &f{player_guild_name}'  # Whether already joined guild, shows No Guild if none
         - '&7--------------------------'
         - ''
         - '&e[Left Click] &6Invite this player'

@@ -810,7 +810,8 @@ class MenuManager(private val plugin: KaGuilds) {
 
                         val placeholders = mapOf(
                             "player_name" to playerName,
-                            "guild_name" to guildName
+                            "player_uuid" to playerUUID.toString(),
+                            "player_guild_name" to guildName
                         )
                         inv.setItem(slot, buildAllPlayerItem(btnSection, playerName, playerUUID, placeholders, player))
                     }
