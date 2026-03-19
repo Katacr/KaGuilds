@@ -10,8 +10,14 @@
 tasks:
   TaskKey:                # 任务唯一标识符
     display:               # 任务在 GUI 中显示的配置（可选）
-      material: "DIAMOND_SWORD"  # 物品材质
-      custom_data: 0             # 自定义模型数据（可选）
+      unfinished:           # 任务未完成的图标
+        material: "PAPER"
+        custom_data: 0
+        item_model: "minecraft:book"
+      finished:           # 任务已完成的图标
+        material: "PAPER"
+        custom_data: 0
+        item_model: "minecraft:enchanted_book"
     name: "任务名称"            # 任务显示名称
     type: "global"              # 任务类型：global 或 daily
     event:                      # 事件触发配置
@@ -44,15 +50,25 @@ tasks:
 
 任务在 GUI 菜单中的显示配置。
 
-#### `display.material`（可选）
+* 支持版本兼容性：
+    * 1.21.4+: 优先使用 `item_model`
+    * 1.21.4-: 使用 `custom_data`
+    * 如果都没有配置，则使用 `material`
+
+#### `material`
 
 * **类型**: String
 * **描述**: 任务图标的物品材质
 
-#### `display.custom_data`（可选）
+#### `item_model`（可选）
+
+* **类型**: String
+* **描述**: 自定义物品模型
+
+#### `custom_data`（可选）
 
 * **类型**: Integer
-* **描述**: 自定义模型数据（用于自定义材质包）
+* **描述**: 自定义材质包数据
 
 ### `name`（必需）
 

@@ -1868,11 +1868,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 尝试获取 ItemModel
             val getItemModelMethod = itemMetaClass.getMethod("getItemModel")
-            val model = getItemModelMethod.invoke(meta)
-
-            if (model == null) {
-                return null
-            }
+            val model = getItemModelMethod.invoke(meta) ?: return null
 
             // NamespacedKey.toString() 返回 "namespace:key" 格式
             return model.toString()
