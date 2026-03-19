@@ -10,7 +10,7 @@
 |------|--------------------|
 | Minecraft 版本 | 1.16.1 ~ 1.21.11   | 
 | Java 版本 | Java 12 ~ 21       | 
-| 服务器类型 | Paper及衍生核心         | 
+| 服务器类型 | Spigot, Paper及衍生核心  | 
 | 代理服务器（可选） | Velocity           | 
 | 数据库 | SQLite, MySQL 5.7+ | 
 
@@ -42,5 +42,5 @@ KaGuilds 需要以下依赖插件才能正常工作：
 2. 启动服务器
 3. 插件会自动创建配置文件和数据库表
    {% hint style="info" %}
-   请勿使用插件加载器(如PlunMan)加载或重载KaGuilds，否则可能遇到未知错误。
+   请勿使用插件加载器(如PlugMan)加载或重载KaGuilds，否则可能遇到未知错误。
    {% endhint %}
