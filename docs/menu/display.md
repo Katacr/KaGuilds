@@ -378,8 +378,6 @@ buttons:
 | `{player_name}` | 玩家名称 | `Player1` |
 | `{player_uuid}` | 玩家 UUID | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 | `{player_guild_name}` | 玩家所在公会（如有） | `星空公会` 或 `无` |
-| `{player_guild_level}` | 玩家所在公会等级（如有） | `3` 或 `-` |
-| `{player_is_online}` | 是否在线 | `true/false` |
 
 #### 配置示例
 
@@ -393,7 +391,6 @@ buttons:
       lore:
         - "&7UUID: &f{player_uuid}"
         - "&7公会: &f{player_guild_name}"
-        - "&7等级: &f{player_guild_level}"
         - ""
         - "&8左键: 邀请加入公会"
     actions:
