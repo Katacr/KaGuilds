@@ -46,7 +46,13 @@ class KaGuilds : JavaPlugin() {
      * 在插件加载时优先处理依赖下载
      */
     override fun onLoad() {
-        val libraryManager = BukkitLibraryManager(this)
+        // 创建共享的库目录（服务器根目录下的libraries文件夹）
+        val librariesDir = File(dataFolder.parentFile.parentFile, "libraries")
+        if (!librariesDir.exists()) {
+            librariesDir.mkdirs()
+        }
+
+        val libraryManager = BukkitLibraryManager(this, librariesDir.absolutePath)
 
         // 添加 Maven 中央仓库和阿里云镜像（加速国内下载）
         libraryManager.addMavenCentral()
@@ -70,13 +76,22 @@ class KaGuilds : JavaPlugin() {
         val sqlite = Library.builder()
             .groupId("org{}xerial")
             .artifactId("sqlite-jdbc")
-            .version("3.45.1.0")
+            .version("3.46.1.0")
             .build()
+
+        // 4.MySQL Connector/J 驱动
+        val mysql = Library.builder()
+            .groupId("com{}mysql")
+            .artifactId("mysql-connector-j")
+            .version("9.1.0")
+            .build()
+
 
         logger.info("Checking and downloading necessary dependent libraries, please wait...")
 
         libraryManager.loadLibrary(kotlinStd)
         libraryManager.loadLibrary(hikari)
+        libraryManager.loadLibrary(mysql)
         libraryManager.loadLibrary(sqlite)
     }
 
