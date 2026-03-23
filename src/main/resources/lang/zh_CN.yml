@@ -238,6 +238,9 @@ menu-upgrade-max-level: "§c[!] 公会等级已达最大等级。"
 menu-upgrade-not-enough-exp: "§c[!] 经验不足！升级需要 %need% 经验，目前只有 %exp% 点。"
 menu-upgrade-level-up-broadcast: "§8[§b公会§8] §7公会 §f%name% §7已升级到等级 §eLv.%level%§7！"
 menu-upgrade-level-up-msg: "§a恭喜！公会升级成功。"
+menu-kamenu-not-found: "§c[!] KaMenu 插件未安装或未启用。"
+menu-kamenu-failed: "§c[!] 打开菜单失败。"
+menu-kamenu-error: "§c[!] 调用 KaMenu API 时发生错误。"
 
 # 公会传送相关
 tp-not-set: "§c公会尚未设置传送点。"

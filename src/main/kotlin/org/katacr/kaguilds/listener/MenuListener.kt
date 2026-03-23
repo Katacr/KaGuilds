@@ -100,7 +100,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         val clickedGuildId = clickedItem.itemMeta?.persistentDataContainer?.get(guildIdKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedMemberUuid = clickedItem.itemMeta?.persistentDataContainer?.get(memberUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
-                ?: clickedItem.itemMeta?.persistentDataContainer?.get(playerUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
+            ?: clickedItem.itemMeta?.persistentDataContainer?.get(playerUuidKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedBuffKey = clickedItem.itemMeta?.persistentDataContainer?.get(buffKeyNameKey, org.bukkit.persistence.PersistentDataType.STRING)
         val clickedVaultNum = clickedItem.itemMeta?.persistentDataContainer?.get(vaultNumKey, org.bukkit.persistence.PersistentDataType.INTEGER)
         val clickedUpgradeLevel = clickedItem.itemMeta?.persistentDataContainer?.get(upgradeLevelKey, org.bukkit.persistence.PersistentDataType.INTEGER)
@@ -360,6 +360,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
      * 执行动作行
      */
     internal fun executeActionLine(player: Player, line: String) {
+        val lang = plugin.langManager
         if (line.isBlank()) return
         if (line == "PAGE_NEXT" || line == "PAGE_PREV") {
             val holder = player.openInventory.topInventory.holder as? GuildMenuHolder ?: return
@@ -496,6 +497,26 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                         plugin.menuManager.openMenu(player, currentHolder.menuName, currentHolder.currentPage)
                     }
                 }, 1L)
+            }
+            "kamenu" -> {
+                // 调用 KaMenu API 打开菜单
+                try {
+                    val kaMenuPlugin = plugin.server.pluginManager.getPlugin("KaMenu")
+                    if (kaMenuPlugin != null) {
+                        // 通过反射调用 KaMenuAPI.openMenu()
+                        val apiClass = Class.forName("org.katacr.kamenu.api.KaMenuAPI")
+                        val openMenuMethod = apiClass.getMethod("openMenu", Player::class.java, String::class.java)
+                        val result = openMenuMethod.invoke(null, player, args)
+                        if (result != true) {
+                            player.sendMessage(lang.get("menu-kamenu-failed"))
+                        }
+                    } else {
+                        player.sendMessage(lang.get("menu-kamenu-not-found"))
+                    }
+                } catch (e: Exception) {
+                    plugin.logger.warning("KaMenu API error: ${e.message}")
+                    player.sendMessage(lang.get("menu-kamenu-error"))
+                }
             }
         }
     }

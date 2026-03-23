@@ -229,6 +229,9 @@ menu-upgrade-max-level: "§c[!] Guild level has reached maximum."
 menu-upgrade-not-enough-exp: "§c[!] Not enough experience! Upgrade requires %need% experience, currently only %exp% points."
 menu-upgrade-level-up-broadcast: "§8[§bGuild§8] §7Guild §f%name% §7has been upgraded to level §eLv.%level%§7!"
 menu-upgrade-level-up-msg: "§aCongratulations! Guild upgrade successful."
+menu-kamenu-not-found: "§c[!] KaMenu plugin is not installed or enabled."
+menu-kamenu-failed: "§c[!] Failed to open menu."
+menu-kamenu-error: "§c[!] An error occurred while calling KaMenu API."
 
 # Guild Teleport Related
 tp-not-set: "§cGuild teleport point has not been set."
