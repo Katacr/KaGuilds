@@ -1,7 +1,7 @@
 # 🛡️ KaGuilds - 高性能跨服公会系统
 
 [![许可证](https://img.shields.io/github/license/katacr/KaGuilds)](LICENSE) 
-[![版本](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/katacr/KaGuilds) 
+[![版本](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/katacr/KaGuilds) 
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.16%2B-brightgreen)](https://www.minecraft.net/) 
 
 **KaGuilds** 是一款专为 Minecraft 网络服务器（BungeeCord/Velocity）设计的深度定制公会插件。它利用 **SQL 事务**和**跨服消息总线**确保在分布式环境下的数据一致性和安全性。
