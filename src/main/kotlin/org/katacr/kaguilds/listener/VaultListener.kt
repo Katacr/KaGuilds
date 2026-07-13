@@ -21,30 +21,34 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
         val guildId = holder.guildId
         val index = holder.vaultIndex
         val player = event.player as Player
+        val playerUuid = player.uniqueId
+        val playerName = player.name
 
         // 2. 在主线程完成序列化（避免异步操作 Inventory 导致的线程竞争问题）
         val data = SerializationUtil.itemsToBase64(event.inventory.contents)
 
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+        plugin.runAsync {
             // 3. 尝试保存数据
-            val saveSuccess = plugin.dbManager.saveVault(guildId, index, data)
+            val saveSuccess = plugin.dbManager.vaultRepository.saveVault(guildId, index, data, playerUuid)
 
             if (saveSuccess) {
                 // 4. 只有保存成功，才释放物理锁
-                plugin.dbManager.releaseLock(guildId, index, player.uniqueId)
+                plugin.dbManager.vaultRepository.releaseLock(guildId, index, playerUuid)
 
                 // 5. 释放内存锁
-                plugin.guildService.vaultLocks.remove(Pair(guildId, index))
+                plugin.vaultService.vaultLocks.remove(Pair(guildId, index))
             } else {
                 // 6. 异常处理：保存失败时不释放锁，直到租约过期。这能最大限度保护玩家物品不被覆盖。
-                plugin.logger.severe(lang.get("error-save-vault", "id" to guildId.toString(), "index" to index.toString(), "player" to player.name))
+                plugin.logger.severe(lang.get("error-save-vault", "id" to guildId.toString(), "index" to index.toString(), "player" to playerName))
 
                 // 依然需要清理本地内存锁，允许本服稍后重新尝试开启
-                plugin.guildService.vaultLocks.remove(Pair(guildId, index))
+                plugin.vaultService.vaultLocks.remove(Pair(guildId, index))
 
-                player.sendMessage(lang.get("error-database"))
+                plugin.runMain {
+                    player.sendMessage(lang.get("error-database"))
+                }
             }
-        })
+        }
     }
 
     @EventHandler

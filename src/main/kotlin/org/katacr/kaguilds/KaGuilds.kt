@@ -13,8 +13,10 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.katacr.kaguilds.arena.ArenaManager
 import org.katacr.kaguilds.arena.PvPManager
 import org.katacr.kaguilds.listener.*
+import org.katacr.kaguilds.service.BankService
 import org.katacr.kaguilds.service.GuildService
 import org.katacr.kaguilds.service.TaskManager
+import org.katacr.kaguilds.service.VaultService
 import java.io.File
 import java.util.*
 
@@ -31,6 +33,8 @@ class KaGuilds : JavaPlugin() {
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
     lateinit var guildService: GuildService
+    lateinit var vaultService: VaultService
+    lateinit var bankService: BankService
     lateinit var taskListener: TaskListener
     lateinit var menuListener: MenuListener
     lateinit var taskManager: TaskManager
@@ -41,6 +45,20 @@ class KaGuilds : JavaPlugin() {
     lateinit var levelsConfig: FileConfiguration
     lateinit var tasksConfig: FileConfiguration
     val guiMenuFiles = mutableListOf<String>()
+
+    /**
+     * 在 Bukkit 主线程执行任务，用于统一处理玩家、世界、GUI、Vault 等线程敏感 API。
+     */
+    fun runMain(block: () -> Unit) {
+        server.scheduler.runTask(this, Runnable { block() })
+    }
+
+    /**
+     * 在 Bukkit 异步线程执行任务，用于统一处理数据库访问和不接触 Bukkit 对象的纯计算。
+     */
+    fun runAsync(block: () -> Unit) {
+        server.scheduler.runTaskAsynchronously(this, Runnable { block() })
+    }
 
     /**
      * 在插件加载时优先处理依赖下载
@@ -131,6 +149,8 @@ class KaGuilds : JavaPlugin() {
         }
 
         // 4. 服务层与指令注册
+        vaultService = VaultService(this)
+        bankService = BankService(this)
         guildService = GuildService(this)
         taskManager = TaskManager(this)
         taskManager.initialize()
@@ -145,7 +165,7 @@ class KaGuilds : JavaPlugin() {
         // 6. 统计与消息通道
         val metrics = Metrics(this, 29368)
         metrics.addCustomChart(SingleLineChart("guilds_total") {
-            dbManager.getGuildCount()
+            dbManager.guildRepository.getGuildCount()
         })
 
         server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
@@ -194,7 +214,7 @@ class KaGuilds : JavaPlugin() {
                 if (!match.isStarted) {
                     val fee = config.getDouble("balance.pvp", 300.0)
                     if (fee > 0 && ::dbManager.isInitialized) {
-                        dbManager.updateGuildBalance(match.redGuildId, fee)
+                        dbManager.bankRepository.updateGuildBalance(match.redGuildId, fee)
                         logger.info("服务器关闭：已自动为公会 ${match.redGuildId} 退还公会战挑战金。")
                     }
                 }
@@ -509,8 +529,8 @@ class KaGuilds : JavaPlugin() {
         val guiMenuCount = guiMenuFiles.size
 
         // 统计公会和成员数量
-        val guildCount = if (::dbManager.isInitialized) dbManager.getGuildCount() else 0
-        val memberCount = if (::dbManager.isInitialized) dbManager.getTotalMemberCount() else 0
+        val guildCount = if (::dbManager.isInitialized) dbManager.guildRepository.getGuildCount() else 0
+        val memberCount = if (::dbManager.isInitialized) dbManager.memberRepository.getTotalMemberCount() else 0
 
         // 准备国际化文本
         val vaultText = langManager.get("info-logo-hook-true").takeIf { vaultStatus } ?: langManager.get("info-logo-hook-false")

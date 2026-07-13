@@ -8,6 +8,7 @@ import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
 import org.bukkit.Bukkit.getPluginManager
 import org.katacr.kaguilds.KaGuilds
+import org.katacr.kaguilds.repository.PvPRepository
 import org.katacr.kaguilds.util.MessageUtil
 import java.util.UUID
 
@@ -66,7 +67,7 @@ class PvPManager(private val plugin: KaGuilds) {
         plugin.server.onlinePlayers.forEach { onlinePlayer ->
             val playerGuildId = plugin.playerGuildCache[onlinePlayer.uniqueId]
             if (playerGuildId == targetGuildId) {
-                if (plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
+                if (plugin.dbManager.memberRepository.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
                     val msg = MessageUtil.createText(lang.get("arena-pvp-invite-msg", "name" to senderGuildName))
 
                     val acceptBtn = MessageUtil.createClickableText(
@@ -199,8 +200,8 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     private fun notifyCrossServerGuildMembers(match: ActiveMatch) {
         val serverId = plugin.config.getString("server-id", "unknown") ?: "unknown"
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+        val redName = plugin.dbManager.guildRepository.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.guildRepository.getGuildData(match.blueGuildId)?.name ?: "蓝队"
 
         // 检查是否启用代理模式
         if (!plugin.config.getBoolean("proxy", false)) {
@@ -269,8 +270,8 @@ class PvPManager(private val plugin: KaGuilds) {
         match.isStarted = true
 
         // 4. 全服广播开战消息
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "RED-TEAM"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "BLUE-TEAM"
+        val redName = plugin.dbManager.guildRepository.getGuildData(match.redGuildId)?.name ?: "RED-TEAM"
+        val blueName = plugin.dbManager.guildRepository.getGuildData(match.blueGuildId)?.name ?: "BLUE-TEAM"
         plugin.server.broadcastMessage(lang.get("arena-pvp-start", "red" to redName, "blue" to blueName))
 
         // 5. 物资准备
@@ -432,7 +433,7 @@ class PvPManager(private val plugin: KaGuilds) {
             val fee = plugin.config.getDouble("balance.pvp", 300.0)
             if (fee > 0) {
                 // 这里我们退还给发起公会（通常是 redGuildId 发起的挑战）
-                val success = plugin.dbManager.updateGuildBalance(match.redGuildId, fee)
+                val success = plugin.dbManager.bankRepository.updateGuildBalance(match.redGuildId, fee)
                 if (success) {
                     match.smartBroadcast(lang.get("arena-pvp-refund-success", "fee" to fee.toString()))
                 }
@@ -448,8 +449,8 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     private fun broadcastFinalResult(match: ActiveMatch, winnerId: Int?) {
         val lang = plugin.langManager
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "RED_TEAM"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "BLUE_TEAM"
+        val redName = plugin.dbManager.guildRepository.getGuildData(match.redGuildId)?.name ?: "RED_TEAM"
+        val blueName = plugin.dbManager.guildRepository.getGuildData(match.blueGuildId)?.name ?: "BLUE_TEAM"
 
         if (winnerId == null) {
             plugin.server.broadcastMessage(lang.get("arena-pvp-draw-message", "red" to redName, "blue" to blueName))  // "§e$redName §7vs §b$blueName §f双方握手言和，平局收场！"
@@ -464,7 +465,7 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     private fun teleportHome(player: Player) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: -1
-        val guildData = plugin.dbManager.getGuildData(guildId)
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
 
         // 如果有公会家园传家园，没有传主城出生点
         val loc = guildData?.teleportLocation?.let {
@@ -512,18 +513,7 @@ class PvPManager(private val plugin: KaGuilds) {
                 updateGuildStats(redId, "total")
                 updateGuildStats(blueId, "total")
 
-                // 2. 插入详细战报历史
-                val sql = "INSERT INTO guild_pvp_history (red_guild_id, blue_guild_id, winner_guild_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)"
-                plugin.dbManager.dataSource?.connection?.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        ps.setInt(1, redId)
-                        ps.setInt(2, blueId)
-                        if (winnerId != null) ps.setInt(3, winnerId) else ps.setNull(3, java.sql.Types.INTEGER)
-                        ps.setLong(4, match.startTime)
-                        ps.setLong(5, System.currentTimeMillis())
-                        ps.executeUpdate()
-                    }
-                }
+                plugin.dbManager.pvpRepository.recordMatch(redId, blueId, winnerId, match.startTime, System.currentTimeMillis())
             } catch (e: Exception) {
                 plugin.logger.severe(lang.get("arena-pvp-update-history-error", "error" to e.message.toString()))  //"更新公会战战报时发生错误: ${e.message}"
                 e.printStackTrace()
@@ -546,19 +536,13 @@ class PvPManager(private val plugin: KaGuilds) {
      * 辅助方法：更新公会战统计字段
      */
     private fun updateGuildStats(guildId: Int, type: String) {
-        val column = when(type) {
-            "wins" -> "pvp_wins"
-            "losses" -> "pvp_losses"
-            "draws" -> "pvp_draws"
-            else -> "pvp_total"
+        val statType = when(type) {
+            "wins" -> PvPRepository.StatType.WINS
+            "losses" -> PvPRepository.StatType.LOSSES
+            "draws" -> PvPRepository.StatType.DRAWS
+            else -> PvPRepository.StatType.TOTAL
         }
-        val sql = "UPDATE guild_data SET $column = $column + 1 WHERE id = ?"
-        plugin.dbManager.dataSource?.connection?.use { conn ->
-            conn.prepareStatement(sql).use {
-                it.setInt(1, guildId)
-                it.executeUpdate()
-            }
-        }
+        plugin.dbManager.pvpRepository.incrementStat(guildId, statType)
     }
 
     /**
@@ -611,8 +595,8 @@ class PvPManager(private val plugin: KaGuilds) {
     fun updateBossBar(seconds: Int) {
         val lang = plugin.langManager
         val match = currentMatch ?: return
-        val redName = plugin.dbManager.getGuildData(match.redGuildId)?.name ?: "红队"
-        val blueName = plugin.dbManager.getGuildData(match.blueGuildId)?.name ?: "蓝队"
+        val redName = plugin.dbManager.guildRepository.getGuildData(match.redGuildId)?.name ?: "红队"
+        val blueName = plugin.dbManager.guildRepository.getGuildData(match.blueGuildId)?.name ?: "蓝队"
         val timeStr = formatTime(seconds)
 
         val title = if (!match.isStarted) {

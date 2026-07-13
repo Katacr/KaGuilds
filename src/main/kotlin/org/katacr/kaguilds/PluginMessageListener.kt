@@ -131,8 +131,12 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     val gId = `in`.readInt()
                     val targetUuid = UUID.fromString(uuidStr)
                     plugin.playerGuildCache.remove(targetUuid)
+                    if (gId == -1) {
+                        plugin.guildChatPlayers.remove(targetUuid)
+                    }
                     if (gId != -1) {
                         plugin.playerGuildCache[targetUuid] = gId
+                        plugin.taskManager.activatePlayerTasks(targetUuid, gId)
                     }
                 } catch (e: Exception) {
                     plugin.logger.warning("同步缓存数据解析失败: ${e.message}")
@@ -166,7 +170,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     if (cachedGuildId == targetGuildId) {
                         // 异步检查权限，或者如果你把权限也缓存了会更快
                         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                            if (plugin.dbManager.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
+                            if (plugin.dbManager.memberRepository.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
                                 plugin.server.scheduler.runTask(plugin, Runnable {
                                     val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
                                     val viewBtn = MessageUtil.createClickableText(
@@ -197,7 +201,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 if (targetPlayer != null) {
                     // 异步检查目标玩家是否有公会（防止他在别的服刚加了公会）
                     plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                        if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) == null) {
+                        if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetPlayer.uniqueId) == null) {
 
                             // 1. 存入本服的邀请缓存
                             plugin.inviteCache[targetPlayer.uniqueId] = guildId
@@ -252,7 +256,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     if (plugin.playerGuildCache[onlinePlayer.uniqueId] == targetId) {
                         // 再异步查权限发送
                         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                            val role = plugin.dbManager.getPlayerRole(onlinePlayer.uniqueId)
+                            val role = plugin.dbManager.memberRepository.getPlayerRole(onlinePlayer.uniqueId)
                             if (role == "OWNER" || role == "ADMIN") {
                                 plugin.server.scheduler.runTask(plugin, Runnable {
                                     val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to appName))
@@ -333,6 +337,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         p.sendMessage(targetPrivateMsg)
                         // 踢出时清理该服可能存在的内存缓存(双重保险)
                         plugin.playerGuildCache.remove(p.uniqueId)
+                        plugin.guildChatPlayers.remove(p.uniqueId)
                     }
                 }
             }
@@ -410,6 +415,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     val entry = iterator.next()
                     if (entry.value == gId) {
                         iterator.remove()
+                        plugin.guildChatPlayers.remove(entry.key)
                         // 如果该玩家在线，顺便通知一下
                         plugin.server.getPlayer(entry.key)?.sendMessage(
                             plugin.langManager.get("admin-delete-notify")
@@ -478,7 +484,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
 
                         // 3. 异步预加载新数据 (可选，但建议延迟 1 秒，等待数据库写入同步)
                         plugin.server.scheduler.runTaskLaterAsynchronously(plugin, Runnable {
-                            val newId = plugin.dbManager.getGuildIdByPlayer(p.uniqueId)
+                            val newId = plugin.dbManager.memberRepository.getGuildIdByPlayer(p.uniqueId)
                             if (newId != null) {
                                 plugin.playerGuildCache[p.uniqueId] = newId
                             }
@@ -495,7 +501,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     // 我们不判断 cachedId == targetGuildId，因为缓存可能是错的
                     // 直接异步读库校验
                     plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                        val realGuildId = plugin.dbManager.getGuildIdByPlayer(p.uniqueId)
+                        val realGuildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(p.uniqueId)
                         if (realGuildId == targetGuildId) {
                             // 修正并激活缓存
                             plugin.playerGuildCache[p.uniqueId] = targetGuildId

@@ -20,11 +20,12 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
         // 玩家加入时，异步从数据库读取其公会ID并存入缓存
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 确保玩家在数据库中存在记录（用于支持跨服邀请等功能）
-            plugin.dbManager.ensurePlayerExists(player.uniqueId, player.name)
+            plugin.dbManager.memberRepository.ensurePlayerExists(player.uniqueId, player.name)
 
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             if (guildId != null) {
                 plugin.playerGuildCache[player.uniqueId] = guildId
+                plugin.taskManager.activatePlayerTasks(player.uniqueId, guildId)
 
                 // 检查并计算公会的银行利息
                 checkAndCalculateGuildInterest(guildId)
@@ -37,7 +38,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
      * @param guildId 公会ID
      */
     private fun checkAndCalculateGuildInterest(guildId: Int) {
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return
 
         val today = getTodayDateLong()
         val lastInterestDate = guildData.lastInterestDate
@@ -60,11 +61,11 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
 
             if (totalInterest > 0) {
                 // 更新公会余额
-                val success = plugin.dbManager.updateGuildBalance(guildId, totalInterest)
+                val success = plugin.dbManager.bankRepository.updateGuildBalance(guildId, totalInterest)
 
                 if (success) {
                     // 记录利息日志
-                    plugin.dbManager.logBankTransaction(
+                    plugin.dbManager.bankRepository.logBankTransaction(
                         guildId,
                         "SYSTEM",
                         "INTEREST",
@@ -72,7 +73,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                     )
 
                     // 更新计息日期
-                    plugin.dbManager.updateLastInterestDate(guildId, today)
+                    plugin.dbManager.guildRepository.updateLastInterestDate(guildId, today)
 
                 }
             }
@@ -125,6 +126,7 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
 
         // 玩家退出时，清理内存，防止内存泄漏
         plugin.playerGuildCache.remove(player.uniqueId)
+        plugin.guildChatPlayers.remove(player.uniqueId)
 
     }
 

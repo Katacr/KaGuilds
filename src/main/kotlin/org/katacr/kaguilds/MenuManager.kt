@@ -13,6 +13,8 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.meta.SkullMeta
 import org.bukkit.persistence.PersistentDataType
 import org.katacr.kaguilds.listener.GuildMenuHolder
+import org.katacr.kaguilds.model.GuildData
+import org.katacr.kaguilds.model.MemberData
 import org.katacr.kaguilds.service.TaskManager
 import java.text.SimpleDateFormat
 import java.util.*
@@ -528,7 +530,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         // 2. 数据库分页计算
         val guildsPerPage = listSlots.size
-        val totalGuilds = plugin.dbManager.getGuildCount() // 从数据库实时获取总数
+        val totalGuilds = plugin.dbManager.guildRepository.getGuildCount() // 从数据库实时获取总数
 
         val maxPages = if (guildsPerPage > 0) {
             ceil(totalGuilds.toDouble() / guildsPerPage).toInt().coerceAtLeast(1)
@@ -539,7 +541,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         // 关键优化：只从数据库加载当前页面所需的公会数据
         val currentPageGuilds = if (guildsPerPage > 0) {
-            plugin.dbManager.getGuildsByPage(safePage, guildsPerPage)
+            plugin.dbManager.guildRepository.getGuildsByPage(safePage, guildsPerPage)
         } else emptyList()
 
         val holder = GuildMenuHolder(title, layout, buttons, safePage, menuName, player)
@@ -580,7 +582,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param player 玩家
      * @return 公会项
      */
-    private fun buildGuildItem(section: ConfigurationSection, guild: DatabaseManager.GuildData, player: Player): ItemStack {
+    private fun buildGuildItem(section: ConfigurationSection, guild: GuildData, player: Player): ItemStack {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
         val material = Material.getMaterial((guild.icon ?: "PAPER").uppercase()) ?: Material.PAPER
 
@@ -617,7 +619,7 @@ class MenuManager(private val plugin: KaGuilds) {
     /**
      * 应用公会图标配置
      */
-    private fun applyGuildIcon(meta: org.bukkit.inventory.meta.ItemMeta, guild: DatabaseManager.GuildData) {
+    private fun applyGuildIcon(meta: org.bukkit.inventory.meta.ItemMeta, guild: GuildData) {
         // 优先使用 icon_item_model
         if (!guild.iconItemModel.isNullOrEmpty()) {
             try {
@@ -706,7 +708,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val layout = getLayout(config)
         val buttons = getButtonsSection(config) ?: return
 
-        val allMembers = plugin.dbManager.getGuildMembers(guildId)
+        val allMembers = plugin.dbManager.memberRepository.getGuildMembers(guildId)
         val listSlots = mutableListOf<Int>()
         for (r in layout.indices) {
             for (c in layout[r].indices) {
@@ -804,8 +806,8 @@ class MenuManager(private val plugin: KaGuilds) {
                         val playerUUID = getUUIDByName(playerName)
                         // 获取玩家的公会信息
                         val guildName = playerUUID?.let { uuid ->
-                            val gid = plugin.dbManager.getGuildIdByPlayer(uuid)
-                            gid?.let { plugin.dbManager.getGuildData(it)?.name }
+                            val gid = plugin.dbManager.memberRepository.getGuildIdByPlayer(uuid)
+                            gid?.let { plugin.dbManager.guildRepository.getGuildData(it)?.name }
                         } ?: plugin.langManager.get("papi-no-guild")
 
                         val placeholders = mapOf(
@@ -880,7 +882,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param viewer 玩家
      * @return 成员项
      */
-    private fun buildMemberItem(section: ConfigurationSection, member: DatabaseManager.MemberData, viewer: Player): ItemStack {
+    private fun buildMemberItem(section: ConfigurationSection, member: MemberData, viewer: Player): ItemStack {
         // 1. 创建头颅 ItemStack，此时它是空白/默认皮肤
         val item = ItemStack(Material.PLAYER_HEAD)
         val meta = item.itemMeta as? SkullMeta ?: return item
@@ -948,7 +950,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         val guildId = plugin.playerGuildCache[player.uniqueId]
         if (guildId != null) {
-            val myGuildData = plugin.dbManager.getGuildData(guildId)
+            val myGuildData = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (myGuildData != null) {
                 placeholders.putAll(getGuildPlaceholders(myGuildData, player))
             }
@@ -990,7 +992,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param player 玩家
      * @return 变量映射表
      */
-    fun getGuildPlaceholders(guild: DatabaseManager.GuildData, player: Player): Map<String, String> {
+    fun getGuildPlaceholders(guild: GuildData, player: Player): Map<String, String> {
         val onlineCount = plugin.playerGuildCache.values.count { it == guild.id }
         val formatPattern = plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss")!!
         val createTimeStr = SimpleDateFormat(formatPattern).format(Date(guild.createTime))
@@ -1002,7 +1004,7 @@ class MenuManager(private val plugin: KaGuilds) {
             "id" to guild.id.toString(),
             "name" to guild.name,
             "level" to guild.level.toString(),
-            "members" to plugin.dbManager.getMemberCount(guild.id).toString(),
+            "members" to plugin.dbManager.memberRepository.getMemberCount(guild.id).toString(),
             "max_members" to guild.maxMembers.toString(),
             "online" to onlineCount.toString(),
             "balance" to String.format("%.2f", guild.balance),
@@ -1010,8 +1012,8 @@ class MenuManager(private val plugin: KaGuilds) {
             "create_time" to createTimeStr,
             "owner" to (guild.ownerName ?: "Null"),
             "player" to player.name,
-            "role" to (plugin.dbManager.getPlayerRole(player.uniqueId) ?: "NONE"),
-            "role_node" to when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+            "role" to (plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId) ?: "NONE"),
+            "role_node" to when (plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)) {
                 "OWNER" -> "3"
                 "ADMIN" -> "2"
                 "MEMBER" -> "1"
@@ -1056,7 +1058,7 @@ class MenuManager(private val plugin: KaGuilds) {
                         // 实时获取成员列表数据
                         val guildId = plugin.playerGuildCache[player.uniqueId]
                         if (guildId != null) {
-                            val allMembers = plugin.dbManager.getGuildMembers(guildId)
+                            val allMembers = plugin.dbManager.memberRepository.getGuildMembers(guildId)
                             val listSlots = mutableListOf<Int>()
                             for (lr in layout.indices) {
                                 for (lc in layout[lr].indices) {
@@ -1086,7 +1088,7 @@ class MenuManager(private val plugin: KaGuilds) {
                         }
                         val guildsPerPage = listSlots.size
                         val currentPageGuilds = if (guildsPerPage > 0) {
-                            plugin.dbManager.getGuildsByPage(holder.currentPage, guildsPerPage)
+                            plugin.dbManager.guildRepository.getGuildsByPage(holder.currentPage, guildsPerPage)
                         } else emptyList()
                         val relativeIdx = listSlots.indexOf(slot)
                         if (relativeIdx != -1 && relativeIdx < currentPageGuilds.size) {
@@ -1098,7 +1100,7 @@ class MenuManager(private val plugin: KaGuilds) {
                         // 实时获取Buff数据
                         val guildId = plugin.playerGuildCache[player.uniqueId]
                         if (guildId != null) {
-                            val guildData = plugin.dbManager.getGuildData(guildId)
+                            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
                             if (guildData != null) {
                                 val allBuffKeys = plugin.buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.toList() ?: emptyList()
                                 val listSlots = mutableListOf<Int>()
@@ -1125,7 +1127,7 @@ class MenuManager(private val plugin: KaGuilds) {
                     "GUILD_VAULTS" -> {
                         // 实时获取金库数据
                         val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
-                        val guildData = plugin.dbManager.getGuildData(guildId)
+                        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
                         val level = guildData?.level ?: 1
                         val unlockedCount = plugin.levelsConfig.getInt("levels.$level.vaults", 0)
                         var vaultCounter = 1
@@ -1147,7 +1149,7 @@ class MenuManager(private val plugin: KaGuilds) {
                         // 实时获取升级数据
                         val guildId = plugin.playerGuildCache[player.uniqueId]
                         if (guildId != null) {
-                            val guildData = plugin.dbManager.getGuildData(guildId)
+                            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
                             if (guildData != null) {
                                 val allLevelKeys = plugin.levelsConfig.getConfigurationSection("levels")?.getKeys(false)?.toList()
                                     ?.mapNotNull { it.toIntOrNull() }?.sorted() ?: emptyList()
@@ -1212,7 +1214,7 @@ class MenuManager(private val plugin: KaGuilds) {
      */
     fun openBuffShopMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return // 假设你有获取公会数据的方法
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return // 假设你有获取公会数据的方法
         val currentLevel = guildData.level
 
         // 1. 获取当前等级解锁的 Buff 列表
@@ -1347,7 +1349,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
         // 1. 获取公会等级数据
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
-        val guildData = plugin.dbManager.getGuildData(guildId)
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
         val level = guildData?.level ?: 1
         val unlockedCount = plugin.levelsConfig.getInt("levels.$level.vaults", 0)
 
@@ -1447,7 +1449,7 @@ class MenuManager(private val plugin: KaGuilds) {
      */
     fun openUpgradeMenu(player: Player, menuName: String, page: Int = 0) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return
 
         // 1. 获取所有配置好的等级列表 (从 levels.yml 的 levels 节点获取)
         val levelsSection = plugin.levelsConfig.getConfigurationSection("levels") ?: return
@@ -1506,7 +1508,7 @@ class MenuManager(private val plugin: KaGuilds) {
     /**
      * 构建公会等级升级物品
      */
-    private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: DatabaseManager.GuildData, viewer: Player): ItemStack {
+    private fun buildUpgradeItem(section: ConfigurationSection, targetLevel: Int, guildData: GuildData, viewer: Player): ItemStack {
         val lang = plugin.langManager
         val levelConfig = plugin.levelsConfig.getConfigurationSection("levels.$targetLevel") ?: return ItemStack(Material.BARRIER)
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
@@ -1614,7 +1616,7 @@ class MenuManager(private val plugin: KaGuilds) {
         when (taskType) {
             "daily" -> {
                 plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                    plugin.dbManager.checkAndResetDailyTasks(guildId, player.uniqueId)
+                    plugin.dbManager.taskRepository.checkAndResetDailyTasks(guildId, player.uniqueId)
                     // 延迟1tick再打开菜单，确保数据库更新完成
                     plugin.server.scheduler.runTask(plugin, Runnable {
                         openTaskMenuInternal(player, menuName, page, taskType)
@@ -1623,7 +1625,7 @@ class MenuManager(private val plugin: KaGuilds) {
             }
             "global" -> {
                 plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                    plugin.dbManager.checkAndResetGlobalTasks(guildId)
+                    plugin.dbManager.taskRepository.checkAndResetGlobalTasks(guildId)
                     // 延迟1tick再打开菜单，确保数据库更新完成
                     plugin.server.scheduler.runTask(plugin, Runnable {
                         openTaskMenuInternal(player, menuName, page, taskType)
@@ -1717,7 +1719,7 @@ class MenuManager(private val plugin: KaGuilds) {
         val display = section.getConfigurationSection("display") ?: return ItemStack(Material.PAPER)
 
         // 获取任务进度
-        val progress = plugin.dbManager.getGuildTaskProgress(guildId, task.key, if (task.type == "daily") viewer.uniqueId else null)
+        val progress = plugin.dbManager.taskRepository.getGuildTaskProgress(guildId, task.key, if (task.type == "daily") viewer.uniqueId else null)
         val currentProgress = progress?.progress ?: 0
         val isCompleted = currentProgress >= task.amount
 
@@ -1853,6 +1855,6 @@ class MenuManager(private val plugin: KaGuilds) {
         if (onlinePlayer != null) return onlinePlayer.uniqueId
 
         // 如果在线玩家中没有，从数据库获取
-        return plugin.dbManager.getUuidByPlayerName(playerName)
+        return plugin.dbManager.memberRepository.getUuidByPlayerName(playerName)
     }
 }

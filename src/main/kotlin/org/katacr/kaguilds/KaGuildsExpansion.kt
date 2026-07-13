@@ -24,7 +24,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 
         // 特殊变量：检查玩家是否已加入公会
         if (params == "has_guild") {
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             return if (guildId != null) {
                 lang.get("papi-boolean-true")
             } else {
@@ -38,11 +38,11 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
         }
 
         // 1. 获取该玩家所属的公会 ID
-        val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+        val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             ?: return lang.get("papi-no-guild")
 
         // 2. 根据 ID 获取公会对象
-        val guild = plugin.dbManager.getGuildById(guildId)
+        val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
             ?: return lang.get("papi-error")
 
 
@@ -53,10 +53,10 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "owner" -> guild.ownerName
             "balance" -> guild.balance.toString()
             "motd" -> guild.announcement
-            "member_count" -> plugin.dbManager.getMemberCount(guildId).toString()
+            "member_count" -> plugin.dbManager.memberRepository.getMemberCount(guildId).toString()
             "max_members" -> guild.maxMembers.toString()
             "exp" -> guild.exp.toString()
-            "contribution" -> plugin.dbManager.getPlayerContribution(player.uniqueId).toString()
+            "contribution" -> plugin.dbManager.memberRepository.getPlayerContribution(player.uniqueId).toString()
             "need_exp" -> {
                 // 获取下一级所需经验
                 val nextLevel = guild.level + 1
@@ -68,31 +68,31 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
                 val formatPattern = plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss") ?: "yyyy-MM-dd HH:mm:ss"
                 java.text.SimpleDateFormat(formatPattern).format(java.util.Date(guild.createTime))
             }
-            "pending_requests" -> plugin.dbManager.getRequests(guildId).size.toString()
+            "pending_requests" -> plugin.dbManager.requestRepository.getRequests(guildId).size.toString()
             "pvp_wins" -> guild.pvpWins.toString()
             "pvp_losses" -> guild.pvpLosses.toString()
             "pvp_draws" -> guild.pvpDraws.toString()
             "pvp_total" -> guild.pvpTotal.toString()
             "is_admin" -> {
-                when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+                when (plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)) {
                     "ADMIN" -> lang.get("papi-boolean-true")
                     else -> lang.get("papi-boolean-false")
                 }
             }
             "is_owner" -> {
-                when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+                when (plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)) {
                     "OWNER" -> lang.get("papi-boolean-true")
                     else -> lang.get("papi-boolean-false")
                 }
             }
             "is_staff" -> {
-                if (plugin.dbManager.isStaff(player.uniqueId, guildId))
+                if (plugin.dbManager.memberRepository.isStaff(player.uniqueId, guildId))
                     lang.get("papi-boolean-true")
                 else
                     lang.get("papi-boolean-false")
             }
             "role_name" -> {
-                when (plugin.dbManager.getPlayerRole(player.uniqueId)) {
+                when (plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)) {
                     "OWNER" -> lang.get("papi-role-owner")
                     "ADMIN" -> lang.get("papi-role-admin")
                     "MEMBER" -> lang.get("papi-role-member")
@@ -100,7 +100,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
                 }
             }
             "member_list" -> {
-                val memberList = plugin.dbManager.getMemberNames(guildId)
+                val memberList = plugin.dbManager.memberRepository.getMemberNames(guildId)
                 if (memberList.isEmpty()) {
                     lang.get("papi-no-member")
                 } else {

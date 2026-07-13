@@ -29,12 +29,13 @@ class TaskListener(private val plugin: KaGuilds) : Listener {
     fun onPlayerJoin(event: PlayerJoinEvent) {
         val player = event.player
 
-        // 1. 清除过期的每日任务缓存（确保新的一天任务状态正确）
+        // 清除过期的每日任务缓存（确保新的一天任务状态正确）
         plugin.taskManager.clearExpiredDailyCache(player)
 
-        // 2. 延迟触发 login 任务事件
+        // 公会缓存由 GuildListener 异步加载，这里只作为延迟兜底激活。
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            plugin.taskManager.handleEvent(player, "login")
+            val guildId = plugin.playerGuildCache[player.uniqueId] ?: return@Runnable
+            plugin.taskManager.activatePlayerTasks(player.uniqueId, guildId)
         }, 20L * 2) // 2秒后触发
     }
 

@@ -117,6 +117,9 @@ permissions:
   kaguilds.admin.reload:
     description: 允许玩家使用重载配置文件指令
     default: op
+  kaguilds.admin.help:
+    description: 允许管理员查看管理员帮助指令
+    default: op
   kaguilds.admin.rename:
     description: 允许管理员使用公会重命名指令
     default: op
@@ -155,4 +158,13 @@ permissions:
     default: op
   kaguilds.admin.open:
     description: 允许管理员打开任意GUI菜单
+    default: op
+  kaguilds.admin.task:
+    description: 允许管理员管理公会任务进度
+    default: op
+  kaguilds.admin.contribution:
+    description: 允许管理员管理公会贡献度
+    default: op
+  kaguilds.admin.release:
+    description: 允许管理员释放内置菜单文件
     default: op

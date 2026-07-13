@@ -4,19 +4,17 @@ import org.bukkit.command.CommandSender
 import org.katacr.kaguilds.KaGuilds
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
-import org.katacr.kaguilds.DatabaseManager
+import org.katacr.kaguilds.model.GuildData
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitTask
-import org.katacr.kaguilds.listener.VaultHolder
-import org.katacr.kaguilds.util.SerializationUtil
 import java.util.UUID
 import org.katacr.kaguilds.util.MessageUtil
 import java.io.DataOutputStream
 
 class GuildService(private val plugin: KaGuilds) {
     data class GuildInfo(
-        val data: DatabaseManager.GuildData,
+        val data: GuildData,
         val memberNames: List<String>,
         val onlineCount: Int
     )
@@ -35,7 +33,8 @@ class GuildService(private val plugin: KaGuilds) {
     // 缓存：UUID -> 动作
     private val pendingConfirmations = mutableMapOf<UUID, PendingAction>()
     // 锁：Pair(公会ID, 仓库编号) -> 使用者的 UUID
-    val vaultLocks = mutableMapOf<Pair<Int, Int>, UUID>()
+    val vaultLocks: MutableMap<Pair<Int, Int>, UUID>
+        get() = plugin.vaultService.vaultLocks
     // 缓存：公会ID -> 成员玩家名列表（用于 Tab 补全）
     private val guildMemberNamesCache = mutableMapOf<Int, List<String>>()
 
@@ -45,21 +44,21 @@ class GuildService(private val plugin: KaGuilds) {
     fun getDetailedInfo(player: Player, callback: (OperationResult, GuildInfo?) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 获取玩家所属公会 ID
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             if (guildId == null) {
                 callback(OperationResult.NotInGuild, null)
                 return@Runnable
             }
 
             // 2. 获取公会基础数据
-            val data = plugin.dbManager.getGuildData(guildId)
+            val data = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (data == null) {
                 callback(OperationResult.Error(plugin.langManager.get("error-database")), null)
                 return@Runnable
             }
 
             // 3. 获取成员名称列表
-            val uuids = plugin.dbManager.getMemberUUIDs(guildId)
+            val uuids = plugin.dbManager.memberRepository.getMemberUUIDs(guildId)
             var online = 0
             val isProxy = plugin.config.getBoolean("proxy", false)
 
@@ -107,13 +106,13 @@ class GuildService(private val plugin: KaGuilds) {
         // 2. 异步处理数据库检查
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 检查玩家状态
-            if (plugin.dbManager.getGuildIdByPlayer(player.uniqueId) != null) {
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId) != null) {
                 callback(OperationResult.AlreadyInGuild)
                 return@Runnable
             }
 
             // 检查公会名是否存在
-            if (plugin.dbManager.isNameExists(guildName)) {
+            if (plugin.dbManager.guildRepository.isNameExists(guildName)) {
                 callback(OperationResult.NameAlreadyExists)
                 return@Runnable
             }
@@ -136,9 +135,10 @@ class GuildService(private val plugin: KaGuilds) {
 
                 // 4. 再次异步写入数据库
                 plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                    val guildId = plugin.dbManager.createGuild(guildName, player.uniqueId, player.name)
+                    val guildId = plugin.dbManager.guildLifecycleRepository.createGuild(guildName, player.uniqueId, player.name)
                     if (guildId != -1) {
                         plugin.playerGuildCache[player.uniqueId] = guildId
+                        plugin.taskManager.activatePlayerTasks(player.uniqueId, guildId)
 
                         callback(OperationResult.Success)
                     } else {
@@ -158,21 +158,21 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun deleteGuild(player: Player, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
                 ?: return@Runnable callback(OperationResult.NotInGuild)
 
-            val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
             if (role != "OWNER") {
                 return@Runnable callback(OperationResult.NoPermission)
             }
 
-            if (plugin.dbManager.deleteGuild(guildId)) {
+            if (plugin.dbManager.guildLifecycleRepository.deleteGuild(guildId)) {
                 // 清理公会成员名称缓存
                 clearGuildMemberNamesCache(guildId)
 
                 // 立即清理所有该公会成员的缓存
                 // 在实际跨服中，这里还需要发送 SyncCache REMOVE_GUILD 消息
-                plugin.playerGuildCache.entries.removeIf { it.value == guildId }
+                clearLocalGuildState(guildId)
                 callback(OperationResult.Success)
             } else {
                 callback(OperationResult.Error(plugin.langManager.get("error-database")))
@@ -188,32 +188,33 @@ class GuildService(private val plugin: KaGuilds) {
             val guildId = plugin.playerGuildCache[admin.uniqueId] ?: return@Runnable callback(OperationResult.NotInGuild)
 
             // 1. 权限检查
-            val role = plugin.dbManager.getPlayerRole(admin.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(admin.uniqueId)
             if (role != "OWNER" && role != "ADMIN") {
                 return@Runnable callback(OperationResult.NoPermission)
             }
 
             // 2. 获取目标玩家的 UUID 和资料
-            val targetUuid = plugin.dbManager.getUuidByPlayerName(targetName)
+            val targetUuid = plugin.dbManager.memberRepository.getUuidByPlayerName(targetName)
                 ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("kick-failed")))
 
             // 3. 检查目标是否在该公会
-            if (plugin.dbManager.getGuildIdByPlayer(targetUuid) != guildId) {
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid) != guildId) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("kick-not-in-your-guild")))
             }
 
             // 4. 检查职位（管理员不能踢会长，管理员不能踢管理员）
-            val targetRole = plugin.dbManager.getPlayerRole(targetUuid)
+            val targetRole = plugin.dbManager.memberRepository.getPlayerRole(targetUuid)
             if (targetRole == "OWNER" || (role == "ADMIN" && targetRole == "ADMIN")) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("kick-role-limit")))
             }
 
             // 5. 执行踢出
-            if (plugin.dbManager.removeMember(guildId, targetUuid)) {
+            if (plugin.dbManager.memberRepository.removeMember(guildId, targetUuid)) {
 
                 // --- 核心逻辑：跨服同步与通知 ---
                 // A. 更新公会成员名称缓存
                 updateGuildMemberNamesCache(guildId)
+                clearLocalPlayerGuildState(targetUuid)
 
                 // B. 同步全服缓存 (让所有子服知道该玩家已没公会)
                 syncPlayerCache(targetUuid, -1)
@@ -276,7 +277,7 @@ class GuildService(private val plugin: KaGuilds) {
             val guildId = plugin.playerGuildCache[sender.uniqueId]
                 ?: return@Runnable callback(OperationResult.NotInGuild)
 
-            val role = plugin.dbManager.getPlayerRole(sender.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(sender.uniqueId)
             if (role != "OWNER" && role != "ADMIN") {
                 return@Runnable callback(OperationResult.NoPermission)
             }
@@ -286,15 +287,15 @@ class GuildService(private val plugin: KaGuilds) {
                 return@Runnable callback(OperationResult.Error(plugin.langManager.get("invite-self-limit")))
             }
 
-            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@Runnable
             val isProxy = plugin.config.getBoolean("proxy", false)
 
             if (isProxy) {
                 // 跨服模式：先检查目标玩家是否已有公会
                 // 注意：这里只能检查玩家是否在 guild_members 表中且已有公会
                 // 对于从未加入过公会的玩家，无法通过数据库验证存在性
-                val targetUuid = plugin.dbManager.getUuidByPlayerName(targetName)
-                if (targetUuid != null && plugin.dbManager.getGuildIdByPlayer(targetUuid) != null) {
+                val targetUuid = plugin.dbManager.memberRepository.getUuidByPlayerName(targetName)
+                if (targetUuid != null && plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid) != null) {
                     callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
                     return@Runnable
                 }
@@ -320,7 +321,7 @@ class GuildService(private val plugin: KaGuilds) {
                 }
 
                 // 检查目标是否有公会
-                if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
+                if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
                     callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
                     return@Runnable
                 }
@@ -360,7 +361,7 @@ class GuildService(private val plugin: KaGuilds) {
     fun requestJoin(player: Player, input: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 检查是否已在公会
-            if (plugin.dbManager.getGuildIdByPlayer(player.uniqueId) != null) {
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId) != null) {
                 callback(OperationResult.AlreadyInGuild)
                 return@Runnable
             }
@@ -371,7 +372,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             if (input.startsWith("#")) {
                 val id = input.substring(1).toIntOrNull() ?: -1
-                val data = plugin.dbManager.getGuildById(id)
+                val data = plugin.dbManager.guildRepository.getGuildById(id)
                 if (data == null) {
                     callback(OperationResult.Error(plugin.langManager.get("join-guild-not-found")))
                     return@Runnable
@@ -379,7 +380,7 @@ class GuildService(private val plugin: KaGuilds) {
                 guildId = data.id
                 guildName = data.name
             } else {
-                guildId = plugin.dbManager.getGuildIdByName(input)
+                guildId = plugin.dbManager.guildRepository.getGuildIdByName(input)
                 guildName = input
             }
 
@@ -389,14 +390,14 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 3. 检查重复申请
-            val currentRequests = plugin.dbManager.getRequests(guildId)
+            val currentRequests = plugin.dbManager.requestRepository.getRequests(guildId)
             if (currentRequests.any { it.first == player.uniqueId }) {
                 callback(OperationResult.Error(plugin.langManager.get("join-already-requested")))
                 return@Runnable
             }
 
             // 4. 添加申请并通知
-            if (plugin.dbManager.addRequest(guildId, player.uniqueId, player.name)) {
+            if (plugin.dbManager.requestRepository.addRequest(guildId, player.uniqueId, player.name)) {
                 dispatchGuildNotification(guildId, "NotifyRequest", guildId, guildName, player.name)
                 callback(OperationResult.Success)
             }
@@ -436,7 +437,7 @@ class GuildService(private val plugin: KaGuilds) {
                         if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
                             // 异步查一下权限
                             plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                                val role = plugin.dbManager.getPlayerRole(p.uniqueId)
+                                val role = plugin.dbManager.memberRepository.getPlayerRole(p.uniqueId)
                                 if (role == "OWNER" || role == "ADMIN") {
                                     plugin.server.scheduler.runTask(plugin, Runnable {
                                         val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
@@ -496,13 +497,13 @@ class GuildService(private val plugin: KaGuilds) {
             val guildId = plugin.playerGuildCache[admin.uniqueId] ?: return@Runnable callback(OperationResult.NotInGuild)
 
             // 1. 权限检查
-            val role = plugin.dbManager.getPlayerRole(admin.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(admin.uniqueId)
             if (role != "OWNER" && role != "ADMIN") {
                 return@Runnable callback(OperationResult.NoPermission)
             }
 
             // 2. 获取申请列表并匹配目标名字
-            val requests = plugin.dbManager.getRequests(guildId)
+            val requests = plugin.dbManager.requestRepository.getRequests(guildId)
             val targetPair = requests.find { (uuid, _) ->
                 plugin.server.getOfflinePlayer(uuid).name?.equals(targetName, ignoreCase = true) == true
             }
@@ -515,17 +516,18 @@ class GuildService(private val plugin: KaGuilds) {
             val targetUuid = targetPair.first
 
             // 3. 检查目标是否已加入其他公会
-            if (plugin.dbManager.getGuildIdByPlayer(targetUuid) != null) {
-                plugin.dbManager.removeRequest(guildId, targetUuid)
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid) != null) {
+                plugin.dbManager.requestRepository.removeRequest(guildId, targetUuid)
                 callback(OperationResult.Error(plugin.langManager.get("join-already-in-other")))
                 return@Runnable
             }
 
             // 4. 执行添加成员
-            if (plugin.dbManager.addMember(guildId, targetUuid, targetName, "MEMBER")) {
-                plugin.dbManager.removeRequest(guildId, targetUuid)
+            if (plugin.dbManager.memberRepository.addMember(guildId, targetUuid, targetName, "MEMBER")) {
+                plugin.dbManager.requestRepository.removeRequest(guildId, targetUuid)
 
                 plugin.playerGuildCache[targetUuid] = guildId
+                plugin.taskManager.activatePlayerTasks(targetUuid, guildId)
 
                 val isProxy = plugin.config.getBoolean("proxy", false)
                 if (isProxy) {
@@ -557,15 +559,15 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun denyRequest(sender: Player, targetName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val guildId = plugin.dbManager.getGuildIdByPlayer(sender.uniqueId) ?: return@Runnable
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(sender.uniqueId) ?: return@Runnable
 
-            val requests = plugin.dbManager.getRequests(guildId)
+            val requests = plugin.dbManager.requestRepository.getRequests(guildId)
             val targetUuid = requests.find { (uuid, _) ->
                 plugin.server.getOfflinePlayer(uuid).name?.equals(targetName, true) == true
             }?.first
 
             if (targetUuid != null) {
-                plugin.dbManager.removeRequest(guildId, targetUuid)
+                plugin.dbManager.requestRepository.removeRequest(guildId, targetUuid)
                 callback(OperationResult.Success)
             } else {
                 callback(OperationResult.Error(plugin.langManager.get("accept-failed")))
@@ -577,18 +579,18 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun leaveGuild(player: Player, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
                 ?: return@Runnable callback(OperationResult.NotInGuild)
 
             // 核心逻辑：会长不能直接退出公会
-            val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
             if (role == "OWNER") {
                 callback(OperationResult.Error(plugin.langManager.get("leave-owner-limit")))
                 return@Runnable
             }
 
 
-            if (plugin.dbManager.removeMember(guildId, player.uniqueId)) {
+            if (plugin.dbManager.memberRepository.removeMember(guildId, player.uniqueId)) {
 
                 val playerName = player.name
 
@@ -599,7 +601,7 @@ class GuildService(private val plugin: KaGuilds) {
 
                 broadcastMemberStatus(guildId, playerName, "LEAVE")
 
-                plugin.playerGuildCache.remove(player.uniqueId)
+                clearLocalPlayerGuildState(player.uniqueId)
                 callback(OperationResult.Success)
             } else {
                 callback(OperationResult.Error(plugin.langManager.get("error-database")))
@@ -614,14 +616,14 @@ class GuildService(private val plugin: KaGuilds) {
         // 异步执行数据库检查，避免主线程卡顿
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 强制去数据库拉取最新的 guildId，而不是只信缓存
-            val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             if (guildId == null) {
                 // 同步回主线程发消息
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     player.sendMessage(plugin.langManager.get("not-in-guild"))
                 })
                 // 同时清理本地错误的缓存
-                plugin.playerGuildCache.remove(player.uniqueId)
+                clearLocalPlayerGuildState(player.uniqueId)
                 return@Runnable
             }
 
@@ -629,7 +631,7 @@ class GuildService(private val plugin: KaGuilds) {
             plugin.playerGuildCache[player.uniqueId] = guildId
 
             // 3. 获取玩家角色
-            val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+            val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
             val roleDisplayName = when (role) {
                 "OWNER" -> plugin.langManager.get("papi-role-owner")
                 "ADMIN" -> plugin.langManager.get("papi-role-admin")
@@ -681,19 +683,20 @@ class GuildService(private val plugin: KaGuilds) {
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 检查自己是否已经在公会中 (双重检查)
-            if (plugin.dbManager.getGuildIdByPlayer(player.uniqueId) != null) {
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId) != null) {
                 plugin.inviteCache.remove(player.uniqueId)
                 callback(OperationResult.AlreadyInGuild)
                 return@Runnable
             }
 
             // 2. 写入数据库
-            if (plugin.dbManager.addMember(guildId, player.uniqueId, player.name, "MEMBER")) {
+            if (plugin.dbManager.memberRepository.addMember(guildId, player.uniqueId, player.name, "MEMBER")) {
                 // 3. 成功后移除邀请缓存
                 plugin.inviteCache.remove(player.uniqueId)
 
                 // 4. 更新本地公会缓存
                 plugin.playerGuildCache[player.uniqueId] = guildId
+                plugin.taskManager.activatePlayerTasks(player.uniqueId, guildId)
 
                 // 5. 更新公会成员名称缓存
                 updateGuildMemberNamesCache(guildId)
@@ -743,7 +746,7 @@ class GuildService(private val plugin: KaGuilds) {
         // 如果缓存存在，直接返回
         return guildMemberNamesCache.getOrPut(guildId) {
             // 缓存不存在，从数据库加载
-            plugin.dbManager.getGuildMemberNames(guildId)
+            plugin.dbManager.memberRepository.getGuildMemberNames(guildId)
         }
     }
 
@@ -752,7 +755,7 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun updateGuildMemberNamesCache(guildId: Int) {
         // 从数据库重新加载成员列表
-        guildMemberNamesCache[guildId] = plugin.dbManager.getGuildMemberNames(guildId)
+        guildMemberNamesCache[guildId] = plugin.dbManager.memberRepository.getGuildMemberNames(guildId)
     }
 
     /**
@@ -806,7 +809,7 @@ class GuildService(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查 (会长或副会长)
-        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
@@ -821,7 +824,7 @@ class GuildService(private val plugin: KaGuilds) {
         // 3. 异步处理经济与数据库更新
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 4. 获取公会数据并检查公会银行余额
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
             val cost = plugin.config.getDouble("balance.settp", 1000.0)
 
             if (guild == null || guild.balance < cost) {
@@ -843,11 +846,11 @@ class GuildService(private val plugin: KaGuilds) {
             val locStr = "$serverName:${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
 
             // 6. 执行数据库更新
-            if (plugin.dbManager.setGuildLocation(guildId, locStr)) {
+            if (plugin.dbManager.guildRepository.setGuildLocation(guildId, locStr)) {
 
                 // --- 核心扣费与细化日志记录 ---
-                plugin.dbManager.updateGuildBalance(guildId, -cost)
-                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_TP", cost)
+                plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "SET_TP", cost)
 
                 // 7. 回到主线程执行成功回调
                 plugin.server.scheduler.runTask(plugin, Runnable {
@@ -870,13 +873,13 @@ class GuildService(private val plugin: KaGuilds) {
         // 如果已经在传送中，不要重复开启
         if (isTeleporting(uuid)) return
 
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@Runnable
+        plugin.runAsync {
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@runAsync
             val locStr = guildData.teleportLocation
 
             // 1. 检查传送点是否存在
             if (locStr.isNullOrEmpty()) {
-                return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-not-set")))
+                return@runAsync syncCallback(callback, OperationResult.Error(plugin.langManager.get("tp-not-set")))
             }
 
             // 2. 跨服判断
@@ -885,7 +888,7 @@ class GuildService(private val plugin: KaGuilds) {
             val currentServer = plugin.config.getString("server-id", "unknown")
 
             if (plugin.config.getBoolean("proxy", false) && targetServer != currentServer) {
-                return@Runnable callback(OperationResult.Error(
+                return@runAsync syncCallback(callback, OperationResult.Error(
                     plugin.langManager.get("tp-wrong-server", "server" to targetServer)
                 ))
             }
@@ -895,21 +898,20 @@ class GuildService(private val plugin: KaGuilds) {
             val cost = plugin.levelsConfig.getDouble("levels.$level.tp-money", 500.0)
             val cooldown = plugin.config.getInt("guild.teleport.cooldown", 3)
 
-            // 4. 检查经济
-            if (plugin.economy?.has(player, cost) == false) {
-                return@Runnable callback(OperationResult.Error(plugin.langManager.get("tp-insufficient-money", "cost" to cost.toString())))
-            }
+            // 4. 回到主线程检查经济并安排传送，Vault 与 Bukkit API 都不能在异步线程调用。
+            plugin.runMain {
+                if (plugin.economy?.has(player, cost) == false) {
+                    callback(OperationResult.Error(plugin.langManager.get("tp-insufficient-money", "cost" to cost.toString())))
+                    return@runMain
+                }
 
-            // 5. 核心逻辑：判断是否需要等待
-            if (cooldown <= 0) {
-                // --- 瞬间传送分支 ---
-                plugin.server.scheduler.runTask(plugin, Runnable {
+                // 5. 核心逻辑：判断是否需要等待
+                if (cooldown <= 0) {
+                    // --- 瞬间传送分支 ---
                     executeFinalTeleport(player, locStr, cost)
                     callback(OperationResult.Success)
-                })
-            } else {
-                // --- 延迟传送分支 ---
-                plugin.server.scheduler.runTask(plugin, Runnable {
+                } else {
+                    // --- 延迟传送分支 ---
                     player.sendMessage(plugin.langManager.get("tp-starting", "time" to cooldown.toString()))
 
                     val task = plugin.server.scheduler.runTaskLater(plugin, Runnable {
@@ -919,9 +921,9 @@ class GuildService(private val plugin: KaGuilds) {
                     }, cooldown * 20L)
 
                     teleportTasks[uuid] = task
-                })
+                }
             }
-        })
+        }
     }
 
     /**
@@ -975,7 +977,7 @@ class GuildService(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查 (仅限会长)
-        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         if (role != "OWNER") {
             return callback(OperationResult.Error(plugin.langManager.get("rename-only-owner")))
         }
@@ -987,7 +989,7 @@ class GuildService(private val plugin: KaGuilds) {
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 3. 检查名字是否已存在
-            val existingId = plugin.dbManager.getGuildIdByName(newName)
+            val existingId = plugin.dbManager.guildRepository.getGuildIdByName(newName)
             if (existingId != -1 && existingId != guildId) {
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
@@ -996,7 +998,7 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 4. 获取公会数据并检查公会银行经济
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
             val cost = plugin.config.getDouble("balance.rename", 5000.0)
 
             if (guild == null || guild.balance < cost) {
@@ -1013,11 +1015,11 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 5. 执行数据库改名与扣费 (在异步线程执行)
-            if (plugin.dbManager.renameGuild(guildId, newName)) {
+            if (plugin.dbManager.guildRepository.renameGuild(guildId, newName)) {
 
                 // --- 核心修改：扣除公会余额并记录细化日志 ---
-                plugin.dbManager.updateGuildBalance(guildId, -cost)
-                plugin.dbManager.logBankTransaction(guildId, player.name, "RENAME", cost)
+                plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "RENAME", cost)
 
                 val isProxy = plugin.config.getBoolean("proxy", false)
 
@@ -1101,14 +1103,14 @@ class GuildService(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查 (建议仅限会长或副会长，防止普通成员耗尽公会资金)
-        // val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        // val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         // if (role != "OWNER" && role != "ADMIN") {
         //     return callback(OperationResult.NoPermission)
         // }
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 2. 获取公会数据 (包含等级和余额)
-            val guildData = plugin.dbManager.getGuildData(guildId)
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
                 ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-database")))
 
             val level = guildData.level
@@ -1146,9 +1148,9 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 6. 执行扣费与记录 (异步更新数据库)
-            if (plugin.dbManager.updateGuildBalance(guildId, -price)) {
+            if (plugin.dbManager.bankRepository.updateGuildBalance(guildId, -price)) {
                 // 记录银行日志：类型为 BUY_BUFF
-                plugin.dbManager.logBankTransaction(guildId, player.name, "BUY_BUFF", price)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "BUY_BUFF", price)
 
                 // 7. 切回主线程进行分发 (PotionEffect 必须在主线程操作)
                 plugin.server.scheduler.runTask(plugin, Runnable {
@@ -1195,14 +1197,14 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminRenameGuild(guildId: Int, newName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 检查名称是否被【其他】公会占用
-            val existingId = plugin.dbManager.getGuildIdByName(newName)
+            val existingId = plugin.dbManager.guildRepository.getGuildIdByName(newName)
             if (existingId != -1 && existingId != guildId) {
                 callback(OperationResult.Error(plugin.langManager.get("create-name-exists")))
                 return@Runnable
             }
 
             // 2. 执行改名
-            if (plugin.dbManager.renameGuild(guildId, newName)) {
+            if (plugin.dbManager.guildRepository.renameGuild(guildId, newName)) {
                 val isProxy = plugin.config.getBoolean("proxy", false)
 
                 if (isProxy) {
@@ -1243,22 +1245,22 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminDeleteGuild(guildId: Int, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 检查公会是否存在
-            val data = plugin.dbManager.getGuildData(guildId)
+            val data = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (data == null) {
                 callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found")))
                 return@Runnable
             }
 
             // 2. 执行数据库删除操作
-            // 请确保 dbManager.deleteGuild(guildId) 内部会清理成员表和申请表
-            if (plugin.dbManager.deleteGuild(guildId)) {
+            // 请确保 dbManager.guildLifecycleRepository.deleteGuild(guildId) 内部会清理成员表和申请表
+            if (plugin.dbManager.guildLifecycleRepository.deleteGuild(guildId)) {
 
                 // 3. 本地清理：通知在线成员并移除缓存
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     val notifyMsg = plugin.langManager.get("admin-delete-notify")
                     plugin.server.onlinePlayers.forEach { player ->
                         if (plugin.playerGuildCache[player.uniqueId] == guildId) {
-                            plugin.playerGuildCache.remove(player.uniqueId)
+                            clearLocalPlayerGuildState(player.uniqueId)
                             player.sendMessage(notifyMsg)
                         }
                     }
@@ -1289,14 +1291,14 @@ class GuildService(private val plugin: KaGuilds) {
     fun getAdminGuildInfo(guildId: Int, callback: (OperationResult, GuildInfo?) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 获取基础数据
-            val data = plugin.dbManager.getGuildData(guildId)
+            val data = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (data == null) {
                 callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found", "id" to guildId.toString())), null)
                 return@Runnable
             }
 
             // 2. 获取成员列表
-            val uuids = plugin.dbManager.getMemberUUIDs(guildId)
+            val uuids = plugin.dbManager.memberRepository.getMemberUUIDs(guildId)
             var online = 0
             val isProxy = plugin.config.getBoolean("proxy", false)
 
@@ -1341,7 +1343,7 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminManageBank(guildId: Int, action: String, amount: Double, callback: (OperationResult, Double) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 先获取当前数据（仅用于计算逻辑和日志）
-            val guildData = plugin.dbManager.getGuildData(guildId)
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (guildData == null) {
                 callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found")), 0.0)
                 return@Runnable
@@ -1360,9 +1362,9 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 3. 调用你提供的增量更新方法
-            if (plugin.dbManager.updateGuildBalance(guildId, delta)) {
+            if (plugin.dbManager.bankRepository.updateGuildBalance(guildId, delta)) {
                 // 记录日志 (记录的是变动金额 amount)
-                plugin.dbManager.logBankTransaction(guildId, "ADMIN", action.uppercase(), amount)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, "ADMIN", action.uppercase(), amount)
 
                 // 获取最新余额返回给回调
                 val newBalance = guildData.balance + delta
@@ -1381,7 +1383,7 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun getAdminBankLogs(guildId: Int, page: Int, callback: (List<String>) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val logs = plugin.dbManager.getBankLogs(guildId, page)
+            val logs = plugin.dbManager.bankRepository.getBankLogs(guildId, page)
             // 回到主线程执行回调
             plugin.server.scheduler.runTask(plugin, Runnable {
                 callback(logs)
@@ -1431,14 +1433,14 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminTransferGuild(guildId: Int, newOwnerName: String, callback: (OperationResult) -> Unit) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 获取公会当前数据
-            val data = plugin.dbManager.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found", "id" to guildId.toString())))
+            val data = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-guild-not-found", "id" to guildId.toString())))
 
             val oldOwnerUuid = UUID.fromString(data.ownerUuid)
-            val newOwnerUuid = plugin.dbManager.getPlayerUuidByName(newOwnerName)
+            val newOwnerUuid = plugin.dbManager.memberRepository.getPlayerUuidByName(newOwnerName)
                 ?: return@Runnable callback(OperationResult.Error(plugin.langManager.get("error-not-in-guild", "player" to newOwnerName)))
 
             // 1. 执行数据库更新 (事务处理)
-            if (plugin.dbManager.transferGuildOwnership(guildId, oldOwnerUuid, newOwnerUuid, newOwnerName)) {
+            if (plugin.dbManager.guildLifecycleRepository.transferGuildOwnership(guildId, oldOwnerUuid, newOwnerUuid, newOwnerName)) {
 
                 // 2. 刷新本地所有成员缓存
                 // 这个方法内部已经包含了遍历在线玩家并纠正 ID 的逻辑，不需要再手动循环 remove
@@ -1472,13 +1474,13 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 方案 B：主动异步读取并纠正（更推荐，体验更好）
             plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                val realId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId)
+                val realId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
                 if (realId == guildId) {
                     plugin.playerGuildCache[player.uniqueId] = guildId
                 } else {
                     // 如果发现该玩家其实不属于这个公会了，清理掉旧缓存
                     if (plugin.playerGuildCache[player.uniqueId] == guildId) {
-                        plugin.playerGuildCache.remove(player.uniqueId)
+                        clearLocalPlayerGuildState(player.uniqueId)
                     }
                 }
             })
@@ -1513,26 +1515,26 @@ class GuildService(private val plugin: KaGuilds) {
     fun adminKickMember(guildId: Int, targetName: String, callback: (OperationResult) -> Unit) {
         val lang = plugin.langManager
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val targetUuid = plugin.dbManager.getPlayerUuidByName(targetName)
+            val targetUuid = plugin.dbManager.memberRepository.getPlayerUuidByName(targetName)
                 ?: return@Runnable callback(OperationResult.Error(lang.get("error-not-has-player", "player" to targetName)))
 
             // 1. 检查是否在指定的公会中
-            val currentGuildId = plugin.dbManager.getGuildIdByPlayer(targetUuid)
+            val currentGuildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid)
             if (currentGuildId != guildId) {
                 return@Runnable callback(OperationResult.Error(lang.get("error-not-in-guild", "player" to targetName)))
             }
 
             // 2. 安全检查：禁止踢出会长
-            val data = plugin.dbManager.getGuildData(guildId)
+            val data = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (data?.ownerUuid == targetUuid.toString()) {
                 return@Runnable callback(OperationResult.Error(lang.get("error-player-is-master")))
             }
 
             // 3. 调用你现有的 removeMember(Int, UUID)
-            if (plugin.dbManager.removeMember(guildId, targetUuid)) {
+            if (plugin.dbManager.memberRepository.removeMember(guildId, targetUuid)) {
                 // 更新公会成员名称缓存
                 updateGuildMemberNamesCache(guildId)
-                plugin.playerGuildCache.remove(targetUuid) // 刷新缓存
+                clearLocalPlayerGuildState(targetUuid)
                 callback(OperationResult.Success)
             } else {
                 callback(OperationResult.Error(lang.get("error-database")))
@@ -1547,15 +1549,16 @@ class GuildService(private val plugin: KaGuilds) {
         val lang = plugin.langManager
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 检查玩家是否已有公会
-            if (plugin.dbManager.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
+            if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
                 return@Runnable callback(OperationResult.Error(lang.get("invite-already-member")))
             }
 
             // 2. 调用现有的 addMember(Int, UUID, String, String)
-            if (plugin.dbManager.addMember(guildId, targetPlayer.uniqueId, targetPlayer.name, "MEMBER")) {
+            if (plugin.dbManager.memberRepository.addMember(guildId, targetPlayer.uniqueId, targetPlayer.name, "MEMBER")) {
                 // 更新公会成员名称缓存
                 updateGuildMemberNamesCache(guildId)
                 plugin.playerGuildCache[targetPlayer.uniqueId] = guildId // 同步缓存
+                plugin.taskManager.activatePlayerTasks(targetPlayer.uniqueId, guildId)
                 callback(OperationResult.Success)
             } else {
                 callback(OperationResult.Error(lang.get("error-database")))
@@ -1567,137 +1570,41 @@ class GuildService(private val plugin: KaGuilds) {
      * 玩家尝试开启仓库
      */
     fun openVault(player: Player, vaultIndex: Int) {
-        val lang = plugin.langManager
-        val guildId = plugin.dbManager.getGuildIdByPlayer(player.uniqueId) ?: return
-
-        // 1. 等级检查
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
-        val maxVaults = plugin.levelsConfig.getInt("levels.${guildData.level}.vaults", 1)
-        if (vaultIndex > maxVaults) {
-            player.sendMessage(lang.get("vault-max-vaults", "max" to maxVaults.toString()))
-            return
-        }
-
-        // 2. 异步抢锁
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val success = plugin.dbManager.tryGrabLock(guildId, vaultIndex, player.uniqueId)
-
-            if (!success) {
-                // 抢锁失败，提示玩家
-                player.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
-                return@Runnable
-            }
-
-            // 3. 抢锁成功，读取数据
-            val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
-
-            // 4. 回到主线程渲染
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                val holder = VaultHolder(guildId, vaultIndex)
-                val inv = plugin.server.createInventory(holder, 54, lang.get("vault-title", "index" to vaultIndex.toString()))
-                holder.setInventory(inv)
-
-                if (!rawData.isNullOrEmpty()) {
-                    inv.contents = SerializationUtil.itemStackArrayFromBase64(rawData)
-                }
-
-                player.openInventory(inv)
-                // 5. 启动续租 (每 10 秒刷新一次数据库)
-                holder.leaseTask = startVaultLeaseTask(player, guildId, vaultIndex)
-            })
-        })
+        plugin.vaultService.openVault(player, vaultIndex)
     }
     /**
      * 尝试锁定仓库
      * @return 如果锁定成功返回 true，如果已被占用返回 false
      */
     fun tryLockVault(guildId: Int, vaultIndex: Int, player: Player, isFromNetwork: Boolean = false): Boolean {
-        val lockKey = Pair(guildId, vaultIndex)
-
-        // 1. 检查本地内存锁
-        if (vaultLocks.containsKey(lockKey)) {
-            val occupantUuid = vaultLocks[lockKey]
-            if (occupantUuid != player.uniqueId) {
-                player.sendMessage(plugin.langManager.get("vault-locked", "index" to vaultIndex.toString()))
-                return false
-            }
-            return true
-        }
-
-        // 2. 检查跨服锁（如果开启了代理模式）
-        if (plugin.config.getBoolean("proxy", false) && !isFromNetwork) {
-            val isLocked = plugin.dbManager.isVaultLocked(guildId, vaultIndex)
-            if (isLocked) {
-                player.sendMessage(plugin.langManager.get("vault-locked", "index" to vaultIndex.toString()))
-                return false
-            }
-        }
-
-        // 3. 写入本地锁
-        vaultLocks[lockKey] = player.uniqueId
-
-        // 4. 跨服同步：如果不是从网络收到的，就发给其他服
-        if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
-            sendVaultSyncPacket(guildId, vaultIndex, player.uniqueId, "Lock")
-        }
-
-        return true
+        return plugin.vaultService.tryLockVault(guildId, vaultIndex, player, isFromNetwork)
     }
 
     /**
      * 玩家退出时，清理其持有的所有锁并同步到跨服
      */
     fun clearAllLocksByPlayer(playerUuid: UUID) {
-        // 找出所有由该玩家持有的仓库锁
-        val locksToRelease = vaultLocks.filterValues { it == playerUuid }.keys.toList()
-
-        for (lockKey in locksToRelease) {
-            val guildId = lockKey.first
-            val index = lockKey.second
-
-            // 1. 本地移除
-            vaultLocks.remove(lockKey)
-
-            // 2. 跨服通知解锁 (必须发送同步包)
-            if (plugin.config.getBoolean("proxy")) {
-                sendVaultSyncPacket(guildId, index, playerUuid, "Unlock")
-            }
-
-            plugin.logger.info(plugin.langManager.get("vault-unlocked", "id" to guildId.toString(), "index" to index.toString()))
-
-        }
+        plugin.vaultService.clearAllLocksByPlayer(playerUuid)
     }
 
     /**
      * 强制重置所有锁
      */
     fun forceResetAllLocks() {
-        vaultLocks.clear() // 清空本地
-        if (plugin.config.getBoolean("proxy")) {
-            // 发送一个特殊的全局解锁包
-            sendVaultSyncPacket(0, 0, UUID.randomUUID(), "ForceUnlockAll")
-        }
+        plugin.vaultService.forceResetAllLocks()
     }
 
     /**
      * 释放仓库锁
      */
     fun releaseVaultLock(guildId: Int, vaultIndex: Int, isFromNetwork: Boolean = false) {
-        val lockKey = Pair(guildId, vaultIndex)
-        if (vaultLocks.containsKey(lockKey)) {
-            vaultLocks.remove(lockKey)
-
-            // 如果开启了跨服模式且不是来自网络的指令，则广播解锁
-            if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
-                sendVaultSyncPacket(guildId, vaultIndex, UUID.randomUUID(), "Unlock")
-            }
-        }
+        plugin.vaultService.releaseVaultLock(guildId, vaultIndex, isFromNetwork)
     }
     /**
      * 同步远程仓库锁
      */
     fun syncRemoteLock(guildId: Int, index: Int, uuid: UUID) {
-        vaultLocks[Pair(guildId, index)] = uuid
+        plugin.vaultService.syncRemoteLock(guildId, index, uuid)
     }
     /**
      * 发送跨服同步封包
@@ -1726,82 +1633,14 @@ class GuildService(private val plugin: KaGuilds) {
      * 管理员打开仓库
      */
     fun adminOpenVault(admin: Player, guildId: Int, vaultIndex: Int) {
-        val lang = plugin.langManager
-        if (vaultIndex !in 1..9) {
-            admin.sendMessage(plugin.langManager.get("error-invalid-vault-index"))
-            return
-        }
-
-        // 1. 内存锁初步检查 (本服独占)
-        if (!tryLockVault(guildId, vaultIndex, admin)) return
-
-        // 2. 异步执行跨服抢锁
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            // 使用 tryGrabLock 尝试在数据库层面锁定
-            // 如果物理锁未过期且 last_editor 不是自己，会返回 false
-            val success = plugin.dbManager.tryGrabLock(guildId, vaultIndex, admin.uniqueId)
-
-            if (!success) {
-                plugin.server.scheduler.runTask(plugin, Runnable {
-                    // 抢锁失败，立即释放内存锁
-                    vaultLocks.remove(Pair(guildId, vaultIndex))
-                    admin.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
-                })
-                return@Runnable
-            }
-
-            // 3. 抢锁成功后，读取最新的数据副本
-            val rawData = plugin.dbManager.getVaultData(guildId, vaultIndex)
-
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                val holder = VaultHolder(guildId, vaultIndex)
-                val inv = plugin.server.createInventory(
-                    holder,
-                    54,
-                    plugin.langManager.get("admin-vault-title",
-                        "index" to vaultIndex.toString(),
-                        "id" to guildId.toString())
-                )
-                holder.setInventory(inv)
-
-                if (!rawData.isNullOrEmpty()) {
-                    inv.contents = SerializationUtil.itemStackArrayFromBase64(rawData)
-                }
-
-                admin.openInventory(inv)
-
-                // 4. 开启续租任务，确保在关闭前锁不会过期
-                holder.leaseTask = startVaultLeaseTask(admin, guildId, vaultIndex)
-            })
-        })
+        plugin.vaultService.adminOpenVault(admin, guildId, vaultIndex)
     }
     /**
      * 开启续租任务
      * @return 返回 BukkitTask 对象以便后续手动取消
      */
     fun startVaultLeaseTask(player: Player, guildId: Int, index: Int): BukkitTask {
-        return plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-            // 检查玩家是否还在看这个 GUI
-            val topInv = player.openInventory.topInventory
-            val holder = topInv.holder as? VaultHolder ?: return@Runnable
-
-            if (holder.guildId != guildId || holder.vaultIndex != index) return@Runnable
-
-            // 异步更新数据库过期时间，维持"我是锁定者"的状态
-            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                val nextExpire = System.currentTimeMillis() + 30000
-                val sql = "UPDATE guild_vaults SET lock_expire = ? WHERE guild_id = ? AND vault_index = ? AND last_editor = ?"
-                plugin.dbManager.dataSource?.connection?.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        ps.setLong(1, nextExpire)
-                        ps.setInt(2, guildId)
-                        ps.setInt(3, index)
-                        ps.setString(4, player.uniqueId.toString())
-                        ps.executeUpdate()
-                    }
-                }
-            })
-        }, 100L, 100L) // 每 5 秒续租一次
+        return plugin.vaultService.startVaultLeaseTask(player, guildId, index)
     }
 
     /**
@@ -1811,7 +1650,7 @@ class GuildService(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查 (会长或副会长)
-        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
@@ -1825,7 +1664,7 @@ class GuildService(private val plugin: KaGuilds) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 4. 获取费用并检查公会银行
             val cost = plugin.config.getDouble("balance.seticon", 1000.0)
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
 
             if (guild == null || guild.balance < cost) {
                 plugin.server.scheduler.runTask(plugin, Runnable {
@@ -1841,11 +1680,11 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 5. 执行数据库更新（customData 为 null 时会清空数据库中的值）
-            if (plugin.dbManager.updateGuildIcon(guildId, materialName, itemModel, customData)) {
+            if (plugin.dbManager.guildRepository.updateGuildIcon(guildId, materialName, itemModel, customData)) {
 
                 // --- 核心扣费与记录细化日志 ---
-                plugin.dbManager.updateGuildBalance(guildId, -cost)
-                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_ICON", cost)
+                plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "SET_ICON", cost)
 
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     callback(OperationResult.Success)
@@ -1907,7 +1746,7 @@ class GuildService(private val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查 (会长或副会长)
-        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
@@ -1916,7 +1755,7 @@ class GuildService(private val plugin: KaGuilds) {
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 3. 获取费用并检查公会银行
             val cost = plugin.config.getDouble("balance.setmotd", 100.0)
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
 
             if (guild == null || guild.balance < cost) {
                 plugin.server.scheduler.runTask(plugin, Runnable {
@@ -1932,11 +1771,11 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 4. 执行数据库更新
-            if (plugin.dbManager.updateGuildAnnouncement(guildId, content)) {
+            if (plugin.dbManager.guildRepository.updateGuildAnnouncement(guildId, content)) {
 
                 // --- 核心扣费与记录细化日志 ---
-                plugin.dbManager.updateGuildBalance(guildId, -cost)
-                plugin.dbManager.logBankTransaction(guildId, player.name, "SET_MOTD", cost)
+                plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "SET_MOTD", cost)
 
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     callback(OperationResult.Success)
@@ -1959,10 +1798,10 @@ class GuildService(private val plugin: KaGuilds) {
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 使用 isStaff 方法检查权限
-            if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) return@Runnable
+            if (!plugin.dbManager.memberRepository.isStaff(player.uniqueId, guildId)) return@Runnable
 
             // 2. 获取该公会的申请列表
-            val requests = plugin.dbManager.getRequests(guildId)
+            val requests = plugin.dbManager.requestRepository.getRequests(guildId)
             if (requests.isEmpty()) return@Runnable
 
             val num = requests.size
@@ -1995,11 +1834,11 @@ class GuildService(private val plugin: KaGuilds) {
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             // 1. 权限检查
-            if (!plugin.dbManager.isStaff(player.uniqueId, guildId)) {
+            if (!plugin.dbManager.memberRepository.isStaff(player.uniqueId, guildId)) {
                 return@Runnable syncCallback(callback, OperationResult.Error(lang.get("error-no-permission")))
             }
 
-            val guildData = plugin.dbManager.getGuildById(guildId) ?: return@Runnable
+            val guildData = plugin.dbManager.guildRepository.getGuildById(guildId) ?: return@Runnable
             val nextLevel = guildData.level + 1
 
             // 2. 检查配置中是否存在下一级
@@ -2019,10 +1858,12 @@ class GuildService(private val plugin: KaGuilds) {
             val maxMembers = levelSection.getInt("max-members")
 
             // 5. 执行更新
-            if (plugin.dbManager.updateGuildLevel(guildId, nextLevel, maxMembers)) {
-                syncCallback(callback, OperationResult.Success)
-                // 全服广播或公会消息
-                plugin.server.broadcastMessage(lang.get("menu-upgrade-level-up-broadcast", "name" to guildData.name, "level" to nextLevel.toString())) //"§8[§b公会§8] §f${guildData.name} §7成功升级到了等级 §f$nextLevel§7！"
+            if (plugin.dbManager.guildRepository.updateGuildLevel(guildId, nextLevel, maxMembers)) {
+                plugin.runMain {
+                    callback(OperationResult.Success)
+                    // 全服广播或公会消息
+                    plugin.server.broadcastMessage(lang.get("menu-upgrade-level-up-broadcast", "name" to guildData.name, "level" to nextLevel.toString())) //"§8[§b公会§8] §f${guildData.name} §7成功升级到了等级 §f$nextLevel§7！"
+                }
             } else {
                 syncCallback(callback, OperationResult.Error(plugin.langManager.get("error-database")))
             }
@@ -2035,25 +1876,28 @@ class GuildService(private val plugin: KaGuilds) {
      * @param guildId 公会 ID
      * @param type 类型（add/remove/set）
      * @param amount 数量
+     * @param silent 是否静默成功输出，错误仍会提示
      */
-    fun adminModifyExp(sender: CommandSender, guildId: Int, type: String, amount: Int) {
+    fun adminModifyExp(sender: CommandSender, guildId: Int, type: String, amount: Int, silent: Boolean = false) {
         val lang = plugin.langManager
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
             if (guild == null) {
                 sender.sendMessage(lang.get("error-guild-not-found", "id" to guildId.toString()))
                 return@Runnable
             }
 
             val success = when (type.lowercase()) {
-                "add" -> plugin.dbManager.updateGuildExp(guildId, amount, false)
-                "remove" -> plugin.dbManager.updateGuildExp(guildId, -amount, false)
-                "set" -> plugin.dbManager.updateGuildExp(guildId, amount, true)
+                "add" -> plugin.dbManager.guildRepository.updateGuildExp(guildId, amount, false)
+                "remove" -> plugin.dbManager.guildRepository.updateGuildExp(guildId, -amount, false)
+                "set" -> plugin.dbManager.guildRepository.updateGuildExp(guildId, amount, true)
                 else -> false
             }
 
             plugin.server.scheduler.runTask(plugin, Runnable {
                 if (success) {
+                    if (silent) return@Runnable
+
                     val newExp = if (type == "set") amount else (guild.exp + if (type == "add") amount else -amount)
                     sender.sendMessage(lang.get("admin-success-modify-exp", "name" to guild.name,"exp" to newExp.toString()))
                 } else {
@@ -2065,11 +1909,11 @@ class GuildService(private val plugin: KaGuilds) {
     /**
      * 发起公会战申请 (消耗公会资金)
      */
-    fun startPvPChallenge(player: Player, targetGuild: DatabaseManager.GuildData, callback: (OperationResult) -> Unit) {
+    fun startPvPChallenge(player: Player, targetGuild: GuildData, callback: (OperationResult) -> Unit) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return callback(OperationResult.NotInGuild)
 
         // 1. 权限检查
-        val role = plugin.dbManager.getPlayerRole(player.uniqueId)
+        val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
         if (role != "OWNER" && role != "ADMIN") {
             return callback(OperationResult.NoPermission)
         }
@@ -2077,7 +1921,7 @@ class GuildService(private val plugin: KaGuilds) {
         // 2. 异步处理
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val cost = plugin.config.getDouble("balance.pvp", 300.0)
-            val guild = plugin.dbManager.getGuildById(guildId)
+            val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
 
             // 3. 余额检查
             if (guild == null || guild.balance < cost) {
@@ -2094,9 +1938,9 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 4. 执行扣费与逻辑
-            if (plugin.dbManager.updateGuildBalance(guildId, -cost)) {
+            if (plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)) {
                 // 记录银行日志
-                plugin.dbManager.logBankTransaction(guildId, player.name, "PVP_CHALLENGE", cost)
+                plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "PVP_CHALLENGE", cost)
 
                 // 回到主线程执行 PvP 逻辑 (PvPManager 通常涉及在线玩家操作)
                 plugin.server.scheduler.runTask(plugin, Runnable {
@@ -2141,5 +1985,19 @@ class GuildService(private val plugin: KaGuilds) {
      */
     fun createDataOutputForTask(): ByteArrayDataOutputStream {
         return ByteArrayDataOutputStream()
+    }
+
+    private fun clearLocalPlayerGuildState(playerUuid: UUID) {
+        plugin.playerGuildCache.remove(playerUuid)
+        plugin.guildChatPlayers.remove(playerUuid)
+    }
+
+    private fun clearLocalGuildState(guildId: Int) {
+        val affectedPlayers = plugin.playerGuildCache
+            .filterValues { it == guildId }
+            .keys
+            .toList()
+
+        affectedPlayers.forEach { clearLocalPlayerGuildState(it) }
     }
 }

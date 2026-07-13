@@ -172,7 +172,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
 
         // 1. 处理公会相关内部变量 {id}, {name}, {balance} 等
         if (guildId != null) {
-            val guildData = plugin.dbManager.getGuildData(guildId)
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
             if (guildData != null) {
                 // 调用 MenuManager 的方法获取所有变量 Map
                 val placeholders = plugin.menuManager.getGuildPlaceholders(guildData, player)
@@ -369,7 +369,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
             val totalCount = when {
                 holder.menuName.contains("member", ignoreCase = true) -> {
                     val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
-                    plugin.dbManager.getGuildMembers(guildId).size
+                    plugin.dbManager.memberRepository.getGuildMembers(guildId).size
                 }
                 holder.menuName.contains("player", ignoreCase = true) -> {
                     // ALL_PLAYER 菜单：获取全服在线玩家数量
@@ -380,7 +380,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
                     plugin.buffsConfig.getConfigurationSection("buffs")?.getKeys(false)?.size ?: 0
                 }
                 holder.menuName.contains("list", ignoreCase = true) -> {
-                    plugin.dbManager.getGuildCount()
+                    plugin.dbManager.guildRepository.getGuildCount()
                 }
                 holder.menuName.contains("task", ignoreCase = true) -> {
                     // 判断是 daily 还是 global 任务
@@ -417,7 +417,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: 0
 
         // 统一处理颜色和通用内置变量
-        val guildData = plugin.dbManager.getGuildData(guildId)
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId)
 
         // 获取当前等级的传送费用
         val tpMoney = if (guildData != null) {

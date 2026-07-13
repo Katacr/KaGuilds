@@ -149,30 +149,29 @@ class TaskManager(val plugin: KaGuilds) {
 
         onlinePlayers.forEach { player ->
             val guildId = plugin.playerGuildCache[player.uniqueId]
-            if (guildId != null && dailyDoneCache.containsKey(player.uniqueId)) {
-                // 从数据库重新加载今日已完成的任务
-                val completed = plugin.dbManager.getCompletedTaskKeys(guildId, player.uniqueId)
-                val oldCache = dailyDoneCache[player.uniqueId]
-
-                // 比较缓存是否需要更新
-                if (oldCache != completed) {
-                    dailyDoneCache[player.uniqueId] = completed.toMutableSet()
-                }
-
-                // 检查是否有 login 类型的任务，如果有则直接触发
-                val loginTasks = tasksByType["login"]
-                if (loginTasks != null && loginTasks.isNotEmpty()) {
-                    // 检查该玩家的 login 任务是否已完成
-                    val hasUnfinishedLoginTask = loginTasks.any { task ->
-                        !completed.contains(task.key)
-                    }
-
-                    if (hasUnfinishedLoginTask) {
-                        handleEvent(player, "login")
-                    }
-                }
+            if (guildId != null) {
+                activatePlayerTasks(player.uniqueId, guildId)
             }
         }
+    }
+
+    /**
+     * 在玩家公会身份生效后加载每日完成状态，并触发当天的上线类任务。
+     */
+    fun activatePlayerTasks(playerUuid: UUID, guildId: Int) {
+        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+            val completed = plugin.dbManager.taskRepository.getCompletedTaskKeys(guildId, playerUuid)
+
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                val player = plugin.server.getPlayer(playerUuid) ?: return@Runnable
+                if (!player.isOnline || plugin.playerGuildCache[playerUuid] != guildId) {
+                    return@Runnable
+                }
+
+                dailyDoneCache[playerUuid] = completed.toMutableSet()
+                handleEvent(player, "login")
+            })
+        })
     }
 
     /**
@@ -205,15 +204,15 @@ class TaskManager(val plugin: KaGuilds) {
         }
 
         val resetTimeConfig = plugin.config.getString("task.reset_time", "00:00:00") ?: "00:00:00"
-        val parts = resetTimeConfig.split(":")
-        if (parts.size != 3) {
+        val resetTime = try {
+            java.time.LocalTime.parse(resetTimeConfig)
+        } catch (_: Exception) {
             plugin.logger.warning("[Task] 无效的任务重置时间配置: $resetTimeConfig，使用默认值 00:00:00")
-            return
+            java.time.LocalTime.MIDNIGHT
         }
-
-        val hour = parts[0].toIntOrNull() ?: 0
-        val minute = parts[1].toIntOrNull() ?: 0
-        val second = parts[2].toIntOrNull() ?: 0
+        val hour = resetTime.hour
+        val minute = resetTime.minute
+        val second = resetTime.second
 
         val now = java.time.LocalDateTime.now()
         val nextReset = now.toLocalDate().atTime(hour, minute, second)
@@ -277,14 +276,15 @@ class TaskManager(val plugin: KaGuilds) {
         onlinePlayers.forEach { player ->
             val guildId = plugin.playerGuildCache[player.uniqueId]
             if (guildId != null) {
-                plugin.dbManager.checkAndResetDailyTasks(guildId, player.uniqueId)
+                plugin.dbManager.taskRepository.checkAndResetDailyTasks(guildId, player.uniqueId)
                 dailyDoneCache.remove(player.uniqueId)
+                activatePlayerTasks(player.uniqueId, guildId)
             }
         }
 
         // 清除所有公会的全局任务缓存
         activeGuildIds.forEach { guildId ->
-            plugin.dbManager.checkAndResetGlobalTasks(guildId)
+            plugin.dbManager.taskRepository.checkAndResetGlobalTasks(guildId)
             guildDoneCache.remove(guildId)
         }
 
@@ -301,7 +301,7 @@ class TaskManager(val plugin: KaGuilds) {
         val updatedGuilds = mutableListOf<Int>()
 
         activeGuildIds.forEach { guildId ->
-            val guildData = plugin.dbManager.getGuildData(guildId) ?: return@forEach
+            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@forEach
 
             val lastInterestDate = guildData.lastInterestDate
 
@@ -323,11 +323,11 @@ class TaskManager(val plugin: KaGuilds) {
 
                 if (totalInterest > 0) {
                     // 更新公会余额
-                    val success = plugin.dbManager.updateGuildBalance(guildId, totalInterest)
+                    val success = plugin.dbManager.bankRepository.updateGuildBalance(guildId, totalInterest)
 
                     if (success) {
                         // 记录利息日志
-                        plugin.dbManager.logBankTransaction(
+                        plugin.dbManager.bankRepository.logBankTransaction(
                             guildId,
                             "系统",
                             "INTEREST",
@@ -342,7 +342,7 @@ class TaskManager(val plugin: KaGuilds) {
 
         // 批量更新计息日期
         if (updatedGuilds.isNotEmpty()) {
-            plugin.dbManager.batchUpdateLastInterestDate(updatedGuilds, today)
+            plugin.dbManager.guildRepository.batchUpdateLastInterestDate(updatedGuilds, today)
         }
     }
     /**
@@ -465,7 +465,7 @@ class TaskManager(val plugin: KaGuilds) {
 
 
             // 3. 数据库原子更新
-            val result = plugin.dbManager.incrementTaskProgress(
+            val result = plugin.dbManager.taskRepository.incrementTaskProgress(
                 guildId, task.key,
                 if (task.type == "daily") player.uniqueId else null,
                 increment, task.amount
@@ -525,9 +525,10 @@ class TaskManager(val plugin: KaGuilds) {
                     guildDoneCache.getOrPut(guildId) { mutableSetOf() }.add(task.key)
                 }
 
-                // 执行奖励
-                executeTaskActions(player, guildId, task)
-                notifyTaskCompletion(player, task, guildId)
+                if (result.rewardGranted) {
+                    executeTaskActions(player, guildId, task)
+                    notifyTaskCompletion(player, task, guildId)
+                }
             }
         }
     }
@@ -741,7 +742,7 @@ class TaskManager(val plugin: KaGuilds) {
      * 执行任务完成后的动作
      */
     internal fun executeTaskActions(player: Player, guildId: Int, task: TaskDefinition) {
-        val guildData = plugin.dbManager.getGuildData(guildId) ?: return
+        val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return
 
         for (action in task.actions) {
             try {
@@ -861,14 +862,14 @@ class TaskManager(val plugin: KaGuilds) {
         if (isDaily) {
             // 如果内存里没有该玩家的记录，去数据库查一次（预热）
             if (!dailyDoneCache.containsKey(player.uniqueId)) {
-                val completed = plugin.dbManager.getCompletedTaskKeys(guildId, player.uniqueId)
+                val completed = plugin.dbManager.taskRepository.getCompletedTaskKeys(guildId, player.uniqueId)
                 dailyDoneCache[player.uniqueId] = completed.toMutableSet()
             }
             return dailyDoneCache[player.uniqueId]?.contains(task.key) ?: false
         } else {
             // 如果内存里没有该公会的记录，去数据库查一次（预热）
             if (!guildDoneCache.containsKey(guildId)) {
-                val completed = plugin.dbManager.getCompletedTaskKeys(guildId, null)
+                val completed = plugin.dbManager.taskRepository.getCompletedTaskKeys(guildId, null)
                 guildDoneCache[guildId] = completed.toMutableSet()
             }
             return guildDoneCache[guildId]?.contains(task.key) ?: false
@@ -882,7 +883,7 @@ class TaskManager(val plugin: KaGuilds) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
 
         // 从数据库重新加载今日已完成的任务
-        val completed = plugin.dbManager.getCompletedTaskKeys(guildId, player.uniqueId)
+        val completed = plugin.dbManager.taskRepository.getCompletedTaskKeys(guildId, player.uniqueId)
         // 更新缓存（会自动清除昨天的任务）
         dailyDoneCache[player.uniqueId] = completed.toMutableSet()
     }
