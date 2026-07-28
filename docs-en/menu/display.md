@@ -478,7 +478,7 @@ buttons:
 
 ---
 
-### ⬆ GUILD_UPGRADE - Upgrade List
+### GUILD_UPGRADE - Upgrade List
 
 Displays available guild upgrade options and requirements.
 

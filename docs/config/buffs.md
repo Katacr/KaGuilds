@@ -71,9 +71,9 @@ buffs:
 | `DOLPHINS_GRACE`      | 海豚的恩惠 | 水下移动加速      |
 | `BAD_OMEN`            | 不祥之兆  | 触发劫掠        |
 | `HERO_OF_THE_VILLAGE` | 村庄英雄  | 村民交易折扣      |
- 
+
 {% hint style="warning" %}
-该列表由AI整理，不同 Minecraft 版本支持的药水效果和名称可能不同。
+药水效果键以目标服务器提供的 Bukkit `PotionEffectType` 为准，不同 Minecraft 版本的可用名称可能不同。
 {% endhint %}
 
 ### `price`（必需）

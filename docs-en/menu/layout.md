@@ -26,10 +26,6 @@ buttons:
       name: " "
 ```
 
-**Preview:**
-
-![Layout Preview Example](../.gitbook/assets/layout01.png)
-
 ## Configuration Options Explained
 
 ### title - Menu Title

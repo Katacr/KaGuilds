@@ -1,79 +1,92 @@
-# Permission List
+# Permissions
 
-KaGuilds uses a complete permission system to control features accessible to players and administrators. Permissions are divided into two major categories: **Player Permissions** (normal guild member features) and **Admin Permissions** (server management features).
+KaGuilds declares player-command and server-administration permissions in `plugin.yml`. Explicit denials, inheritance, and wildcard behavior depend on the permission manager installed on the server.
 
-***
+## Recommended Setup
 
-## Permission Bundles
+### Allow All Player Features
 
-### Usage Recommendations
+Keep the defaults:
 
-| Permission Node | Description |
-|:---------------|:------------|
-| `kaguilds.use` | Allows using all guild features |
-| `kaguilds.admin` | Allows using all admin features |
+```text
+kaguilds.command.main = true
+kaguilds.use = true
+```
 
-* In most cases, you only need to give players the `kaguilds.use` permission, and they can use **all guild operations**.
-* If you want to customize which features players can use, you need to **disable** the player's `kaguilds.use` permission, then **selectively assign** permissions from the list below.
+### Control Player Commands Individually
 
-## Complete Permission List
+1. Keep `kaguilds.command.main` granted. Otherwise, Bukkit rejects the entire command before the KaGuilds command handler runs.
+2. Explicitly deny `kaguilds.use`.
+3. Grant the required `kaguilds.command.<subcommand>` permissions.
 
-### Player Permissions
+Denying only one command-specific permission is ineffective because most commands immediately allow players who have `kaguilds.use`.
 
-| Permission Node | Description | Default |
-|:---------------|:------------|:--------|
-| `kaguilds.use` | Allows using all guild features | true |
-| `kaguilds.command.main` | Allows using basic guild commands | true |
-| `kaguilds.command.help` | Allows using the help command | true |
-| `kaguilds.command.create` | Allows using guild creation command | false |
-| `kaguilds.command.delete` | Allows using guild deletion command | false |
-| `kaguilds.command.promote` | Allows using member promotion command | false |
-| `kaguilds.command.demote` | Allows using member demotion command | false |
-| `kaguilds.command.accept` | Allows using join request approval command | false |
-| `kaguilds.command.deny` | Allows using join request denial command | false |
-| `kaguilds.command.confirm` | Allows using confirmation command | false |
-| `kaguilds.command.bank` | Allows using guild bank command | false |
-| `kaguilds.command.chat` | Allows using guild chat command | false |
-| `kaguilds.command.menu` | Allows using guild main menu command | false |
-| `kaguilds.command.motd` | Allows using guild announcement command | false |
-| `kaguilds.command.rename` | Allows using guild rename command | false |
-| `kaguilds.command.seticon` | Allows using guild icon command | false |
-| `kaguilds.command.settp` | Allows using guild teleport point command | false |
-| `kaguilds.command.tp` | Allows using guild teleport command | false |
-| `kaguilds.command.upgrade` | Allows using guild upgrade command | false |
-| `kaguilds.command.info` | Allows using guild info command | false |
-| `kaguilds.command.invite` | Allows using guild invite command | false |
-| `kaguilds.command.join` | Allows using join request command | false |
-| `kaguilds.command.kick` | Allows using member kick command | false |
-| `kaguilds.command.leave` | Allows using guild leave command | false |
-| `kaguilds.command.vault` | Allows using guild vault command | false |
-| `kaguilds.command.transfer` | Allows using guild transfer command | false |
-| `kaguilds.command.pvp` | Allows using guild PvP commands | false |
-| `kaguilds.command.admin` | Allows using guild admin commands | false |
-| `kaguilds.command.yes` | Allows using invite accept command | false |
-| `kaguilds.command.no` | Allows using invite decline command | false |
-| `kaguilds.command.requests` | Allows using join request list command | false |
-| `kaguilds.command.buff` | Allows players to use guild Buff commands | false |
+## Player Permissions
 
-### Admin Permissions
+| Permission | Default | Purpose |
+| --- | --- | --- |
+| `kaguilds.use` | `true` | Allow most player-facing guild features |
+| `kaguilds.command.main` | `true` | Enter the `/kaguilds`, `/kg`, or `/guild` command |
+| `kaguilds.command.help` | `true` | Declared player help permission |
+| `kaguilds.command.create` | `false` | Create a guild |
+| `kaguilds.command.delete` | `false` | Delete a guild |
+| `kaguilds.command.promote` | `false` | Promote a guild member |
+| `kaguilds.command.demote` | `false` | Demote a guild member |
+| `kaguilds.command.accept` | `false` | Approve a join request |
+| `kaguilds.command.deny` | `false` | Deny a join request |
+| `kaguilds.command.confirm` | `false` | Confirm a pending operation |
+| `kaguilds.command.bank` | `false` | Use the guild bank |
+| `kaguilds.command.chat` | `false` | Use guild chat |
+| `kaguilds.command.menu` | `false` | Open the main guild menu |
+| `kaguilds.command.motd` | `false` | Change the guild announcement |
+| `kaguilds.command.rename` | `false` | Rename a guild |
+| `kaguilds.command.seticon` | `false` | Set the guild icon |
+| `kaguilds.command.settp` | `false` | Set the guild teleport location |
+| `kaguilds.command.tp` | `false` | Use guild teleport |
+| `kaguilds.command.upgrade` | `false` | Upgrade a guild |
+| `kaguilds.command.info` | `false` | View the player's own guild information |
+| `kaguilds.command.invite` | `false` | Invite a player to the guild |
+| `kaguilds.command.join` | `false` | Request to join a guild |
+| `kaguilds.command.kick` | `false` | Remove a guild member |
+| `kaguilds.command.leave` | `false` | Leave a guild |
+| `kaguilds.command.vault` | `false` | Open a guild vault |
+| `kaguilds.command.transfer` | `false` | Transfer guild ownership |
+| `kaguilds.command.pvp` | `false` | Use guild battle commands |
+| `kaguilds.command.admin` | `false` | Declared admin-command entry permission |
+| `kaguilds.command.yes` | `false` | Accept a guild invitation |
+| `kaguilds.command.no` | `false` | Decline a guild invitation |
+| `kaguilds.command.requests` | `false` | View join requests |
+| `kaguilds.command.buff` | `false` | Purchase a guild buff |
 
-| Permission Node | Description | Default |
-|:---------------|:------------|:--------|
-| `kaguilds.admin` | Allows using all admin features | op |
-| `kaguilds.admin.reload` | Allows using config reload command | op |
-| `kaguilds.admin.rename` | Allows admin to use guild rename command | op |
-| `kaguilds.admin.delete` | Allows admin to use guild deletion command | op |
-| `kaguilds.admin.info` | Allows admin to use guild info command | op |
-| `kaguilds.admin.bank` | Allows admin to use guild bank command | op |
-| `kaguilds.admin.transfer` | Allows admin to use guild transfer command | op |
-| `kaguilds.admin.kick` | Allows admin to use member kick command | op |
-| `kaguilds.admin.join` | Allows admin to use guild join command | op |
-| `kaguilds.admin.vault` | Allows admin to use guild vault command | op |
-| `kaguilds.admin.unlockall` | Allows admin to unlock all vault locks | op |
-| `kaguilds.admin.setlevel` | Allows admin to use guild level command | op |
-| `kaguilds.admin.exp` | Allows admin to use guild experience command | op |
-| `kaguilds.admin.arena` | Allows admin to use guild arena command | op |
-| `kaguilds.admin.open` | Allows admin to open any GUI menu | op |
-| `kaguilds.admin.release` | Release GUI menu files for specified language | op |
+## Server Administrator Permissions
 
-***
+| Permission | Default | Purpose |
+| --- | --- | --- |
+| `kaguilds.admin` | `op` | Allow all server administration features |
+| `kaguilds.admin.reload` | `op` | Reload plugin configuration |
+| `kaguilds.admin.help` | `op` | Show the help entry on the admin help page |
+| `kaguilds.admin.rename` | `op` | Rename any guild |
+| `kaguilds.admin.delete` | `op` | Delete any guild |
+| `kaguilds.admin.info` | `op` | View any guild's information |
+| `kaguilds.admin.bank` | `op` | View or modify any guild bank |
+| `kaguilds.admin.transfer` | `op` | Transfer ownership of any guild |
+| `kaguilds.admin.kick` | `op` | Remove a member from a specified guild |
+| `kaguilds.admin.join` | `op` | Force an online player to join a guild |
+| `kaguilds.admin.vault` | `op` | Open any guild vault |
+| `kaguilds.admin.unlockall` | `op` | Release all guild vault locks |
+| `kaguilds.admin.setlevel` | `op` | Set a guild level |
+| `kaguilds.admin.exp` | `op` | Modify guild experience |
+| `kaguilds.admin.arena` | `op` | Configure the guild battle arena |
+| `kaguilds.admin.open` | `op` | Open any loaded GUI menu |
+| `kaguilds.admin.task` | `op` | View or modify guild task progress |
+| `kaguilds.admin.contribution` | `op` | Modify member contribution points |
+| `kaguilds.admin.release` | `op` | Extract bundled menu files |
+
+## Current Implementation Notes
+
+- `/kg help` does not currently check `kaguilds.command.help` separately, but it is still gated by `kaguilds.command.main`.
+- `/kg admin` actions check `kaguilds.admin` or their corresponding `kaguilds.admin.<action>` permission. `kaguilds.command.admin` does not currently gate those actions separately.
+- `/kg admin help` filters entries by the sender's admin action permissions. A sender with an action permission can see that help entry even without `kaguilds.admin.help`.
+- Permissions control command entry only. Owner, admin, and member role restrictions are enforced separately by guild business logic.
+
+See [Player Commands](player-commands.md) and [Admin Commands](admin-commands.md) for syntax and guild-role restrictions.

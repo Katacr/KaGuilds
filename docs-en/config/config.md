@@ -201,7 +201,7 @@ guild:
     min-players: 2
     max-players: 5
     ready-time: 30
-    pvp-time: 600
+    battle-time: 300
     kit: true
     reward-command:
       - 'kg admin bank {win_id} add 1000'
@@ -250,15 +250,17 @@ Ready phase time (seconds).
   * Preparation time before battle starts
   * Players can prepare equipment and strategy during this time
 
-#### `pvp-time`
+#### `battle-time`
 
 Battle time (seconds).
 
-* **Default**: `600` (10 minutes)
+* **Default**: `300` (5 minutes)
 * **Type**: Integer
 * **Description**:
   * Maximum duration of the battle
   * Winner determined by kill count after timeout
+  * The battle timer currently reads `guild.arena.battle-time`
+  * `guild.arena.pvp-time` in some older default configurations is not read by the battle timer; migrate it to `battle-time`
 
 #### `kit`
 

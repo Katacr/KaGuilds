@@ -1,722 +1,102 @@
-# ⌨ 玩家命令列表
-
-KaGuilds 提供了丰富的命令系统，支持所有公会功能的操作。所有命令都以 `/kg` 或 `/guild` 为前缀。
-
-***
-
-## 命令概览
-
-### 主命令
-
-```bash
-/kg                    # 打开公会菜单（如果有公会）或创建菜单
-/kg help [页码]        # 查看帮助菜单
-/guild help [页码]     # 同上 
-```
-
-### 快捷访问
-
-| 命令       | 功能   | 权限                      |
-| -------- | ---- | ----------------------- |
-| `/kg`    | 打开菜单 | `kaguilds.command.main` |
-
-***
-
-### 玩家命令速查表
-
-| 命令             | 功能         | 需要     | 权限节点                         |
-| -------------- |------------|--------|------------------------------|
-| `/kg`          | 打开菜单       | -      | `kaguilds.command.main`      |
-| `/kg help`     | 查看帮助       | -      | `kaguilds.command.help`      |
-| `/kg create`   | 创建公会       | -      | `kaguilds.command.create`    |
-| `/kg join`     | 申请加入       | -      | `kaguilds.command.join`      |
-| `/kg yes`      | 接受邀请       | -      | `kaguilds.command.yes`       |
-| `/kg no`       | 拒绝邀请       | -      | `kaguilds.command.no`        |
-| `/kg info`     | 查看信息       | -      | `kaguilds.command.info`      |
-| `/kg menu`     | 打开菜单       | -      | `kaguilds.command.menu`      |
-| `/kg leave`    | 退出公会       | -      | `kaguilds.command.leave`     |
-| `/kg delete`   | 解散公会       | 会长     | `kaguilds.command.delete`    |
-| `/kg rename`   | 重命名        | 会长     | `kaguilds.command.rename`    |
-| `/kg seticon`  | 设置图标       | 会长     | `kaguilds.command.seticon`   |
-| `/kg motd`     | 设置公告       | 公会管理   | `kaguilds.command.motd`      |
-| `/kg invite`   | 邀请成员       | 公会管理   | `kaguilds.command.invite`    |
-| `/kg accept`   | 批准申请       | 公会管理   | `kaguilds.command.accept`    |
-| `/kg deny`     | 拒绝申请       | 公会管理   | `kaguilds.command.deny`      |
-| `/kg requests` | 查看申请       | 公会管理   | `kaguilds.command.requests`  |
-| `/kg kick`     | 踢出成员       | 公会管理   | `kaguilds.command.kick`      |
-| `/kg promote`  | 提升成员       | 会长     | `kaguilds.command.promote`   |
-| `/kg demote`   | 降级成员       | 会长     | `kaguilds.command.demote`    |
-| `/kg transfer` | 转让公会       | 会长     | `kaguilds.command.transfer`  |
-| `/kg chat`     | 公会聊天       | -      | `kaguilds.command.chat`      |
-| `/kg settp`    | 设置传送点      | 会长     | `kaguilds.command.settp`     |
-| `/kg tp`       | 公会传送       | -      | `kaguilds.command.tp`        |
-| `/kg bank`     | 金库管理       | -      | `kaguilds.command.bank`      |
-| `/kg buff`     | 购买 Buff    | -      | `kaguilds.command.buff`      |
-| `/kg vault`    | 访问仓库       | -      | `kaguilds.command.vault`     |
-| `/kg upgrade`  | 升级公会       | 公会管理   | `kaguilds.command.upgrade`   |
-| `/kg pvp`      | 公会战        | 公会管理   | `kaguilds.command.pvp`       |
-| `/kg confirm`  | 确认操作       | -      | `kaguilds.command.confirm`   |
-| `/kg reload`   | 重载配置       | 公会管理   | `kaguilds.admin.reload`       |
-
-***
-
-## 基础命令
-
-### `/kg help [页码]`
-
-查看插件帮助菜单。
-
-**权限**: `kaguilds.command.help`
-
-**用法**:
-
-```bash
-/kg help        # 查看第1页帮助
-/kg help 2      # 查看第2页帮助
-```
-
-**说明**:
-
-* 每页显示 10 个命令
-* 按功能分类显示
-* 包含命令简短描述
-
-**示例**:
-
-```
-------- KaGuilds 帮助菜单 -------
-/kg create <名称>     创建新公会
-/kg join <公会>       申请加入公会
-/kg info              查看公会信息
-...
-```
-
-***
-
-## 公会管理命令
-
-### `/kg create <公会名称>`
-
-创建一个新的公会。
-
-**权限**: `kaguilds.command.create`
-
-**用法**:
-
-```bash
-/kg create 我的世界公会
-```
-
-**说明**:
-
-* 需要支付创建费用（在 `config.yml` 中配置）
-* 公会名称必须符合命名规则（长度、字符等）
-* 创建后玩家自动成为公会会长
-
-***
-
-### `/kg delete`
-
-解散当前公会。
-
-**权限**: `kaguilds.command.delete`
-
-**用法**:
-
-```bash
-/kg delete
-/kg confirm    # 确认解散
-```
-
-**说明**:
-
-* 需要会长权限
-* 需要确认操作（`/kg confirm`）
-* 解散后所有成员离开公会
-* 公会数据会被删除
-
-**注意**: 此操作不可逆！
-
-***
-
-### `/kg rename <新名称>`
-
-重命名公会。
-
-**权限**: `kaguilds.command.rename`
-
-**用法**:
-
-```bash
-/kg rename 新公会名称
-```
-
-**说明**:
-
-* 需要会长权限
-* 需要支付费用（在 `config.yml` 中配置）
-* 新名称必须符合命名规则
-
-***
-
-### `/kg info [公会名称]`
-
-查看公会信息。
-
-**权限**: `kaguilds.command.info`
-
-**用法**:
-
-```bash
-/kg info              # 查看自己公会的信息
-/kg info 强者公会     # 查看指定公会的信息
-```
-
-**说明**:
-
-* 显示公会的详细信息
-* 包括：名称、等级、成员数、资金等
-
-**输出示例**:
-
-```
-公会信息: 我的公会
-等级: Lv.5
-成员: 12/20
-资金: 15000.0
-会长: Steve
-公告: 欢迎来到我们的公会！
-```
-
-***
-
-### `/kg motd <公告内容>`
-
-设置公会公告。
-
-**权限**: `kaguilds.command.motd`
-
-**用法**:
-
-```bash
-/kg motd 欢迎加入我们的公会！
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 支持颜色代码
-
-***
-
-### `/kg seticon`
-
-设置公会图标。
-
-**权限**: `kaguilds.command.seticon`
-
-**用法**:
-
-```bash
-/kg seticon 
-```
-
-**说明**:
-
-* 手持想要设置的物品
-* 需要会长或管理员权限
-* 需要支付费用（在 `config.yml` 中配置）
-* 支持特殊材质物品（如 Oraxen、ItemsAdder 等自定义物品）
-
-***
-
-## 成员管理命令
-
-### `/kg invite <玩家名称>`
-
-邀请玩家加入公会。
-
-**权限**: `kaguilds.command.invite`
-
-**用法**:
-
-```bash
-/kg invite Steve
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 邀请有效期为 60 秒
-* 目标玩家可以使用 `/kg yes` 或点击提示接受邀请
-
-***
-
-### `/kg accept <玩家名称>`
-
-批准玩家的入会申请。
-
-**权限**: `kaguilds.command.accept`
-
-**用法**:
- 
-```bash
-/kg accept Steve
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 目标玩家必须已提交入会申请
-* 使用 `/kg requests` 查看待处理的申请
-
-***
-
-### `/kg deny <玩家名称>`
-
-拒绝玩家的入会申请。
-
-**权限**: `kaguilds.command.deny`
-
-**用法**:
-
-```bash
-/kg deny Steve
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 目标玩家会收到拒绝通知
-
-***
-
-### `/kg requests`
-
-查看待处理的入会申请。
-
-**权限**: `kaguilds.command.requests`
-
-**用法**:
-
-```bash
-/kg requests
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 显示所有待处理的入会申请列表
-
-***
-
-### `/kg join <公会名称或ID>`
-
-申请加入公会。
-
-**权限**: `kaguilds.command.join`
-
-**用法**:
-
-```bash
-/kg join 强者公会
-/kg join 公会ID
-```
-
-**说明**:
-
-* 公会管理员会收到申请通知
-* 可以使用 `/kg accept <玩家名称>` 批准或 `/kg deny <玩家名称>` 拒绝
-
-***
-
-### `/kg yes`
-
-接受公会邀请。
-
-**权限**: `kaguilds.command.yes`
-
-**用法**:
-
-```bash
-/kg yes
-```
-
-**说明**:
-
-* 接受公会管理员的入会邀请
-* 邀请有效期为 60 秒
-
-***
-
-### `/kg no`
-
-拒绝公会邀请。
-
-**权限**: `kaguilds.command.no`
-
-**用法**:
-
-```bash
-/kg no
-```
-
-**说明**:
-
-* 拒绝公会管理员的入会邀请
-
-***
-
-### `/kg kick <玩家名称>`
-
-踢出公会成员。
-
-**权限**: `kaguilds.command.kick`
-
-**用法**:
-
-```bash
-/kg kick Steve
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 被踢出的玩家会收到通知
-
-***
-
-### `/kg promote <玩家名称>`
-
-提升成员为管理员。
-
-**权限**: `kaguilds.command.promote`
-
-**用法**:
-
-```bash
-/kg promote Steve
-```
-
-**说明**:
-
-* 需要会长权限
-* 目标玩家必须是成员
-* 只能提升为管理员
-
-***
-
-### `/kg demote <玩家名称>`
-
-降级管理员为成员。
-
-**权限**: `kaguilds.command.demote`
-
-**用法**:
-
-```bash
-/kg demote Steve
-```
-
-**说明**:
-
-* 需要会长权限
-* 目标玩家必须是管理员
-* 降级后变为成员
-
-***
-
-### `/kg transfer <玩家名称>`
-
-转让公会所有权。
-
-**权限**: `kaguilds.command.transfer`
-
-**用法**:
-
-```bash
-/kg transfer Steve
-/kg confirm    # 确认转让
-```
-
-**说明**:
-
-* 需要会长权限
-* 目标玩家必须是公会成员
-* 需要确认操作（`/kg confirm`）
-* 转让后原会长变为成员
-
-**注意**: 此操作不可逆！
-
-***
-
-### `/kg leave`
-
-退出公会。
-
-**权限**: `kaguilds.command.leave`
-
-**用法**:
-
-```bash
-/kg leave
-/kg confirm    # 确认退出
-```
-
-**说明**:
-
-* 需要确认操作（`/kg confirm`）
-
-***
-
-## 经济系统命令
-
-### `/kg bank [add/take/log] [金额]`
-
-管理公会金库。
-
-**权限**: `kaguilds.command.bank`
-
-**用法**:
-
-```bash
-/kg bank add 1000     # 存入 1000 金币
-/kg bank take 500     # 取出 500 金币
-/kg bank log              # 查看交易日志
-```
-
-**说明**:
-
-* `add` - 存入金币到公会金库
-* `take` - 从公会金库取出金币
-* `log` - 查看金库交易日志（仅管理员）
-* 存取款会根据贡献度系统增加或减少贡献度
-
-**贡献度计算**（config.yml）:
-
-* 存款贡献度 = 存款金额 × `bank-deposit-ratio`
-* 取款贡献度 = 取款金额 × `bank-withdraw-ratio`
-
-***
-
-### `/kg upgrade`
-
-升级公会等级。
-
-**权限**: `kaguilds.command.upgrade`
-
-**用法**:
-
-```bash
-/kg upgrade
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 需要足够的公会经验
-* 升级后解锁新功能和提高属性上限
-
-**升级效果**（请前往 `levels.yml` 配置）:
-
-***
-
-## 传送系统命令
-
-### `/kg settp`
-
-设置公会传送点。
-
-**权限**: `kaguilds.command.settp`
-
-**用法**:
-
-```bash
-/kg settp
-```
-
-**说明**:
-
-* 需要会长或管理员权限
-* 将当前位置设置为公会传送点
-* 需要支付费用（在 `config.yml` 中配置）
-
-***
-
-### `/kg tp`
-
-传送到公会传送点。
-
-**权限**: `kaguilds.command.tp`
-
-**用法**:
-
-```bash
-/kg tp
-```
-
-**说明**:
-
-* 需要支付费用（在 `config.yml` 中配置）
-* 开始传送期间禁止移动
-* 某些世界可能禁止传送（在 `config.yml` 中配置）
-
-***
-
-## Buff 系统命令
-
-### `/kg buff <Buff名称>`
-
-购买公会增益效果。
-
-**权限**: `kaguilds.command.buff`
-
-**用法**:
-
-```bash
-/kg buff Speed
-/kg buff NightVision
-```
-
-**说明**:
-
-* 需要公会金库余额充足
-* Buff 购买后会分发给所有公会在线成员
-
-***
-
-## 仓库系统命令
-
-### `/kg vault <仓库编号>`
-
-访问公会云仓库。
-
-**权限**: `kaguilds.command.vault`
-
-**用法**:
-
-```bash
-/kg vault 1     # 打开 1 号仓库
-/kg vault 2     # 打开 2 号仓库
-```
-
-**说明**:
-
-* 仓库需要在 `levels.yml` 中解锁
-* 支持跨服同步
-* 当有玩家在操作仓库时，其他玩家暂时无法使用
-
-***
-
-## 聊天系统命令
-
-### `/kg chat [消息]`
-
-发送公会聊天消息。
-
-**权限**: `kaguilds.command.chat`
-
-**用法**:
-
-```bash
-/kg chat                              # 切换到公会聊天模式
-/kg chat 大家好！                    # 发送单条消息
-```
-
-**说明**:
-
-* /kg chat ：切换聊天模式（再次输入退出）
-* /kg chat 内容 ：发送单条消息
-* 进入公会聊天模式后，所有消息都会发送到公会频道
-
-***
-
-## PvP 系统命令
-
-### `/kg pvp <start/accept/ready/exit>`
-
-公会战相关命令。
-
-**权限**: `kaguilds.command.pvp`
-
-**用法**:
-
-```bash
-/kg pvp start 公会ID         # 向指定公会发起公会战
-/kg pvp accept         # 接受公会战
-/kg pvp ready          # 准备就绪
-/kg pvp exit           # 退出公会战
-```
-
-**说明**:
-
-* 需要管理员或会长权限
-* 公会战有参与者人数限制（在 `config.yml` 中配置）
-* 有冷却时间限制
-* 战斗奖励均可配置（在 `config.yml` 中配置）
-
-***
-
-## 菜单系统命令
-
-### `/kg menu`
-
-打开公会主菜单。
-
-**权限**: `kaguilds.command.menu`
-
-**用法**:
-
-```bash
-/kg menu
-```
-
-**说明**:
-
-* 打开图形化的公会管理界面
-* 提供便捷的公会操作
-* 支持自定义菜单布局（在 `gui/` 目录下配置）
-
-***
-
-## 系统命令
-
-### `/kg reload`
-
-重载插件配置。
-
-**权限**: `kaguilds.admin.reload`
-
-**用法**:
-
-```bash
-/kg reload
-```
-
-**说明**:
-
-* 重新加载所有配置文件
-* 包括 `config.yml`, `levels.yml`, `buffs.yml`, `task.yml` 等
-* 无需重启服务器
-* 支持控制台执行
-
-***
-
-### `/kg confirm`
-
-确认危险操作。
-
-**权限**: `kaguilds.command.confirm`
-
-**用法**:
-
-```bash
-/kg confirm
-```
-
-**说明**:
-
-* 用于确认危险操作（如解散公会、转让等）
-* 操作有效期为 30 秒
-
-***
+# 玩家命令
+
+KaGuilds 的主命令为 `/kaguilds`，可使用 `/kg` 或 `/guild` 作为别名。本文统一使用 `/kg`。
+
+## 参数约定
+
+- `<参数>`：必填参数。
+- `[参数]`：可选参数。
+- `#ID`：公会 ID，例如 `#12`。支持 ID 的命令也可能接受不带 `#` 的数字，但建议统一使用 `#ID`。
+- 除 `/kg help`、`/kg reload` 和 `/kg admin` 外，命令只能由玩家执行。
+
+## 权限说明
+
+大多数玩家命令满足以下任一条件即可执行：
+
+1. 玩家拥有 `kaguilds.use`；
+2. 玩家拥有该命令对应的 `kaguilds.command.<子命令>`。
+
+`kaguilds.use` 默认授予所有玩家，因此仅拒绝某个细分权限不会限制命令。需要精细控制时，应先拒绝 `kaguilds.use`，再按需授予细分权限。公会职位限制仍会在权限检查后继续生效。
+
+## 命令速查
+
+| 命令 | 功能 | 公会职位或状态 | 权限节点 |
+| --- | --- | --- | --- |
+| `/kg` | 打开默认公会菜单 | 无 | `kaguilds.command.main` |
+| `/kg help [页码]` | 查看玩家帮助 | 无 | 当前仅受主命令权限控制 |
+| `/kg create <名称>` | 创建公会 | 当前未加入公会 | `kaguilds.command.create` |
+| `/kg join <名称\|#ID>` | 申请加入公会 | 当前未加入公会 | `kaguilds.command.join` |
+| `/kg yes` | 接受待处理的公会邀请 | 当前未加入公会 | `kaguilds.command.yes` |
+| `/kg no` | 拒绝待处理的公会邀请 | 无 | `kaguilds.command.no` |
+| `/kg info` | 查看自己的公会信息 | 公会成员 | `kaguilds.command.info` |
+| `/kg menu` | 打开公会菜单 | 无 | `kaguilds.command.menu` |
+| `/kg invite <玩家>` | 邀请玩家 | 会长或管理员 | `kaguilds.command.invite` |
+| `/kg requests` | 查看本公会入会申请 | 公会成员 | `kaguilds.command.requests` |
+| `/kg accept <玩家>` | 批准入会申请 | 会长或管理员 | `kaguilds.command.accept` |
+| `/kg deny <玩家>` | 拒绝入会申请 | 公会成员 | `kaguilds.command.deny` |
+| `/kg kick <玩家>` | 踢出成员 | 会长或管理员 | `kaguilds.command.kick` |
+| `/kg promote <玩家>` | 将成员提升为管理员 | 会长 | `kaguilds.command.promote` |
+| `/kg demote <玩家>` | 将管理员降为成员 | 会长 | `kaguilds.command.demote` |
+| `/kg transfer <玩家>` | 转让会长 | 会长 | `kaguilds.command.transfer` |
+| `/kg leave` | 退出公会 | 非会长 | `kaguilds.command.leave` |
+| `/kg delete` | 解散公会 | 会长 | `kaguilds.command.delete` |
+| `/kg rename <名称>` | 重命名公会 | 会长 | `kaguilds.command.rename` |
+| `/kg seticon` | 将主手物品设为公会图标 | 会长或管理员 | `kaguilds.command.seticon` |
+| `/kg motd <内容>` | 修改公会公告 | 会长或管理员 | `kaguilds.command.motd` |
+| `/kg settp` | 设置公会传送点 | 会长或管理员 | `kaguilds.command.settp` |
+| `/kg tp` | 传送到公会传送点 | 公会成员 | `kaguilds.command.tp` |
+| `/kg upgrade` | 按 `levels.yml` 升级公会 | 会长或管理员 | `kaguilds.command.upgrade` |
+| `/kg bank add <金额>` | 向公会金库存款 | 公会成员 | `kaguilds.command.bank` |
+| `/kg bank take <金额>` | 从公会金库取款 | 公会成员 | `kaguilds.command.bank` |
+| `/kg bank log [页码]` | 查看公会金库日志 | 会长或管理员 | `kaguilds.command.bank` |
+| `/kg buff <Buff键>` | 购买公会 Buff | 公会成员 | `kaguilds.command.buff` |
+| `/kg vault [1-9]` | 打开公会仓库，默认第 1 个 | 公会成员 | `kaguilds.command.vault` |
+| `/kg chat` | 切换持续公会聊天模式 | 公会成员 | `kaguilds.command.chat` |
+| `/kg chat <消息>` | 发送一条公会消息 | 公会成员 | `kaguilds.command.chat` |
+| `/kg pvp start <名称\|#ID>` | 向目标公会发起对战 | 会长或管理员 | `kaguilds.command.pvp` |
+| `/kg pvp accept` | 接受收到的对战邀请 | 会长或管理员 | `kaguilds.command.pvp` |
+| `/kg pvp ready` | 在准备阶段确认参战 | 对战成员 | `kaguilds.command.pvp` |
+| `/kg pvp exit` | 退出当前对战 | 对战成员 | `kaguilds.command.pvp` |
+| `/kg confirm` | 执行当前待确认操作 | 取决于原操作 | `kaguilds.command.confirm` |
+| `/kg reload` | 重载插件配置 | 服务器管理员或控制台 | `kaguilds.admin` 或 `kaguilds.admin.reload` |
+| `/kg admin help [页码]` | 查看服务器管理员命令 | 服务器管理员或控制台 | 见管理员权限表 |
+
+## 需要确认的操作
+
+下列玩家操作不会立即执行，必须随后运行 `/kg confirm`：
+
+- 创建公会；
+- 解散公会；
+- 退出公会；
+- 踢出成员；
+- 转让会长；
+- 重命名公会。
+
+每名玩家同时只保留一个待确认操作，新操作会替换旧操作。当前实现没有确认超时机制，因此文档不承诺待确认操作会自动过期。
+
+## 成员与职位限制
+
+- 会长不能直接退出公会，应先转让会长或解散公会。
+- 公会管理员不能踢出会长或其他管理员；会长可以踢出管理员和普通成员。
+- `/kg promote` 和 `/kg demote` 只能由会长执行，且不能用于会长本人。
+- `/kg requests` 和 `/kg deny` 当前没有额外的公会职位检查；能通过命令权限检查的公会成员即可执行。
+- `/kg transfer` 的目标必须是该公会中的玩家。
+
+## 经济、仓库与 Buff
+
+- 金库存取金额必须是正整数，并依赖 Vault 及可用的经济插件。
+- 存款不能超过当前公会等级在 `levels.yml` 中配置的上限。
+- 取款可能消耗个人贡献度，具体比例由 `config.yml` 控制。
+- 可用 Buff 键及价格由 `buffs.yml` 定义。
+- 仓库编号范围为 `1` 到 `9`，玩家只能打开当前等级已解锁的仓库。
+
+## 聊天与公会战
+
+- `/kg chat` 可进入或退出持续公会聊天模式；`/kg chat <消息>` 不改变聊天模式。
+- 玩家退出、被踢出或公会被解散后，插件会清理其本地公会聊天状态。
+- `/kg pvp start` 的裸数字会被当作公会名称；按 ID 发起时必须使用 `#ID`。
+- 公会战同一时间只能进行一场，并受人数、冷却、费用和竞技场配置限制。
+
+## 服务器管理命令
+
+`/kg reload` 和 `/kg admin ...` 属于服务器管理功能，不是公会管理员职位功能。完整语法见[管理员命令](admin-commands.md)。

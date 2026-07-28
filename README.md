@@ -1,209 +1,113 @@
-
-
-# 🛡️ KaGuilds - High-Performance Cross-Server Guild System
+# KaGuilds
 
 [![License](https://img.shields.io/github/license/katacr/KaGuilds)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/katacr/KaGuilds)
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.16%2B-brightgreen)](https://www.minecraft.net/)
+[![Minecraft](https://img.shields.io/badge/compile%20baseline-Spigot%201.16.5-brightgreen)](https://www.spigotmc.org/)
 
-**KaGuilds** is a highly customized guild plugin designed for Minecraft networks (BungeeCord/Velocity). It utilizes **SQL Transactions** and a **Cross-Server Message Bus** to ensure data consistency and security across a distributed environment.
+[简体中文](README_CN.md)
 
----
+KaGuilds is a guild plugin for Spigot, Paper, and Velocity-backed networks. It provides guild membership, economy, shared vaults, tasks, PvP, configurable menus, and Chinese and English localization.
 
-## ✨ Key Features
+## Features
 
-### 🔄 Cross-Server Synchronization
-- Global guild chat, notifications, and invitations powered by Velocity/BungeeCord channels
-- Real-time sync of guild info and permissions regardless of sub-server members are on
-- Cross-server player invitations and join requests
+- Guild creation, join requests, invitations, three member roles, ownership transfer, and deletion
+- Guild bank, paginated transaction logs, contribution points, levels, and configurable buffs
+- Personal daily tasks and guild-wide global tasks with persistent reward-claim protection
+- Shared guild vaults with database-backed lease locks
+- Guild chat, teleport locations, guild icons, announcements, and PlaceholderAPI integration
+- Guild PvP arena with team kits, preparation, match timing, statistics, and reward commands
+- YAML GUI menus and Chinese or English language files
+- Cross-server chat, invitations, notifications, and cache synchronization through the KaProxy Guilds module
 
-### 💰 Deep Economy Integration
-- **Creation Cost**: Configurable fees deducted automatically via Vault API
-- **Guild Bank**: Supports deposits and withdrawals with paginated transaction logs for staff
-- **Vault System**: Multiple lockable guild vaults with inventory lease management
+## Compatibility
 
-### 👥 Rigid Role Hierarchy
-- Three tiers of authority: **Owner**, **Administrator**, and **Member**
-- Built-in logic for Promotion and Demotion with clear permission boundaries
-- Ownership transfer capabilities
+| Item | Current requirement |
+| --- | --- |
+| Minecraft API | Compiled against Spigot API 1.16.5; validate newer versions on the exact target server |
+| Java | Targets Java 12 bytecode; Java must also meet the server software requirement |
+| Server | Spigot, Paper, or a compatible fork |
+| Network proxy | Velocity with the KaProxy Guilds module |
+| Database | SQLite or MySQL for one server; shared MySQL for multiple servers |
+| Economy | Vault and a Vault-compatible economy provider |
+| Optional | PlaceholderAPI |
 
-### 📈 Dynamic Leveling System
-- Automated leveling based on guild EXP
-- Dynamically increasing member limits and bank capacity
-- Upgrade system with configurable tiers
+Folia support is currently a proposal and is not enabled in this version.
 
-### 📋 Comprehensive Invite & Request System
-- **Invitations**: Global player invites with automated expiration
-- **Requests**: Staff can view, approve, or deny pending applications at any time
+## Installation
 
-### 🎮 PvP Arena System
-- Guild vs Guild battles with custom kits
-- Match timing and win conditions
-- Statistics tracking (wins/losses/draws)
-- Reward commands on victory
+1. Install Vault and a compatible economy plugin on the backend server.
+2. Place the KaGuilds JAR in the backend server's `plugins` directory.
+3. Start the server once to generate `plugins/KaGuilds` and the database schema.
+4. Stop the server, edit the generated configuration, and start it again.
+5. Install PlaceholderAPI when KaGuilds placeholders are needed.
 
-### 🖼️ GUI Menu System
-- Main menu with guild operations
-- Member list with pagination
-- Guilds list browser
-- Buff shop
-- Upgrade shop
-- Bank management
+Do not load or reload KaGuilds with PlugMan or similar hot-loading tools. Back up the database and `plugins/KaGuilds` before upgrades.
 
-### 📊 PlaceholderAPI Support
-Integrated variables for scoreboards or chat:
-- `%kaguilds_name%` - Current guild name
-- `%kaguilds_role%` - Player rank (Owner/Admin/Member)
-- `%kaguilds_level%` - Current guild level
-- `%kaguilds_balance%` - Current guild balance
+## Multi-Server Setup
 
-### 🌍 Localization
-Full language switching support in `config.yml`:
-- **Simplified Chinese**: `zh_CN.yml`
-- **English**: `en_US.yml`
+Every backend server must:
 
----
+- Run the same KaGuilds version;
+- Connect to the same MySQL database;
+- Set `proxy: true`;
+- Use a unique and stable `server-id`.
 
-## 🎮 Command Reference
+Install KaProxy only on Velocity and enable its Guilds module and legacy channel support. Do not run KaProxy and the former KaGuildsProxy plugin together. Backend servers should accept player connections only through Velocity.
 
-### Player Commands
+See [Velocity Setup](docs-en/home/velocity.md) for the full procedure and verification checklist.
 
-| Command                  | Description                                | Permission                  |
-|--------------------------|--------------------------------------------|-----------------------------|
-| `/kg create <name>`      | Pay to create a new guild                  | `kaguilds.command.create`   |
-| `/kg join <name>`        | Apply to join a specific guild             | `kaguilds.command.join`     |
-| `/kg info [name]`        | View detailed guild information            | `kaguilds.command.info`     |
-| `/kg chat <message>`     | Communicate in internal guild channel      | `kaguilds.command.chat`     |
-| `/kg bank <add/get/log>` | Deposit, withdraw guild funds or view logs | `kaguilds.command.bank`     |
-| `/kg leave`              | Leave your current guild                   | `kaguilds.command.leave`    |
-| `/kg tp`                 | Teleport to guild location                 | `kaguilds.command.tp`       |
-| `/kg settp`              | Set guild teleport location                | `kaguilds.command.settp`    |
-| `/kg rename <name>`      | Rename your guild (confirmation required)  | `kaguilds.command.rename`   |
-| `/kg vault <index>`      | Open guild vault (1-9)                     | `kaguilds.command.vault`    |
-| `/kg motd <message>`     | Set guild announcement                     | `kaguilds.command.motd`     |
-| `/kg seticon`            | Set guild icon from held item              | `kaguilds.command.seticon`  |
-| `/kg upgrade`            | Upgrade guild level                        | `kaguilds.command.upgrade`  |
-| `/kg buff <name>`        | Purchase guild buff                        | `kaguilds.command.buff`     |
-| `/kg pvp <guild>`        | Challenge another guild to PvP             | `kaguilds.command.pvp`      |
-| `/kg yes`                | Accept guild invitation                    | `kaguilds.command.yes`      |
-| `/kg no`                 | Decline guild invitation                   | `kaguilds.command.no`       |
-| `/kg confirm`            | Confirm pending actions                    | `kaguilds.command.confirm`  |
-| `/kg menu`               | Open main guild menu                       | `kaguilds.command.menu`     |
-| `/kg help [page]`        | View command help menu                     | `kaguilds.command.help`     |
-| `/kg invite <player>`    | Invite online/cross-server players         | `kaguilds.command.invite`   |
-| `/kg accept <player>`    | Approve a join application                 | `kaguilds.command.accept`   |
-| `/kg deny <player>`      | Deny a join application                    | `kaguilds.command.deny`     |
-| `/kg promote <player>`   | Promote a member to Admin                  | `kaguilds.command.promote`  |
-| `/kg demote <player>`    | Demote Admin to Member                     | `kaguilds.command.demote`   |
-| `/kg kick <player>`      | Kick a member from guild                   | `kaguilds.command.kick`     |
-| `/kg transfer <player>`  | Transfer guild ownership                   | `kaguilds.command.transfer` |
-| `/kg bank log [page]`    | View transaction history                   | `kaguilds.command.bank`     |
-| `/kg delete`             | Delete guild (owner only)                  | `kaguilds.command.delete`   |
-| `/kg requests`           | View all join requests                     | `kaguilds.command.requests` |
-| `/kg confirm`            | Confirm guild deletion or transfer         | `kaguilds.command.confirm`  |
+## Commands
 
-### Admin Commands
+The primary command is `/kaguilds`, with `/kg` and `/guild` as aliases.
 
-| Command                                           | Description                 | Permission                 |
-|---------------------------------------------------|-----------------------------|----------------------------|
-| `/kg admin rename <guild> <name>`                 | Admin rename guild          | `kaguilds.admin.rename`    |
-| `/kg admin delete <guild>`                        | Admin delete guild          | `kaguilds.admin.delete`    |
-| `/kg admin info <guild>`                          | Admin view guild info       | `kaguilds.admin.info`      |
-| `/kg admin bank <guild> <see/log/add/remove/set>` | Manage guild bank           | `kaguilds.admin.bank`      |
-| `/kg admin exp <guild> <add/remove/set> <amount>` | Modify guild EXP            | `kaguilds.admin.exp`       |
-| `/kg admin setlevel <guild> <level>`              | Set guild level             | `kaguilds.admin.setlevel`  |
-| `/kg admin kick <guild> <player>`                 | Admin kick member           | `kaguilds.admin.kick`      |
-| `/kg admin join <guild> <player>`                 | Force add player to guild   | `kaguilds.admin.join`      |
-| `/kg admin transfer <guild> <player>`             | Admin transfer ownership    | `kaguilds.admin.transfer`  |
-| `/kg admin vault <guild> <index>`                 | Admin open vault            | `kaguilds.admin.vault`     |
-| `/kg admin unlockall`                             | Force reset all vault locks | `kaguilds.admin.unlockall` |
-| `/kg admin arena <setpos/setspawn/setkit/info>`   | Configure PvP arena         | `kaguilds.admin.arena`     |
-| `/kg reload`                                      | Reload configuration files  | `kaguilds.admin.reload`    |
-
----
-
-## 📋 Permissions
-
-### Basic Permissions
-```yaml
-kaguilds.use            # Access all basic guild features
-kaguilds.admin          # Access all administrative commands
+```text
+/kg help [page]
+/kg create <name>
+/kg join <name|#ID>
+/kg info
+/kg menu
+/kg chat [message]
+/kg bank <add|take|log> ...
+/kg pvp <start|accept|ready|exit> ...
+/kg admin help [page]
 ```
 
-### Command-Specific Permissions
-```yaml
-kaguilds.command.main    # Access main guild command
-kaguilds.command.help    # View command help
-kaguilds.command.menu    # Open main menu GUI
+Several player operations, including create, delete, leave, kick, transfer, and rename, require `/kg confirm`. Server admin delete and transfer commands execute immediately.
+
+See [Player Commands](docs-en/perm/player-commands.md), [Admin Commands](docs-en/perm/admin-commands.md), and [Permissions](docs-en/perm/permissions.md).
+
+## Configuration
+
+Runtime files are stored in `plugins/KaGuilds/`:
+
+| Path | Purpose |
+| --- | --- |
+| `config.yml` | Database, proxy, economy, teleport, task display, and common settings |
+| `levels.yml` | Level requirements, limits, interest, vaults, and buff unlocks |
+| `buffs.yml` | Buff effects, price, amplifier, duration, and display name |
+| `task.yml` | Daily and global task definitions and reward actions |
+| `lang/*.yml` | Player-facing messages |
+| `gui/*.yml` | Menu layout, display, conditions, and actions |
+| `arena.yml` | PvP region, spawns, and team kits |
+
+See the [English documentation](docs-en/README.md) or [Chinese documentation](docs/README.md).
+
+## Build
+
+The project uses Gradle and requires a JDK capable of compiling for Java 12:
+
+```bash
+bash ./gradlew shadowJar
 ```
 
-### Player Commands
-```yaml
-kaguilds.command.create  # Create a new guild
-kaguilds.command.join    # Apply to join a guild
-kaguilds.command.info    # View guild information
-kaguilds.command.leave   # Leave current guild
-kaguilds.command.tp      # Teleport to guild
-kaguilds.command.settp   # Set guild teleport point
-kaguilds.command.chat    # Send guild chat messages
-kaguilds.command.bank    # Access guild bank
-kaguilds.command.vault   # Access guild vaults
-kaguilds.command.motd    # Set guild announcement
-kaguilds.command.rename  # Rename guild
-kaguilds.command.seticon # Set guild icon
-kaguilds.command.upgrade # Upgrade guild level
-kaguilds.command.buff    # Purchase guild buffs
-kaguilds.command.pvp     # Access PvP system
-kaguilds.command.yes     # Accept guild invitations
-kaguilds.command.no      # Decline guild invitations
-kaguilds.command.confirm # Confirm pending actions
-kaguilds.command.invite  # Invite players
-kaguilds.command.accept  # Accept join applications
-kaguilds.command.deny    # Deny join applications
-kaguilds.command.promote # Promote members
-kaguilds.command.demote  # Demote admins
-kaguilds.command.kick    # Kick members
-kaguilds.command.transfer # Transfer ownership
-kaguilds.command.delete  # Delete guild
-kaguilds.command.requests # View join requests
+On Windows:
+
+```bat
+gradlew.bat shadowJar
 ```
 
-### Admin Commands
-```yaml
-kaguilds.admin.rename   # Admin rename guild
-kaguilds.admin.delete   # Admin delete guild
-kaguilds.admin.info     # Admin view guild info
-kaguilds.admin.bank     # Admin manage bank
-kaguilds.admin.exp      # Admin modify EXP
-kaguilds.admin.setlevel # Admin set level
-kaguilds.admin.kick     # Admin kick member
-kaguilds.admin.join     # Admin add member
-kaguilds.admin.transfer # Admin transfer ownership
-kaguilds.admin.vault    # Admin open vault
-kaguilds.admin.unlockall # Force unlock all vaults
-kaguilds.admin.arena    # Configure PvP arena
-kaguilds.admin.reload   # Reload plugin config
-```
+The output JAR is written to `build/libs/`.
 
----
+## License
 
-
-## 🔧 Configuration
-
-### config.yml
-- Database connection settings
-- Economy settings (creation cost, level costs)
-- Guild limits (max members, max vaults)
-- PvP settings (match duration, arena config)
-- Message channel names
-
-### GUI Files
-- `main_menu.yml` - Main guild menu
-- `guilds_list.yml` - Guild browser
-- `guild_members.yml` - Member list
-- `guild_bank.yml` - Bank interface
-- `guild_vaults.yml` - Vault selector
-- `guild_buffs.yml` - Buff shop
-- `guild_upgrade.yml` - Upgrade menu
-
----
+KaGuilds is distributed under the [GPL-3.0 License](LICENSE).

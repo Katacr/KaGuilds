@@ -73,7 +73,7 @@ buffs:
 | `HERO_OF_THE_VILLAGE` | Hero of the Village | Villager trade discount |
 
 {% hint style="warning" %}
-This list is organized by AI; potion effects and names supported by different Minecraft versions may vary.
+Use the Bukkit `PotionEffectType` names provided by the target server. Available names may differ between Minecraft versions.
 {% endhint %}
 
 ### `price` (Required)

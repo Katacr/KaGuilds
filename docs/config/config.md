@@ -17,7 +17,7 @@ language: zh_CN  # 可选: zh_CN 或 en_US
 * **默认值**: `zh_CN`
 * **可用选项**: `zh_CN` (简体中文), `en_US` (English)
 * **说明**: 决定插件界面的显示语言
- 
+
 ### `proxy`
 
 是否启用代理模式（跨服通讯）。
@@ -201,7 +201,7 @@ guild:
     min-players: 2
     max-players: 5
     ready-time: 30
-    pvp-time: 600
+    battle-time: 300
     kit: true
     reward-command:
       - 'kg admin bank {win_id} add 1000'
@@ -250,15 +250,17 @@ guild:
   * 对战开始前的准备时间
   * 玩家在此时间内可以准备装备和策略
 
-#### `pvp-time`
+#### `battle-time`
 
 对战时间（秒）。
 
-* **默认值**: `600` (10 分钟)
+* **默认值**: `300`（5 分钟）
 * **类型**: 整数
 * **说明**:
   * 对战的最大持续时间
   * 超时后根据击杀数判定胜负
+  * 当前战斗计时器读取 `guild.arena.battle-time`
+  * 部分旧版默认配置中的 `guild.arena.pvp-time` 当前不会被战斗计时器读取，请迁移为 `battle-time`
 
 #### `kit`
 

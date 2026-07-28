@@ -1,381 +1,95 @@
-# ⌨ Admin Command List
+# Admin Commands
 
-KaGuilds provides a complete admin command system for managing and controlling all guild functions.
+Server administration commands use `/kg admin <action> [arguments...]`. On this page, "admin" means a server permission administrator, not the in-guild admin role.
 
-***
+## Arguments and Senders
 
-## Admin Command Overview
+- This documentation uses `#ID` for guild IDs, for example `#12`. The current implementation also accepts numbers without `#`.
+- Admin commands can run from a player or the console, except for vault, menu, and arena commands.
+- `kaguilds.admin` grants all admin commands. Individual actions can instead be granted with `kaguilds.admin.<action>`.
+- Admin delete and transfer operations run immediately and do not use `/kg confirm`.
 
-### Main Command
+## Quick Reference
 
-```bash
-/kg admin <action> [arguments...]
-```
+| Command | Purpose | Sender | Permission |
+| --- | --- | --- | --- |
+| `/kg admin help [page]` | Show admin commands available to the sender | Player or console | `kaguilds.admin.help` or any visible action permission |
+| `/kg admin info #ID` | Show guild details | Player or console | `kaguilds.admin.info` |
+| `/kg admin rename #ID <name>` | Rename a guild | Player or console | `kaguilds.admin.rename` |
+| `/kg admin delete #ID` | Delete a guild immediately | Player or console | `kaguilds.admin.delete` |
+| `/kg admin transfer #ID <player>` | Transfer guild ownership | Player or console | `kaguilds.admin.transfer` |
+| `/kg admin kick #ID <player>` | Remove a specified member | Player or console | `kaguilds.admin.kick` |
+| `/kg admin join #ID <player>` | Force an online player to join | Player or console | `kaguilds.admin.join` |
+| `/kg admin bank #ID see` | Show the bank balance | Player or console | `kaguilds.admin.bank` |
+| `/kg admin bank #ID log [page]` | Show bank logs | Player or console | `kaguilds.admin.bank` |
+| `/kg admin bank #ID <add\|remove\|set> <amount> [-s]` | Modify the bank balance | Player or console | `kaguilds.admin.bank` |
+| `/kg admin setlevel #ID <level>` | Set the guild level | Player or console | `kaguilds.admin.setlevel` |
+| `/kg admin exp #ID <add\|remove\|set> <amount> [-s]` | Modify guild experience | Player or console | `kaguilds.admin.exp` |
+| `/kg admin vault #ID [1-9]` | Open a specified guild vault | Player only | `kaguilds.admin.vault` |
+| `/kg admin unlockall` | Force-release every vault lock | Player or console | `kaguilds.admin.unlockall` |
+| `/kg admin task #ID <task-key> see` | Show task definition and progress | Player or console | `kaguilds.admin.task` |
+| `/kg admin task #ID <task-key> reset` | Reset task progress | Player or console | `kaguilds.admin.task` |
+| `/kg admin task #ID <task-key> add <amount>` | Add task progress | Player or console | `kaguilds.admin.task` |
+| `/kg admin contribution #ID <player\|-all> set <amount>` | Set contribution points | Player or console | `kaguilds.admin.contribution` |
+| `/kg admin contribution #ID <player\|-all> add <amount>` | Add contribution points | Player or console | `kaguilds.admin.contribution` |
+| `/kg admin contribution #ID <player\|-all> clear` | Clear contribution points | Player or console | `kaguilds.admin.contribution` |
+| `/kg admin open <menu>` | Open a GUI menu | Player only | `kaguilds.admin.open` |
+| `/kg admin arena setpos <1\|2>` | Set an arena boundary | Player only | `kaguilds.admin.arena` |
+| `/kg admin arena setspawn <red\|blue>` | Set a team spawn | Player only | `kaguilds.admin.arena` |
+| `/kg admin arena setkit <red\|blue>` | Save the current inventory as a team kit | Player only | `kaguilds.admin.arena` |
+| `/kg admin arena info` | Show arena configuration status | Player only | `kaguilds.admin.arena` |
+| `/kg admin release <CN\|EN>` | Release bundled menus for one language | Player or console | `kaguilds.admin.release` |
 
-**Permission**: `kaguilds.admin`
+## Guild and Member Management
 
-**All admin operations do not require guild permissions and can directly manage any guild.**
+- `rename` still enforces the name length and regular expression configured in `config.yml`.
+- `delete` immediately removes the guild and its relationships. Verify the ID and back up the database before use.
+- The `transfer` target must exist in player data and should belong to the target guild.
+- `kick` cannot remove the guild owner.
+- `join` only accepts an online player and bypasses the request and approval flow. It returns an error if the target already belongs to another guild.
 
-***
-
-## Admin Command Quick Reference
-
-| Command | Function | Permission |
-|:--------|:---------|:-----------|
-| `/kg admin rename` | Rename guild | `kaguilds.admin.rename` |
-| `/kg admin delete` | Delete guild | `kaguilds.admin.delete` |
-| `/kg admin info` | View guild info | `kaguilds.admin.info` |
-| `/kg admin bank` | Manage guild bank | `kaguilds.admin.bank` |
-| `/kg admin transfer` | Transfer guild | `kaguilds.admin.transfer` |
-| `/kg admin kick` | Kick member | `kaguilds.admin.kick` |
-| `/kg admin join` | Add player | `kaguilds.admin.join` |
-| `/kg admin vault` | Access vault | `kaguilds.admin.vault` |
-| `/kg admin unlockall` | Unlock all vaults | `kaguilds.admin.unlockall` |
-| `/kg admin setlevel` | Set guild level | `kaguilds.admin.setlevel` |
-| `/kg admin exp` | Manage guild experience | `kaguilds.admin.exp` |
-| `/kg admin arena` | Arena management | `kaguilds.admin.arena` |
-| `/kg admin open` | Open specified menu | `kaguilds.admin.open` |
-| `/kg admin release` | Release menu files | `kaguilds.admin.release` |
-
-***
-
-## Guild Management
-
-### `/kg admin rename <guild_id> <new_name>`
-
-Rename a specified guild.
-
-**Permission**: `kaguilds.admin.rename`
-
-**Usage**:
-
-```bash
-/kg admin rename 1 NewGuildName
-```
-
-**Description**:
-
-* Does not require guild permission
-* Directly modifies guild name
-* New name must follow naming rules
-
-***
-
-### `/kg admin delete <guild_id>`
-
-Delete a specified guild.
-
-**Permission**: `kaguilds.admin.delete`
-
-**Usage**:
+## Bank and Experience
 
 ```bash
-/kg admin delete 1
-/kg confirm    # Confirm deletion
+/kg admin bank #1 add 100
+/kg admin bank #1 add 100 -s
+/kg admin exp #1 set 5000
+/kg admin exp #1 set 5000 -s
 ```
 
-**Description**:
-
-* Does not require guild permission
-* Requires action confirmation (`/kg confirm`)
-* All members leave the guild after deletion
-* Guild data will be deleted
-
-**Note**: This action is irreversible!
-
-***
-
-### `/kg admin info <guild_id>`
-
-View information of a specified guild.
-
-**Permission**: `kaguilds.admin.info`
-
-**Usage**:
-
-```bash
-/kg admin info 1
-```
-
-**Description**:
-
-* Displays complete detailed guild information
-* Includes: name, level, member list, funds, announcement, etc.
-
-***
-
-### `/kg admin transfer <guild_id> <new_owner>`
-
-Transfer a specified guild.
-
-**Permission**: `kaguilds.admin.transfer`
-
-**Usage**:
-
-```bash
-/kg admin transfer 1 NewOwnerName
-/kg confirm    # Confirm transfer
-```
-
-**Description**:
-
-* Does not require guild permission
-* Target player can be any online player
-* Requires action confirmation (`/kg confirm`)
-* Original owner becomes a member after transfer
-
-**Note**: This action is irreversible!
-
-***
-
-## Member Management
-
-### `/kg admin kick <guild_id> <player_name>`
-
-Kick a member from a specified guild.
-
-**Permission**: `kaguilds.admin.kick`
-
-**Usage**:
-
-```bash
-/kg admin kick 1 PlayerName
-```
-
-**Description**:
-
-* Does not require guild permission
-* Kicked player will receive a notification
-* Can kick any member (including owner)
-
-***
-
-### `/kg admin join <guild_id> <player_name>`
-
-Add a player to a specified guild.
-
-**Permission**: `kaguilds.admin.join`
-
-**Usage**:
-
-```bash
-/kg admin join 1 PlayerName
-```
-
-**Description**:
-
-* Does not require guild permission
-* Directly adds player to guild (no request/approval needed)
-* Player must be online
-
-***
-
-## Economy Management
-
-### `/kg admin bank <guild_id> <action> [amount]`
-
-Manage a specified guild's bank.
-
-**Permission**: `kaguilds.admin.bank`
-
-**Usage**:
-
-```bash
-/kg admin bank 1 add 1000    # Add 1000 gold
-/kg admin bank 1 remove 500    # Remove 500 gold
-/kg admin bank 1 set 500    # Set to 500 gold
-/kg admin bank 1 see    # View current balance
-/kg admin bank 1 log    # View bank log
-```
-
-**Description**:
-
-* Does not require guild permission
-* `add` - Add gold to vault
-* `remove` - Remove gold from vault
-* `set` - Directly set vault balance
-* `see` - View current vault balance
-* `log` - View vault transaction history
-
-***
-
-### `/kg admin setlevel <guild_id> <level>`
-
-Set guild level.
-
-**Permission**: `kaguilds.admin.setlevel`
-
-**Usage**:
-
-```bash
-/kg admin setlevel 1 5
-```
-
-**Description**:
-
-* Does not require guild permission
-* Directly sets guild level
-* Unlocked features take effect immediately after setting
-
-***
-
-### `/kg admin exp <guild_id> <action> <value>`
-
-Manage guild experience.
-
-**Permission**: `kaguilds.admin.exp`
-
-**Usage**:
-
-```bash
-/kg admin exp 1 add 100     # Add 100 experience
-/kg admin exp 1 set 500     # Set to 500 experience
-/kg admin exp 1 remove 50   # Remove 50 experience
-```
-
-**Description**:
-
-* Does not require guild permission
-* `add` - Add guild experience
-* `set` - Directly set guild experience
-* `remove` - Remove guild experience
-
-***
+- `add` increases a value, `remove` decreases it, and `set` replaces it.
+- `bank` accepts decimal values; `exp` accepts integers.
+- `-s` suppresses successful output only. Invalid arguments, missing guilds, and database failures are still reported.
+- Admin bank changes do not apply the player-facing guild-level cap or contribution rules. Use them carefully.
 
 ## Vault Management
 
-### `/kg admin vault <guild_id> <vault_number>`
+- `/kg admin vault #ID` opens vault 1 by default.
+- Valid vault numbers range from `1` to `9`.
+- Admin vault access does not check whether the target guild level has unlocked that vault number.
+- `/kg admin unlockall` releases stale locks after abnormal disconnects. It does not unlock level-gated guild features.
 
-Access a specified guild's vault.
+## Tasks and Contributions
 
-**Permission**: `kaguilds.admin.vault`
+- `<task-key>` must match a task key in `task.yml`.
+- `task see` displays the task definition, target, rewards, and recorded progress.
+- `task reset` resets the guild record for global tasks and existing player records for daily tasks.
+- The current `task add` command cannot target a player, so it cannot reliably manage personal daily progress. Use it for global tasks only.
+- Contribution amounts must be non-negative integers. `-all` applies the operation to every guild member.
 
-**Usage**:
+## Arena and Menus
 
-```bash
-/kg admin vault 1 1
-```
+- `setpos` and `setspawn` use the executing player's current location.
+- `setkit` saves the executing player's current inventory as the selected team kit.
+- The `open` menu name must match a loaded menu file.
+- `release CN` or `release EN` extracts bundled menu files. Back up customized files before allowing replacements.
 
-**Description**:
+## Reload Command
 
-* Does not require guild permission
-* Can access any vault of any guild
-* Vault number must be within the guild's unlocked range
-
-***
-
-### `/kg admin unlockall`
-
-Unlock all vault access locks in the guild, for testing or exceptional situations only.
-
-**Permission**: `kaguilds.admin.unlockall`
-
-**Usage**:
+Plugin reload is not under `/kg admin`. Use:
 
 ```bash
-/kg admin unlockall
+/kg reload
 ```
 
-**Description**:
-
-* Does not require guild permission
-* Unlocks vault occupation locks for all guilds
-* For exceptional situations only (e.g., player disconnection causes vault lock)
-* Do not execute this command casually during normal use
-
-***
-
-## Arena Management
-
-### `/kg admin arena <setpos/setspawn/setkit/info>`
-
-Arena management.
-
-**Permission**: `kaguilds.admin.arena`
-
-**Usage**:
-
-```bash
-/kg admin arena setpos 1    # Set arena position 1
-/kg admin arena setpos 2    # Set arena position 2
-/kg admin arena setspawn red  # Set red team spawn point
-/kg admin arena setspawn blue  # Set blue team spawn point
-/kg admin arena setkit red     # Set red team preset equipment
-/kg admin arena setkit blue    # Set blue team preset equipment
-/kg admin arena info       # View arena information
-```
-
-**Description**:
-
-* Does not require guild permission
-* `setpos` - Set arena boundaries (two positions required)
-* `setspawn` - Set team spawn points (red/blue)
-* `setkit` - Set team preset equipment (red/blue)
-* `info` - Display current arena configuration
-
-**Arena Setup Steps**:
-
-1. Execute `/kg admin arena setpos 1` at arena position 1
-2. Execute `/kg admin arena setpos 2` at arena position 2
-3. Execute `/kg admin arena setspawn red` at red team spawn point
-4. Execute `/kg admin arena setspawn blue` at blue team spawn point
-5. Execute `/kg admin arena info` to view configuration
-
-***
-
-## Menu Management
-
-### `/kg admin open <menu_name>`
-
-Open a specified menu.
-
-**Permission**: `kaguilds.admin.open`
-
-**Usage**:
-
-```bash
-/kg admin open main_menu
-/kg admin open guild_list
-/kg admin open member_list
-```
-
-**Description**:
-
-* Does not require guild permission
-* Can open any menu file
-* Menu files are in the `gui/` directory (without `.yml` extension)
-* Used for testing and debugging menu configurations
-
-***
-
-### `/kg admin release <language>`
-
-Release plugin's specified language menu file.
-
-**Permission**: `kaguilds.admin.release`
-
-**Usage**:
-
-```bash
-/kg admin release EN
-/kg admin release CN
-```
-
-**Description**:
-
-* Requires admin permission
-* Existing files with the same name will be replaced during release
-* `EN` - Release English menu files
-* `CN` - Release Chinese menu files
-* Used to restore default menu configuration
-
-**Use Cases**:
-
-* Menu file is corrupted and needs recovery
-* Want to view the latest default menu configuration
-* Need to base custom configuration on default settings
-
-**Note**: Executing this command will overwrite existing files with the same name — please back up in advance!
-
-***
-
+It requires `kaguilds.admin` or `kaguilds.admin.reload`. Restart the server fully when updating the plugin JAR, database schema, or dependencies. Do not use hot-loading tools such as PlugMan.

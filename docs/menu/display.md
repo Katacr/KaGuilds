@@ -53,7 +53,7 @@ display:
 
 ```yaml
 display:
-  name: "&6&l 公会设置"      
+  name: "&6&l 公会设置"
 ```
 
 **占位符变量:**
@@ -244,14 +244,14 @@ layout:
 ```
 插件会自动计算该示例视图中的`M`键的数量，并通过下方配置进行构建。若字符数量大于列表的数量，多的部分会显示空气。
 ### 配置模板
- 
+
 ```yaml
 buttons:
   M:
     type: LIST_TYPE  # 替换为构建的列表类型
     display:
       material: MATERIAL_NAME
-      name: "&6Display Name with {variable}" 
+      name: "&6Display Name with {variable}"
       lore:
         - "&7Line 1: {variable_1}"
         - "&7Line 2: {variable_2}"
@@ -476,7 +476,7 @@ buttons:
 
 ---
 
-### ⬆ GUILD_UPGRADE - 升级列表
+### GUILD_UPGRADE - 升级列表
 
 显示公会可升级的等级选项和要求。
 

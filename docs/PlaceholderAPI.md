@@ -12,7 +12,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 %kaguilds_xxx%
 ```
 
-### 安装步骤 
+### 安装步骤
 
 1. 下载并安装 [PlaceholderAPI](https://www.spigotmc.org/resources/6245/) 插件
 2. 将 `KaGuilds.jar` 和 `PlaceholderAPI.jar` 放入 `plugins` 文件夹
@@ -69,4 +69,3 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_pending_requests%` | 待处理申请数         | `3`              |
 | `%kaguilds_has_guild%`        | 玩家是否已加入公会      | `是/否`            |
 | `%kaguilds_reset_countdown%` | 每日任务重置倒计时（时:分:秒） | `5小时30分钟20秒` |
-

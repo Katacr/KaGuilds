@@ -1,381 +1,95 @@
-# ⌨ 管理员命令列表
+# 管理员命令
 
-KaGuilds 提供了完整的管理员命令系统，用于管理和控制公会的各项功能。
+服务器管理员命令使用 `/kg admin <动作> [参数...]`。本文中的“管理员”指服务器权限管理员，不是公会内的管理员职位。
 
-***
+## 参数与执行主体
 
-## 管理员命令概览
+- 文档统一使用 `#ID` 表示公会 ID，例如 `#12`；当前实现也接受不带 `#` 的数字。
+- 除仓库、菜单和竞技场命令外，管理员命令可由玩家或控制台执行。
+- 拥有 `kaguilds.admin` 可执行全部管理员命令，也可仅授予 `kaguilds.admin.<动作>`。
+- 管理员删除、转让等操作会直接执行，不使用 `/kg confirm`。
 
-### 主命令
+## 命令速查
 
-```bash
-/kg admin <动作> [参数...]
-```
+| 命令 | 功能 | 执行者 | 权限节点 |
+| --- | --- | --- | --- |
+| `/kg admin help [页码]` | 查看有权使用的管理员命令 | 玩家或控制台 | `kaguilds.admin.help` 或任一可见动作权限 |
+| `/kg admin info #ID` | 查看公会详情 | 玩家或控制台 | `kaguilds.admin.info` |
+| `/kg admin rename #ID <名称>` | 重命名公会 | 玩家或控制台 | `kaguilds.admin.rename` |
+| `/kg admin delete #ID` | 立即解散公会 | 玩家或控制台 | `kaguilds.admin.delete` |
+| `/kg admin transfer #ID <玩家>` | 转让公会会长 | 玩家或控制台 | `kaguilds.admin.transfer` |
+| `/kg admin kick #ID <玩家>` | 踢出指定成员 | 玩家或控制台 | `kaguilds.admin.kick` |
+| `/kg admin join #ID <玩家>` | 强制加入在线玩家 | 玩家或控制台 | `kaguilds.admin.join` |
+| `/kg admin bank #ID see` | 查看金库余额 | 玩家或控制台 | `kaguilds.admin.bank` |
+| `/kg admin bank #ID log [页码]` | 查看金库日志 | 玩家或控制台 | `kaguilds.admin.bank` |
+| `/kg admin bank #ID <add\|remove\|set> <金额> [-s]` | 修改金库余额 | 玩家或控制台 | `kaguilds.admin.bank` |
+| `/kg admin setlevel #ID <等级>` | 设置公会等级 | 玩家或控制台 | `kaguilds.admin.setlevel` |
+| `/kg admin exp #ID <add\|remove\|set> <数量> [-s]` | 修改公会经验 | 玩家或控制台 | `kaguilds.admin.exp` |
+| `/kg admin vault #ID [1-9]` | 打开指定公会仓库 | 仅玩家 | `kaguilds.admin.vault` |
+| `/kg admin unlockall` | 强制释放全部仓库锁 | 玩家或控制台 | `kaguilds.admin.unlockall` |
+| `/kg admin task #ID <任务键> see` | 查看任务定义和进度 | 玩家或控制台 | `kaguilds.admin.task` |
+| `/kg admin task #ID <任务键> reset` | 重置任务进度 | 玩家或控制台 | `kaguilds.admin.task` |
+| `/kg admin task #ID <任务键> add <数量>` | 增加任务进度 | 玩家或控制台 | `kaguilds.admin.task` |
+| `/kg admin contribution #ID <玩家\|-all> set <数量>` | 设置贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |
+| `/kg admin contribution #ID <玩家\|-all> add <数量>` | 增加贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |
+| `/kg admin contribution #ID <玩家\|-all> clear` | 清零贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |
+| `/kg admin open <菜单>` | 打开指定 GUI 菜单 | 仅玩家 | `kaguilds.admin.open` |
+| `/kg admin arena setpos <1\|2>` | 设置竞技场边界点 | 仅玩家 | `kaguilds.admin.arena` |
+| `/kg admin arena setspawn <red\|blue>` | 设置队伍出生点 | 仅玩家 | `kaguilds.admin.arena` |
+| `/kg admin arena setkit <red\|blue>` | 保存当前背包为队伍装备 | 仅玩家 | `kaguilds.admin.arena` |
+| `/kg admin arena info` | 查看竞技场配置状态 | 仅玩家 | `kaguilds.admin.arena` |
+| `/kg admin release <CN\|EN>` | 释放指定语言的内置菜单 | 玩家或控制台 | `kaguilds.admin.release` |
 
-**权限**: `kaguilds.admin`
+## 公会与成员管理
 
-**所有管理员操作均无需公会权限，可直接管理任意公会。**
+- `rename` 仍会检查 `config.yml` 中的名称长度和正则规则。
+- `delete` 会立即删除公会及其关联关系，执行前应确认 ID 并做好数据库备份。
+- `transfer` 的目标必须能在玩家数据中找到，并且应属于目标公会。
+- `kick` 不能踢出公会会长。
+- `join` 只接受当前在线玩家，并会绕过申请和审批流程；目标已在其他公会时会返回错误。
 
-***
-
-## 管理员命令速查表
-
-| 命令 | 功能 | 权限 |
-| --- | --- | --- |
-| `/kg admin rename` | 重命名公会 | `kaguilds.admin.rename` |
-| `/kg admin delete` | 解散公会 | `kaguilds.admin.delete` |
-| `/kg admin info` | 查看公会信息 | `kaguilds.admin.info` |
-| `/kg admin bank` | 管理公会金库 | `kaguilds.admin.bank` |
-| `/kg admin transfer` | 转让公会 | `kaguilds.admin.transfer` |
-| `/kg admin kick` | 踢出成员 | `kaguilds.admin.kick` |
-| `/kg admin join` | 加入玩家 | `kaguilds.admin.join` |
-| `/kg admin vault` | 访问仓库 | `kaguilds.admin.vault` |
-| `/kg admin unlockall` | 解锁所有仓库 | `kaguilds.admin.unlockall` |
-| `/kg admin setlevel` | 设置公会等级 | `kaguilds.admin.setlevel` |
-| `/kg admin exp` | 管理公会经验 | `kaguilds.admin.exp` |
-| `/kg admin arena` | 竞技场管理 | `kaguilds.admin.arena` |
-| `/kg admin open` | 打开指定菜单 | `kaguilds.admin.open` |
-| `/kg admin release` | 释放菜单文件 | `kaguilds.admin.release` |
-
-***
-
-## 公会管理
-
-### `/kg admin rename <公会ID> <新名称>`
-
-重命名指定公会。
-
-**权限**: `kaguilds.admin.rename`
-
-**用法**:
-
-```bash
-/kg admin rename 1 新公会名称
-```
-
-**说明**:
-
-* 无需公会权限
-* 直接修改公会名称
-* 新名称必须符合命名规则
-
-***
-
-### `/kg admin delete <公会ID>`
-
-解散指定公会。
-
-**权限**: `kaguilds.admin.delete`
-
-**用法**:
+## 金库与经验
 
 ```bash
-/kg admin delete 1
-/kg confirm    # 确认解散
+/kg admin bank #1 add 100
+/kg admin bank #1 add 100 -s
+/kg admin exp #1 set 5000
+/kg admin exp #1 set 5000 -s
 ```
 
-**说明**:
-
-* 无需公会权限
-* 需要确认操作（`/kg confirm`）
-* 解散后所有成员离开公会
-* 公会数据会被删除
-
-**注意**: 此操作不可逆！
-
-***
-
-### `/kg admin info <公会ID>`
-
-查看指定公会信息。
-
-**权限**: `kaguilds.admin.info`
-
-**用法**:
-
-```bash
-/kg admin info 1
-```
-
-**说明**:
-
-* 显示公会的完整详细信息
-* 包括：名称、等级、成员列表、资金、公告等
-
-***
-
-### `/kg admin transfer <公会ID> <新会长>`
-
-转让指定公会。
-
-**权限**: `kaguilds.admin.transfer`
-
-**用法**:
-
-```bash
-/kg admin transfer 1 新会长名称
-/kg confirm    # 确认转让
-```
-
-**说明**:
-
-* 无需公会权限
-* 目标玩家可以是任意在线玩家
-* 需要确认操作（`/kg confirm`）
-* 转让后原会长变为成员
-
-**注意**: 此操作不可逆！
-
-***
-
-## 成员管理
-
-### `/kg admin kick <公会ID> <玩家名称>`
-
-从指定公会踢出成员。
-
-**权限**: `kaguilds.admin.kick`
-
-**用法**:
-
-```bash
-/kg admin kick 1 玩家名称
-```
-
-**说明**:
-
-* 无需公会权限
-* 被踢出的玩家会收到通知
-* 可以踢出任意成员（包括会长）
-
-***
-
-### `/kg admin join <公会ID> <玩家名称>`
-
-将玩家加入指定公会。
-
-**权限**: `kaguilds.admin.join`
-
-**用法**:
-
-```bash
-/kg admin join 1 玩家名称
-```
-
-**说明**:
-
-* 无需公会权限
-* 直接将玩家加入公会（无需申请/批准）
-* 玩家必须在线
-
-***
-
-## 经济管理
-
-### `/kg admin bank <公会ID> <操作> [金额]`
-
-管理指定公会金库。
-
-**权限**: `kaguilds.admin.bank`
-
-**用法**:
-
-```bash
-/kg admin bank 1 add 1000    # 添加 1000 金币
-/kg admin bank 1 remove 500    # 移除 500 金币
-/kg admin bank 1 set 500    # 设置为 500 金币
-/kg admin bank 1 see    # 查看当前余额
-/kg admin bank 1 log    # 查看银行日志
-```
-
-**说明**:
-
-* 无需公会权限
-* `add` - 向金库添加金币
-* `remove` - 从金库移除金币
-* `set` - 直接设置金库余额
-* `see` - 查看当前金库余额
-* `log` - 查看金库交易历史记录
-
-***
-
-### `/kg admin setlevel <公会ID> <等级>`
-
-设置公会等级。
-
-**权限**: `kaguilds.admin.setlevel`
-
-**用法**:
-
-```bash
-/kg admin setlevel 1 5
-```
-
-**说明**:
-
-* 无需公会权限
-* 直接设置公会等级
-* 等级解锁的功能会在设置后立即生效
-
-***
-
-### `/kg admin exp <公会ID> <操作> <数值>`
-
-管理公会经验。
-
-**权限**: `kaguilds.admin.exp`
-
-**用法**:
-
-```bash
-/kg admin exp 1 add 100     # 增加 100 经验
-/kg admin exp 1 set 500     # 设置为 500 经验
-/kg admin exp 1 remove 50   # 减少 50 经验
-```
-
-**说明**:
-
-* 无需公会权限
-* `add` - 增加公会经验
-* `set` - 直接设置公会经验值
-* `remove` - 减少公会经验
-
-***
+- `add` 增加数值，`remove` 减少数值，`set` 直接设为目标值。
+- `bank` 接受小数，`exp` 接受整数。
+- `-s` 只隐藏成功消息；参数错误、公会不存在或数据库失败仍会输出。
+- 管理员金库修改不使用玩家等级上限和贡献度规则，应谨慎操作。
 
 ## 仓库管理
 
-### `/kg admin vault <公会ID> <仓库编号>`
+- `/kg admin vault #ID` 默认打开第 1 个仓库。
+- 仓库编号有效范围为 `1` 到 `9`。
+- 管理员打开仓库不检查目标公会等级是否已解锁该编号。
+- `/kg admin unlockall` 用于异常断线后释放残留锁，不会解锁公会等级功能。
 
-访问指定公会仓库。
+## 任务与贡献度
 
-**权限**: `kaguilds.admin.vault`
+- `<任务键>` 必须与 `task.yml` 中的任务键一致。
+- `task see` 会显示任务定义、目标、奖励和已有进度。
+- `task reset` 对全局任务重置公会记录，对每日任务重置该公会已有的玩家记录。
+- 当前 `task add` 不能指定玩家，无法可靠管理个人每日任务进度，建议仅用于全局任务。
+- 贡献度命令的数值必须是非负整数；`-all` 会操作该公会所有成员。
 
-**用法**:
+## 竞技场与菜单
 
-```bash
-/kg admin vault 1 1
-```
+- `setpos` 和 `setspawn` 使用执行玩家当前所在位置。
+- `setkit` 保存执行玩家当前背包内容作为指定队伍装备。
+- `open` 的菜单名必须与已加载菜单文件名匹配。
+- `release CN` 或 `release EN` 会释放插件内置菜单文件；覆盖自定义文件前应先备份。
 
-**说明**:
+## 重载命令
 
-* 无需公会权限
-* 可以访问任意公会的任意仓库
-* 仓库编号必须在公会已解锁范围内
-
-***
-
-### `/kg admin unlockall`
-
-解锁公会的所有仓库访问锁，仅用于测试或异常情况。
-
-**权限**: `kaguilds.admin.unlockall`
-
-**用法**:
+插件重载不在 `/kg admin` 下，使用：
 
 ```bash
-/kg admin unlockall
+/kg reload
 ```
 
-**说明**:
-
-* 无需公会权限
-* 解锁所有公会的仓库占用锁
-* 仅用于异常情况（如玩家掉线导致仓库被锁定）
-* 正常使用时请勿随意执行此命令
-
-***
-
-## 竞技场管理
-
-### `/kg admin arena <setpos/setspawn/setkit/info>`
-
-竞技场管理。
-
-**权限**: `kaguilds.admin.arena`
-
-**用法**:
-
-```bash
-/kg admin arena setpos 1    # 设置竞技场第一个位置
-/kg admin arena setpos 2    # 设置竞技场第二个位置
-/kg admin arena setspawn red  # 设置红队出生点
-/kg admin arena setspawn blue  # 设置蓝队出生点
-/kg admin arena setkit red     # 设置红队预设装备包
-/kg admin arena setkit blue    # 设置蓝队预设装备包
-/kg admin arena info       # 查看竞技场信息
-```
-
-**说明**:
-
-* 无需公会权限
-* `setpos` - 设置竞技场范围（需要设置两个位置）
-* `setspawn` - 设置队伍出生点（red/blue）
-* `setkit` - 设置队伍预设装备包（red/blue）
-* `info` - 显示当前竞技场配置信息
-
-**竞技场设置步骤**:
-
-1. 使用 `/kg admin arena setpos 1` 在竞技场第一个位置执行
-2. 使用 `/kg admin arena setpos 2` 在竞技场第二个位置执行
-3. 使用 `/kg admin arena setspawn red` 在红队出生点执行
-4. 使用 `/kg admin arena setspawn blue` 在蓝队出生点执行
-5. 使用 `/kg admin arena info` 查看配置
-
-***
-
-## 菜单管理
-
-### `/kg admin open <菜单名称>`
-
-打开指定菜单。
-
-**权限**: `kaguilds.admin.open`
-
-**用法**:
-
-```bash
-/kg admin open main_menu
-/kg admin open guild_list
-/kg admin open member_list
-```
-
-**说明**:
-
-* 无需公会权限
-* 可以打开任意菜单文件
-* 菜单文件位于 `gui/` 目录下（不包括 `.yml` 后缀）
-* 用于测试和调试菜单配置
-
-***
-
-### `/kg admin release <语言>`
-
-释放插件内的指定语言菜单文件。
-
-**权限**: `kaguilds.admin.release`
-
-**用法**:
-
-```bash
-/kg admin release EN
-/kg admin release CN
-```
-
-**说明**:
-
-* 需要管理员权限
-* 释放时会替换当前已有文件名的文件
-* `EN` - 释放英文版菜单文件
-* `CN` - 释放中文版菜单文件
-* 用于恢复默认菜单配置
-
-**使用场景**:
-
-* 菜单文件损坏需要恢复
-* 想要查看最新的默认菜单配置
-* 需要基于默认配置进行自定义
-
-**注意**: 执行此命令会覆盖现有同名文件，请提前备份！
-
-***
-
+权限为 `kaguilds.admin` 或 `kaguilds.admin.reload`。生产环境更新插件 JAR、数据库结构或依赖时，应完整重启服务器，不要使用 PlugMan 等热加载工具。
