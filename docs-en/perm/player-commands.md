@@ -1,10 +1,10 @@
-# ⌨️ Player Command List
+# ⌨ Player Command List
 
 KaGuilds provides a comprehensive command system supporting all guild operations. All commands use `/kg` or `/guild` as prefix.
 
 ***
 
-## 📋 Command Overview
+## Command Overview
 
 ### Main Commands
 
@@ -22,7 +22,7 @@ KaGuilds provides a comprehensive command system supporting all guild operations
 
 ***
 
-### 📝 Player Command Quick Reference
+### Player Command Quick Reference
 
 | Command | Function | Required | Permission Node |
 |:--------|:---------|:---------|:----------------|
@@ -60,7 +60,7 @@ KaGuilds provides a comprehensive command system supporting all guild operations
 
 ***
 
-## 🏠 Basic Commands
+## Basic Commands
 
 ### `/kg help [page]`
 
@@ -93,7 +93,7 @@ View plugin help menu.
 
 ***
 
-## 👥 Guild Management Commands
+## Guild Management Commands
 
 ### `/kg create <guild_name>`
 
@@ -230,7 +230,7 @@ Set guild icon.
 
 ***
 
-## 🤝 Member Management Commands
+## Member Management Commands
 
 ### `/kg invite <player_name>`
 
@@ -469,7 +469,7 @@ Leave the guild.
 
 ***
 
-## 💰 Economy System Commands
+## Economy System Commands
 
 ### `/kg bank [add/take/log] [amount]`
 
@@ -521,7 +521,7 @@ Upgrade guild level.
 
 ***
 
-## 🎮 Teleport System Commands
+## Teleport System Commands
 
 ### `/kg settp`
 
@@ -563,7 +563,7 @@ Teleport to guild location.
 
 ***
 
-## 🎁 Buff System Commands
+## Buff System Commands
 
 ### `/kg buff <buff_name>`
 
@@ -585,7 +585,7 @@ Purchase guild buff effect.
 
 ***
 
-## 📦 Vault System Commands
+## Vault System Commands
 
 ### `/kg vault <vault_number>`
 
@@ -608,7 +608,7 @@ Access guild cloud vault.
 
 ***
 
-## 💬 Chat System Commands
+## Chat System Commands
 
 ### `/kg chat [message]`
 
@@ -631,7 +631,7 @@ Send guild chat message.
 
 ***
 
-## ⚔️ PvP System Commands
+## PvP System Commands
 
 ### `/kg pvp <start/accept/ready/exit>`
 
@@ -657,7 +657,7 @@ Guild battle related commands.
 
 ***
 
-## 🖼️ Menu System Commands
+## Menu System Commands
 
 ### `/kg menu`
 
@@ -679,7 +679,7 @@ Open guild main menu.
 
 ***
 
-## 🔧 System Commands
+## System Commands
 
 ### `/kg reload`
 

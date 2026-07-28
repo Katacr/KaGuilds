@@ -1,10 +1,10 @@
-# 🍼 Buff Configuration: buffs.yml
+# Buff Configuration: buffs.yml
 
 The `buffs.yml` configuration file defines buff effects (Buffs) that guilds can purchase and apply. Each Buff has its own price, effect type, level, duration, and other properties.
 
 ***
 
-## 📋 Configuration Structure
+## Configuration Structure
 
 ```yaml
 buffs:
@@ -18,7 +18,7 @@ buffs:
 
 ***
 
-## 🔧 Configuration Options Explained
+## Configuration Options Explained
 
 ### `BuffKey` (Required)
 

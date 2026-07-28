@@ -1,31 +1,58 @@
-# 🌐 Velocity Configuration Guide
+# Velocity Setup
 
-KaGuilds supports running in a Velocity proxy server environment, enabling cross-server data synchronization and feature sharing. This document guides you through the complete Velocity-side configuration process.
+KaGuilds network mode stores persistent data in a shared MySQL database. The KaProxy Guilds module forwards chat, invitations, notifications, and cache synchronization messages.
 
-## Installation
+## Topology
 
-KaGuildsProxy is a Velocity plugin that only needs to be installed on the Velocity server — it does **not** need to be installed on sub-servers.
+Every backend server must:
 
-After downloading `KaGuildsProxy.jar`, copy it to your Velocity server's `plugins` folder and restart the Velocity server. No configuration file changes are required on the Velocity server.
+- Run the same KaGuilds version
+- Connect to the same MySQL database
+- Set `proxy: true`
+- Use a unique and stable `server-id`
 
-## Configuration
+Install KaProxy only on Velocity. Do not install the backend KaGuilds JAR on the proxy. The KaProxy Guilds module is compatible with the former KaGuildsProxy protocol; never run KaProxy and KaGuildsProxy together because messages will be forwarded twice.
 
-### Configure All Sub-Servers
+## Install the Proxy Plugin
 
-**Important: All sub-servers must use the same database configuration!**
+1. Place `KaProxy.jar` in Velocity's `plugins` directory.
+2. Restart Velocity.
+3. Open `plugins/kaproxy/config.yml`.
+4. Ensure both `modules.guilds.enabled` and `legacy-channel-enabled` are `true`.
 
-Configure the database in each sub-server's `plugins/KaGuilds/config.yml`:
+## Configure Backend Servers
+
+Use identical database settings in every backend `plugins/KaGuilds/config.yml`, but assign a different `server-id` to each server:
 
 ```yaml
-# KaGuilds Configuration File
-proxy: true  # ✅ Enable proxy mode
-server-id: survival  # ⚠️ Each server must be different!
+proxy: true
+server-id: survival
 
 database:
-  type: "MySQL"  # ⚠️ Must use MySQL
-  host: "localhost"
+  type: "MySQL"
+  host: "127.0.0.1"
   port: 3306
   db: "kaguilds"
   user: "kaguilds"
-  password: "your_secure_password"
+  password: "replace_with_a_strong_password"
 ```
+
+For example, use `survival`, `resource`, and `lobby` for three different backends. Restart every backend normally after changing these values.
+
+## Verification
+
+1. Connect test players to two different backends.
+2. Create or join the same guild.
+3. Verify guild chat, invitations, join request notifications, and membership changes across servers.
+4. Open a guild vault on one backend and confirm that the same vault cannot be opened on another backend.
+5. Test leave, kick, and guild deletion, then confirm caches are cleared on the other backend.
+6. Check Velocity and every backend console for plugin messaging and database errors.
+
+## Security and Operations
+
+- Backend servers must accept connections only from Velocity and must not be directly exposed to players.
+- Use a least-privilege MySQL account, never `root`, and restrict allowed database source addresses.
+- Keep the KaGuilds version, menus, and language configuration aligned across all backends.
+- Do not change `server-id` or the database while the network is running.
+- Plugin messages generally require an online player as a transport; some immediate notifications may be delayed while a network is empty.
+- Back up the shared database and each server configuration before proxy or backend upgrades.

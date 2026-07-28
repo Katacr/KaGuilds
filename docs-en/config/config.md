@@ -1,4 +1,4 @@
-# ⛳ Configuration File: config.yml
+# Configuration File: config.yml
 
 This page details each configuration file in KaGuilds and their options.
 
@@ -284,7 +284,7 @@ Battle reward command list.
 
 ***
 
-## 🗄️ database - Database Settings
+## database - Database Settings
 
 ```yaml
 database:
@@ -308,7 +308,7 @@ Database type.
 
 ***
 
-## 💰 balance - Economy System Settings
+## balance - Economy System Settings
 
 ```yaml
 balance:
@@ -382,7 +382,7 @@ Gold required to initiate a guild battle.
 
 ***
 
-## 📋 task - Task System Settings
+## task - Task System Settings
 
 ```yaml
 task:
@@ -424,7 +424,7 @@ Task reset time.
 
 ***
 
-## 🎖️ contribution - Contribution System Settings
+## contribution - Contribution System Settings
 
 ```yaml
 contribution:
@@ -465,7 +465,7 @@ Contribution deducted when withdrawing gold.
 
 ***
 
-## 🎨 menu-default-icon - Menu Default Icon Settings
+## menu-default-icon - Menu Default Icon Settings
 
 Used to configure default icons for various menus, used when menu items don't have individually configured icons.
 
@@ -623,7 +623,7 @@ Configuration items are the same as above.
 
 ***
 
-## 🔧 Reloading Configuration
+## Reloading Configuration
 
 After modifying configuration files, use the following command to reload:
 

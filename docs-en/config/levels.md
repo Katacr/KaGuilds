@@ -1,10 +1,10 @@
-# 🎚️ Level Configuration: levels.yml
+# Level Configuration: levels.yml
 
 The `levels.yml` file defines the guild level system, including experience required for upgrades, member limits, vault capacity, available Buffs, and more.
 
 ***
 
-## 📁 File Location
+## File Location
 
 ```
 plugins/KaGuilds/levels.yml
@@ -12,7 +12,7 @@ plugins/KaGuilds/levels.yml
 
 ***
 
-## 📖 Configuration Structure
+## Configuration Structure
 
 ```yaml
 # KaGuilds Levels Configuration File
@@ -98,7 +98,7 @@ levels:
 
 ***
 
-## 🔧 Configuration Options Explained
+## Configuration Options Explained
 
 ### `need-exp`
 

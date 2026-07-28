@@ -1,8 +1,8 @@
-# 🔖 PlaceholderAPI
+# PlaceholderAPI
 
 KaGuilds fully supports PlaceholderAPI (PAPI). You can use KaGuilds placeholders anywhere that supports PAPI, including chat, scoreboards, BossBars, and Tab lists.
 
-## 📋 Basic Information
+## Basic Information
 
 ### Variable Prefix
 
@@ -19,9 +19,9 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 3. Restart the server — PlaceholderAPI will automatically load the KaGuilds expansion
 4. Use `/papi parse player %kaguilds_name%` to test the placeholder
 
-## 🎯 Placeholder List
+## Placeholder List
 
-### 📌 Guild Information
+### Guild Information
 
 | Placeholder | Description | Example |
 |:-----------|:------------|:--------|
@@ -35,7 +35,7 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_exp%` | Current experience | `1500` |
 | `%kaguilds_need_exp%` | Experience needed for next level | `2000` |
 
-### 👥 Member Information
+### Member Information
 
 | Placeholder | Description | Example |
 |:-----------|:------------|:--------|
@@ -44,7 +44,7 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_member_list%` | Member list | `Player1, Player2, Player3` |
 | `%kaguilds_contribution%` | Personal contribution | `500` |
 
-### 🔐 Rank Permissions
+### Rank Permissions
 
 | Placeholder | Description | Example |
 |:-----------|:------------|:--------|
@@ -53,7 +53,7 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_is_admin%` | Is admin | `Yes/No` |
 | `%kaguilds_is_staff%` | Is staff member | `Yes/No` |
 
-### ⚔️ PvP Data
+### PvP Data
 
 | Placeholder | Description | Example |
 |:-----------|:------------|:--------|
@@ -62,7 +62,7 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_pvp_draws%` | Draw count | `2` |
 | `%kaguilds_pvp_total%` | Total matches | `15` |
 
-### 📝 Other Information
+### Other Information
 
 | Placeholder | Description | Example |
 |:-----------|:------------|:--------|

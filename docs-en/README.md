@@ -1,92 +1,51 @@
 ---
-description: KaGuilds - A high-performance cross-server guild plugin designed for Minecraft network servers
+description: KaGuilds usage and configuration documentation
 ---
 
-# 🏠 Home
+# KaGuilds
 
-> A deeply customized guild plugin designed for Minecraft network servers (Velocity)
+KaGuilds is a guild plugin for Spigot, Paper, and multi-server networks. It provides guild membership, economy, tasks, shared vaults, PvP, menus, and PlaceholderAPI integration.
 
-**KaGuilds** is a powerful, highly customizable Minecraft guild plugin built for modern network servers. It leverages **SQL transactions** and **cross-server message bus** to ensure data consistency and security in distributed environments, providing players with a seamless cross-server guild experience.
+## Main Features
 
-***
+- Guild creation, requests, invitations, roles, ownership transfer, and deletion
+- Guild bank, transaction logs, contribution points, levels, and buffs
+- Personal daily tasks and guild-wide global tasks
+- Shared guild vaults protected by lease-based locking
+- Configurable guild chat, teleport points, and PvP arena
+- YAML menus, Chinese and English language files, and PlaceholderAPI placeholders
+- Multi-server message synchronization through the KaProxy Guilds module
 
-## ✨ Core Features
+## Deployment Modes
 
-### 🔄 Complete Cross-Server Synchronization
+| Mode | Database | Proxy setting | Use case |
+| --- | --- | --- | --- |
+| Single server | SQLite or MySQL | `proxy: false` | Standalone Spigot/Paper server |
+| Multi-server | Shared MySQL | `proxy: true` | Multiple backend servers behind Velocity |
 
-Based on Velocity message channels, enabling:
+Every backend in a multi-server deployment must use the same MySQL database and a unique `server-id`. See [Velocity Setup](home/velocity.md) for the complete procedure.
 
-* Global guild chat, notifications, and invitations
-* Real-time synchronization of guild information and permissions
-* Cross-server player invitations and join requests
-* Data consistency guarantees
+## Compatibility
 
-### 💰 Deep Economy Integration
+- The plugin targets Java 12 bytecode. The selected Java version must also satisfy the server software.
+- Spigot API 1.16.5 is the current compile baseline. Test every newer Minecraft version on the exact target server.
+- Folia support is still a proposal. Do not deploy the current version on Folia.
+- Vault and an economy provider are required for economy features. PlaceholderAPI is optional.
 
-* **Guild Bank**: Supports deposits and withdrawals with transaction logs
-* **Vault System**: Multiple lockable vaults with lease management
-* **Contribution System**: Earn contribution points through deposits and withdrawals
-* Complete fee configuration system
+## Documentation
 
-### 👥 Rigorous Rank System
+- [Getting Started](home/start.md)
+- [Configuration Files](config/README.md)
+- [Commands and Permissions](perm/README.md)
+- [Custom Menus](menu/README.md)
+- [PlaceholderAPI](PlaceholderAPI.md)
 
-Three-tier permission structure:
-
-* **Owner** - Full control
-* **Admin** - Management permissions
-* **Member** - Basic permissions
-* Supports promotion, demotion, and ownership transfer
-
-### 📈 Dynamic Level System
-
-* Dynamically increases member limits and features
-* Each level unlocks unique Buffs and privileges
-
-### 🎮 PvP Arena
-
-* Guild battles with custom equipment kits
-* Match timing and win conditions
-* Statistics tracking and reward commands
-* BOSS bar real-time status display
-
-### 🖼️ Highly Customizable GUI
-
-* Rich menu system
-* Supports custom layouts, materials, and Lore
-* TrMenu-like editing experience
-
-### 📊 PlaceholderAPI Support
-
-* Scoreboard and chat integration
-* Rich placeholder variables
-* Real-time data updates
-
-### 🌍 Multi-Language Support
-
-* **Simplified Chinese**: `zh_CN.yml`
-* **English**: `en_US.yml`
-* Full localization support
-
-
-## 💰 Support & Purchase
-
-KaGuilds is a paid open-source plugin. You can download the source code from GitHub and build the plugin yourself.
-
-{% embed url="https://github.com/Katacr/KaGuilds/" %}
-
-If you want to support the developer, you can also purchase and download the plugin from various plugin platforms.
-
-{% hint style="info" %}
-Only users who purchase the plugin are eligible for technical support.
+{% hint style="warning" %}
+Back up the database and `plugins/KaGuilds` before production upgrades. Do not hot-load KaGuilds with PlugMan or similar plugin loaders.
 {% endhint %}
 
-***
+## Project
 
-## 🤝 Community & Feedback
-
-* **GitHub**: [Katacr/KaGuilds](https://github.com/Katacr/KaGuilds/)
-* **Issue Tracker**: [GitHub Issues](https://github.com/Katacr/KaGuilds/issues)
-
-## 📄 License
-
-This project is open-sourced under the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) license.
+- [GitHub Repository](https://github.com/Katacr/KaGuilds/)
+- [Issue Tracker](https://github.com/Katacr/KaGuilds/issues)
+- [GPL-3.0 License](https://www.gnu.org/licenses/gpl-3.0.html)

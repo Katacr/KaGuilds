@@ -1,10 +1,10 @@
-# 🎚️ 等级配置:levels.yml
+# 等级配置:levels.yml
 
 `levels.yml` 文件定义了公会的等级系统，包括升级所需经验、成员上限、金库容量、可用的 Buff 等内容。
 
 ***
 
-## 📁 文件位置
+## 文件位置
 
 ```
 plugins/KaGuilds/levels.yml
@@ -12,7 +12,7 @@ plugins/KaGuilds/levels.yml
 
 ***
 
-## 📖 配置结构
+## 配置结构
 
 ```yaml
 # KaGuilds Levels 配置文件
@@ -98,7 +98,7 @@ levels:
 
 ***
 
-## 🔧 配置选项详解
+## 配置选项详解
 
 ### `need-exp`
 

@@ -1,8 +1,8 @@
-# 🎬 Layout
+# Layout
 
 The first layer of configuration in the menu system determines the overall appearance and layout structure of the menu. Each menu file needs to configure title, layout, and refresh parameters.
 
-## 📋 Configuration Structure
+## Configuration Structure
 
 **Example:**
 
@@ -30,7 +30,7 @@ buttons:
 
 ![Layout Preview Example](../.gitbook/assets/layout01.png)
 
-## 🔧 Configuration Options Explained
+## Configuration Options Explained
 
 ### title - Menu Title
 
@@ -163,6 +163,6 @@ The refresh feature updates the following:
 * Dynamic list menus (e.g., member list) query data from the database
 * Choose appropriate refresh intervals based on actual needs
 
-## 🔄 Reloading Configuration
+## Reloading Configuration
 
 After modifying menu configuration, reopening the menu will automatically reload it.

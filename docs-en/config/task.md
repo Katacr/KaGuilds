@@ -1,10 +1,10 @@
-# 📆 Task System: task.yml
+# Task System: task.yml
 
 The `task.yml` configuration file defines the guild task system. The task system has two types: **Daily Tasks** and **Global Tasks**, providing rich gameplay goals for guild members.
 
 ***
 
-## 📋 Configuration Structure
+## Configuration Structure
 
 ```yaml
 tasks:
@@ -34,7 +34,7 @@ tasks:
 
 ***
 
-## 🔧 Configuration Options Explained
+## Configuration Options Explained
 
 ### `TaskKey` (Required)
 
@@ -181,7 +181,7 @@ Task trigger event configuration.
 
 ***
 
-## 💡 Configuration Examples
+## Configuration Examples
 
 ### Daily Task Examples
 

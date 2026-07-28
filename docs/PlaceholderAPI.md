@@ -1,8 +1,8 @@
-# 🔖 PlaceholderAPI
+# PlaceholderAPI
 
 KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记分板、BossBar、Tab 列表等任何支持 PAPI 的地方使用 KaGuilds 的变量。
 
-## 📋 基础信息
+## 基础信息
 
 ### 变量前缀
 
@@ -19,9 +19,9 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 3. 重启服务器，PlaceholderAPI 会自动加载 KaGuilds 扩展
 4. 使用 `/papi parse player %kaguilds_name%` 测试变量
 
-## 🎯 变量列表
+## 变量列表
 
-### 📌 公会信息
+### 公会信息
 
 | 变量                        | 说明      | 示例                    |
 | ------------------------- | ------- |-----------------------|
@@ -35,7 +35,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_exp%`          | 当前经验值   | `1500`                |
 | `%kaguilds_need_exp%`     | 下一级所需经验 | `2000`                |
 
-### 👥 成员信息
+### 成员信息
 
 | 变量                        | 说明    | 示例                          |
 | ------------------------- | ----- | --------------------------- |
@@ -44,7 +44,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_member_list%`  | 成员列表  | `Player1, Player2, Player3` |
 | `%kaguilds_contribution%` | 个人贡献值 | `500`                       |
 
-### 🔐 职位权限
+### 职位权限
 
 | 变量                     | 说明      | 示例    |
 | ---------------------- | ------- | ----- |
@@ -53,7 +53,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_is_admin%`  | 是否是管理员  | `是/否` |
 | `%kaguilds_is_staff%`  | 是否是管理成员 | `是/否` |
 
-### ⚔️ PvP 数据
+### PvP 数据
 
 | 变量                      | 说明  | 示例   |
 | ----------------------- | --- | ---- |
@@ -62,7 +62,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_pvp_draws%`  | 平局数 | `2`  |
 | `%kaguilds_pvp_total%`  | 总场次 | `15` |
 
-### 📝 其他信息
+### 其他信息
 
 | 变量                            | 说明             | 示例              |
 | ----------------------------- | -------------- | --------------- |

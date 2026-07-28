@@ -1,10 +1,10 @@
-# ⌨️ Admin Command List
+# ⌨ Admin Command List
 
 KaGuilds provides a complete admin command system for managing and controlling all guild functions.
 
 ***
 
-## 🔐 Admin Command Overview
+## Admin Command Overview
 
 ### Main Command
 
@@ -18,7 +18,7 @@ KaGuilds provides a complete admin command system for managing and controlling a
 
 ***
 
-## 📋 Admin Command Quick Reference
+## Admin Command Quick Reference
 
 | Command | Function | Permission |
 |:--------|:---------|:-----------|
@@ -39,7 +39,7 @@ KaGuilds provides a complete admin command system for managing and controlling a
 
 ***
 
-## 📦 Guild Management
+## Guild Management
 
 ### `/kg admin rename <guild_id> <new_name>`
 
@@ -128,7 +128,7 @@ Transfer a specified guild.
 
 ***
 
-## 👥 Member Management
+## Member Management
 
 ### `/kg admin kick <guild_id> <player_name>`
 
@@ -170,7 +170,7 @@ Add a player to a specified guild.
 
 ***
 
-## 💰 Economy Management
+## Economy Management
 
 ### `/kg admin bank <guild_id> <action> [amount]`
 
@@ -242,7 +242,7 @@ Manage guild experience.
 
 ***
 
-## 📦 Vault Management
+## Vault Management
 
 ### `/kg admin vault <guild_id> <vault_number>`
 
@@ -285,7 +285,7 @@ Unlock all vault access locks in the guild, for testing or exceptional situation
 
 ***
 
-## ⚔️ Arena Management
+## Arena Management
 
 ### `/kg admin arena <setpos/setspawn/setkit/info>`
 
@@ -323,7 +323,7 @@ Arena management.
 
 ***
 
-## 🖼️ Menu Management
+## Menu Management
 
 ### `/kg admin open <menu_name>`
 

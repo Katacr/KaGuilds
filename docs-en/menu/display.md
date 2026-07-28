@@ -1,8 +1,8 @@
-# 🎲 Icons
+# Icons
 
 The `display` node defines the visual appearance of each button (icon) in the menu, including material, name, description, amount, custom model, and other properties.
 
-## 📋 Configuration Structure
+## Configuration Structure
 
 ```yaml
 buttons:
@@ -22,7 +22,7 @@ buttons:
         - "command: say hello"
 ```
 
-## 🔧 Configuration Options Explained
+## Configuration Options Explained
 
 ### material - Item Material
 
@@ -224,7 +224,7 @@ display:
 
 ***
 
-## 🔧 Special List Types
+## Special List Types
 
 ### type - Dynamic List Type
 
@@ -265,7 +265,7 @@ buttons:
 
 Each type has different built-in variables; see the table below for details.
 
-#### 📋 Supported List Types
+#### Supported List Types
 
 | Type | Description | Use Case |
 |:-----|:------------|:---------|
@@ -280,7 +280,7 @@ Each type has different built-in variables; see the table below for details.
 
 ---
 
-### 🏰 GUILDS_LIST - Guild List
+### GUILDS_LIST - Guild List
 
 Displays a list of all server guilds, each icon representing one guild.
 
@@ -327,7 +327,7 @@ buttons:
 
 ---
 
-### 👥 MEMBERS_LIST - Member List
+### MEMBERS_LIST - Member List
 
 Displays all members of the current guild, each icon representing one member.
 
@@ -369,7 +369,7 @@ buttons:
 
 ---
 
-### 🎮 ALL_PLAYER - All Server Player List
+### ALL_PLAYER - All Server Player List
 
 Displays all online players, used for invites and other operations.
 
@@ -402,7 +402,7 @@ buttons:
 
 ---
 
-### 🧪 BUFF_LIST - Buff List
+### BUFF_LIST - Buff List
 
 Displays purchasable buff list, including unlocked and locked states.
 
@@ -443,7 +443,7 @@ buttons:
 
 ---
 
-### 💎 GUILD_VAULTS - Vault List
+### GUILD_VAULTS - Vault List
 
 Displays guild vault unlock status, each icon representing one vault slot.
 
@@ -478,7 +478,7 @@ buttons:
 
 ---
 
-### ⬆️ GUILD_UPGRADE - Upgrade List
+### ⬆ GUILD_UPGRADE - Upgrade List
 
 Displays available guild upgrade options and requirements.
 
@@ -526,7 +526,7 @@ buttons:
 
 ---
 
-### 📋 TASK_DAILY - Daily Task List
+### TASK_DAILY - Daily Task List
 
 Displays the current player's daily task list, tracking individual task progress.
 
@@ -565,7 +565,7 @@ buttons:
 
 ---
 
-### 🌍 TASK_GLOBAL - Guild Task List
+### TASK_GLOBAL - Guild Task List
 
 Displays the guild's collaborative task list, completed together by all members.
 
@@ -596,7 +596,7 @@ buttons:
 
 ---
 
-## 📝 List Type Configuration Summary
+## List Type Configuration Summary
 
 ### Pagination Support
 All list types automatically support pagination:

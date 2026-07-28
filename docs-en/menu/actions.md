@@ -1,8 +1,8 @@
-# 🤖 Actions
+# Actions
 
 The `actions` node defines operations executed when menu buttons are clicked, supporting multiple action types, click types, condition checks, and delayed execution.
 
-## 📋 Configuration Structure
+## Configuration Structure
 
 ```yaml
 buttons:
@@ -21,7 +21,7 @@ buttons:
         - "tell: You pressed Q"
 ```
 
-## 🔧 Click Types
+## Click Types
 
 The menu supports 4 click types, each can be configured with different action lists:
 
@@ -51,7 +51,7 @@ actions:
 
 ***
 
-## 🎯 Action Types
+## Action Types
 
 ### command - Player Command
 
@@ -410,7 +410,7 @@ actions:
 
 ***
 
-## 🔍 Condition Checks
+## Condition Checks
 
 ### Basic Syntax
 
@@ -495,7 +495,7 @@ actions:
 
 ***
 
-## 📝 Complete Configuration Examples
+## Complete Configuration Examples
 
 ### Example 1: Basic Button
 

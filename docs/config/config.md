@@ -1,4 +1,4 @@
-# ⛳ 配置文件:config.yml
+# 配置文件:config.yml
 
 本页面详细介绍 KaGuilds 插件的各个配置文件及其选项。
 
@@ -284,7 +284,7 @@ guild:
 
 ***
 
-## 🗄️ database - 数据库设置
+## database - 数据库设置
 
 ```yaml
 database:
@@ -308,7 +308,7 @@ database:
 
 ***
 
-## 💰 balance - 经济系统设置
+## balance - 经济系统设置
 
 ```yaml
 balance:
@@ -382,7 +382,7 @@ balance:
 
 ***
 
-## 📋 task - 任务系统设置
+## task - 任务系统设置
 
 ```yaml
 task:
@@ -424,7 +424,7 @@ task:
 
 ***
 
-## 🎖️ contribution - 贡献度系统设置
+## contribution - 贡献度系统设置
 
 ```yaml
 contribution:
@@ -465,7 +465,7 @@ contribution:
 
 ***
 
-## 🎨 menu-default-icon - 菜单默认图标设置
+## menu-default-icon - 菜单默认图标设置
 
 用于配置各种菜单的默认图标，当菜单项没有单独配置图标时使用。
 
@@ -623,7 +623,7 @@ vaults:
 
 ***
 
-## 🔧 重新加载配置
+## 重新加载配置
 
 修改配置文件后，使用以下命令重新加载：
 

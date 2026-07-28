@@ -1,4 +1,4 @@
-# 🔐 Permission List
+# Permission List
 
 KaGuilds uses a complete permission system to control features accessible to players and administrators. Permissions are divided into two major categories: **Player Permissions** (normal guild member features) and **Admin Permissions** (server management features).
 
@@ -16,7 +16,7 @@ KaGuilds uses a complete permission system to control features accessible to pla
 * In most cases, you only need to give players the `kaguilds.use` permission, and they can use **all guild operations**.
 * If you want to customize which features players can use, you need to **disable** the player's `kaguilds.use` permission, then **selectively assign** permissions from the list below.
 
-## 📝 Complete Permission List
+## Complete Permission List
 
 ### Player Permissions
 
