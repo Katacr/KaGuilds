@@ -52,7 +52,7 @@ Folia 兼容目前仍处于议案阶段，当前版本未启用 Folia 支持。
 - 设置 `proxy: true`；
 - 使用唯一且稳定的 `server-id`。
 
-Velocity 只安装 KaProxy，并启用 Guilds 模块和旧通道兼容。不要同时运行 KaProxy 与原 KaGuildsProxy，否则消息会重复转发。后端服务器应只允许玩家通过 Velocity 接入。
+Velocity 只安装 KaProxy，并启用 Guilds 模块和 `legacy-channel-enabled` 设置。后端服务器应只允许玩家通过 Velocity 接入。
 
 完整步骤和验证清单见 [Velocity 配置](docs/home/velocity.md)。
 

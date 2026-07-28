@@ -52,7 +52,7 @@ Every backend server must:
 - Set `proxy: true`;
 - Use a unique and stable `server-id`.
 
-Install KaProxy only on Velocity and enable its Guilds module and legacy channel support. Do not run KaProxy and the former KaGuildsProxy plugin together. Backend servers should accept player connections only through Velocity.
+Install KaProxy only on Velocity and enable its Guilds module and `legacy-channel-enabled` setting. Backend servers should accept player connections only through Velocity.
 
 See [Velocity Setup](docs-en/home/velocity.md) for the full procedure and verification checklist.
 

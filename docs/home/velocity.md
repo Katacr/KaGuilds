@@ -11,7 +11,7 @@ KaGuilds 的多服务器模式由共享 MySQL 保存持久数据，并由 KaProx
 - 设置 `proxy: true`
 - 使用唯一且稳定的 `server-id`
 
-Velocity 只安装 KaProxy，不安装后端版 KaGuilds。KaProxy 的 Guilds 模块兼容原 KaGuildsProxy 通讯协议；不要同时运行 KaProxy 和 KaGuildsProxy，否则消息会重复转发。
+Velocity 只安装 KaProxy，不安装后端版 KaGuilds。在 KaProxy 中启用 Guilds 模块，由它负责与各后端 KaGuilds 交换跨服消息。
 
 ## 安装代理插件
 

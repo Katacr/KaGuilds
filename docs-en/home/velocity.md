@@ -11,7 +11,7 @@ Every backend server must:
 - Set `proxy: true`
 - Use a unique and stable `server-id`
 
-Install KaProxy only on Velocity. Do not install the backend KaGuilds JAR on the proxy. The KaProxy Guilds module is compatible with the former KaGuildsProxy protocol; never run KaProxy and KaGuildsProxy together because messages will be forwarded twice.
+Install KaProxy only on Velocity. Do not install the backend KaGuilds JAR on the proxy. Enable the Guilds module in KaProxy so it can exchange cross-server messages with KaGuilds on each backend.
 
 ## Install the Proxy Plugin
 
