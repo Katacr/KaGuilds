@@ -15,6 +15,8 @@ import org.katacr.kaguilds.arena.PvPManager
 import org.katacr.kaguilds.listener.*
 import org.katacr.kaguilds.service.BankService
 import org.katacr.kaguilds.service.GuildService
+import org.katacr.kaguilds.service.MembershipCache
+import org.katacr.kaguilds.service.ProxyCapability
 import org.katacr.kaguilds.service.TaskManager
 import org.katacr.kaguilds.service.VaultService
 import java.io.File
@@ -24,11 +26,41 @@ class KaGuilds : JavaPlugin() {
 
     val inviteCache = mutableMapOf<UUID, Int>()
     var economy: Economy? = null
-    val playerGuildCache = mutableMapOf<UUID, Int>()
-    // 跨服在线玩家缓存：Map<玩家名, 所在服务器ID>
+    // 公会身份缓存：全插件判断"玩家属于哪个公会"的唯一入口（线程安全 + TTL + 查库兜底）
+    lateinit var membershipCache: MembershipCache
+    // 代理能力探测与降级（运行时验证，而非配置假设）
+    lateinit var proxyCapability: ProxyCapability
+    // 兼容旧读取点：委托到 membershipCache。新代码请直接用 membershipCache。
+    @Deprecated("使用 membershipCache 替代")
+    val playerGuildCache: MutableMap<UUID, Int>
+        get() = object : MutableMap<UUID, Int> {
+            override val size: Int get() = throw UnsupportedOperationException("playerGuildCache 已废弃，禁止按 size 使用")
+            override fun containsKey(key: UUID): Boolean = membershipCache.getGuildId(key) != null
+            override fun containsValue(value: Int): Boolean = throw UnsupportedOperationException()
+            override fun get(key: UUID): Int? = membershipCache.getGuildId(key)
+            override fun isEmpty(): Boolean = throw UnsupportedOperationException()
+            override val keys: MutableSet<UUID> get() = throw UnsupportedOperationException()
+            override val values: MutableCollection<Int> get() = throw UnsupportedOperationException()
+            override val entries: MutableSet<MutableMap.MutableEntry<UUID, Int>> get() = throw UnsupportedOperationException()
+            override fun clear() = throw UnsupportedOperationException()
+            override fun put(key: UUID, value: Int): Int? {
+                membershipCache.set(key, value)
+                return null
+            }
+            override fun putAll(from: Map<out UUID, Int>) = throw UnsupportedOperationException()
+            override fun remove(key: UUID): Int? {
+                membershipCache.invalidate(key)
+                return null
+            }
+        }
+    // 跨服在线玩家缓存：Map<玩家名, 所在服务器ID>（仅用于展示，不参与功能正确性）
     val crossServerOnlinePlayers = mutableMapOf<String, String>()
     // 公会聊天模式玩家集合
     val guildChatPlayers = mutableSetOf<UUID>()
+    // 本服真实服务器标识：proxy 模式下由 KaProxy 下发的 ServerIdentify 覆盖本地配置，
+    // 避免多服误用默认 server-id。单服模式直接用配置值。
+    @Volatile
+    var effectiveServerId: String = "server"
     lateinit var dbManager: DatabaseManager
     lateinit var langManager: LanguageManager
     var nameRegex: Regex? = null
@@ -45,6 +77,12 @@ class KaGuilds : JavaPlugin() {
     lateinit var levelsConfig: FileConfiguration
     lateinit var tasksConfig: FileConfiguration
     val guiMenuFiles = mutableListOf<String>()
+
+    /**
+     * 当前代理（跨服）模式是否真正可用。
+     * 所有业务应读取此方法，而非直接读 config.proxy。
+     */
+    fun isProxyEnabled(): Boolean = proxyCapability.isProxyEnabled()
 
     /**
      * 在 Bukkit 主线程执行任务，用于统一处理玩家、世界、GUI、Vault 等线程敏感 API。
@@ -149,6 +187,11 @@ class KaGuilds : JavaPlugin() {
         }
 
         // 4. 服务层与指令注册
+        membershipCache = MembershipCache(this)
+        proxyCapability = ProxyCapability(this)
+        // 单服模式直接用配置 server-id；proxy 模式下待 KaProxy 下发 ServerIdentify 覆盖
+        effectiveServerId = config.getString("server-id", "server") ?: "server"
+        proxyCapability.start()
         vaultService = VaultService(this)
         bankService = BankService(this)
         guildService = GuildService(this)
@@ -228,7 +271,7 @@ class KaGuilds : JavaPlugin() {
         }
 
         // 跨服模式：服务器关闭时清空在线玩家缓存
-        if (config.getBoolean("proxy", false)) {
+        if (isProxyEnabled()) {
             crossServerOnlinePlayers.clear()
         }
         // 清空公会聊天模式玩家集合

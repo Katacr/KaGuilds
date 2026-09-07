@@ -1,4 +1,4 @@
-package org.katacr.kaguilds.service
+﻿package org.katacr.kaguilds.service
 
 import org.bukkit.command.CommandSender
 import org.katacr.kaguilds.KaGuilds
@@ -60,7 +60,7 @@ class GuildService(private val plugin: KaGuilds) {
             // 3. 获取成员名称列表
             val uuids = plugin.dbManager.memberRepository.getMemberUUIDs(guildId)
             var online = 0
-            val isProxy = plugin.config.getBoolean("proxy", false)
+            val isProxy = plugin.isProxyEnabled()
 
             val names = uuids.map { uuid ->
                 if (isProxy) {
@@ -233,7 +233,7 @@ class GuildService(private val plugin: KaGuilds) {
      * 内部工具：分发踢出通知
      */
     private fun dispatchKickNotification(guildId: Int, targetName: String) {
-        val isProxy = plugin.config.getBoolean("proxy", false)
+        val isProxy = plugin.isProxyEnabled()
 
         if (isProxy) {
             plugin.server.scheduler.runTask(plugin, Runnable {
@@ -288,51 +288,20 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@Runnable
-            val isProxy = plugin.config.getBoolean("proxy", false)
 
-            if (isProxy) {
-                // 跨服模式：先检查目标玩家是否已有公会
-                // 注意：这里只能检查玩家是否在 guild_members 表中且已有公会
-                // 对于从未加入过公会的玩家，无法通过数据库验证存在性
-                val targetUuid = plugin.dbManager.memberRepository.getUuidByPlayerName(targetName)
-                if (targetUuid != null && plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid) != null) {
-                    callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
-                    return@Runnable
-                }
-
-                plugin.server.scheduler.runTask(plugin, Runnable {
-                    val out = createDataOutput()
-                    out.outputStream.writeUTF("CrossInvite")
-                    out.outputStream.writeUTF(targetName)   // 目标玩家名
-                    out.outputStream.writeInt(guildId)      // 公会ID
-                    out.outputStream.writeUTF(guildData.name) // 公会名
-                    out.outputStream.writeUTF(sender.name)  // 邀请人名
-
-                    sender.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-                })
-                callback(OperationResult.Success)
-
-            } else {
-                // --- 单服模式：直接查找 ---
-                val targetPlayer = plugin.server.getPlayer(targetName)
-                if (targetPlayer == null) {
-                    callback(OperationResult.Error(plugin.langManager.get("player-not-online")))
-                    return@Runnable
-                }
-
+            // 1. 本地优先：目标玩家若在本服，直接处理（单服/跨服都走这条，保证本服一定可用）
+            val targetPlayer = plugin.server.getPlayer(targetName)
+            if (targetPlayer != null) {
                 // 检查目标是否有公会
                 if (plugin.dbManager.memberRepository.getGuildIdByPlayer(targetPlayer.uniqueId) != null) {
                     callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
                     return@Runnable
                 }
-
                 // 存入邀请缓存并通知
                 plugin.inviteCache[targetPlayer.uniqueId] = guildId
-
                 val lang = plugin.langManager
                 val msg = MessageUtil.createText(lang.get("invite-received-target",
                     "player" to sender.name, "guild" to guildData.name))
-
                 val acceptBtn = MessageUtil.createClickableText(
                     text = lang.get("invite-accept-btn"),
                     hoverText = lang.get("invite-accept-btn-hover"),
@@ -344,13 +313,33 @@ class GuildService(private val plugin: KaGuilds) {
                     hoverText = lang.get("invite-deny-btn-hover"),
                     command = "/kg no"
                 )
-
                 msg.addExtra(acceptBtn)
                 msg.addExtra(space)
                 msg.addExtra(denyBtn)
-
                 targetPlayer.spigot().sendMessage(msg)
                 callback(OperationResult.Success)
+                return@Runnable
+            }
+
+            // 2. 目标不在本服：跨服模式发包给其他服处理；单服模式则目标必定在线，已在上处理
+            if (plugin.isProxyEnabled()) {
+                val targetUuid = plugin.dbManager.memberRepository.getUuidByPlayerName(targetName)
+                if (targetUuid != null && plugin.dbManager.memberRepository.getGuildIdByPlayer(targetUuid) != null) {
+                    callback(OperationResult.Error(plugin.langManager.get("join-already-in-guild")))
+                    return@Runnable
+                }
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    val out = createDataOutput()
+                    out.outputStream.writeUTF("CrossInvite")
+                    out.outputStream.writeUTF(targetName)
+                    out.outputStream.writeInt(guildId)
+                    out.outputStream.writeUTF(guildData.name)
+                    out.outputStream.writeUTF(sender.name)
+                    sender.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+                })
+                callback(OperationResult.Success)
+            } else {
+                callback(OperationResult.Error(plugin.langManager.get("player-not-online")))
             }
         })
     }
@@ -405,89 +394,109 @@ class GuildService(private val plugin: KaGuilds) {
     }
 
     /**
-     * 内部工具：发送公会通知（兼容单服/跨服）
+     * 内部工具：发送公会通知（单服/跨服统一）。
+     *
+     * 设计：永远先在本服处理（本地公会成员立即收到），再在 proxy 可用时
+     * 额外广播给其他服。这样无论单服还是跨服，本服功能都 100% 正常，
+     * 不会因为代理未转发/字段顺序而静默失效。
      */
     private fun dispatchGuildNotification(targetGuildId: Int, subChannel: String, vararg data: Any) {
         val lang = plugin.langManager
-        val isProxy = plugin.config.getBoolean("proxy", false)
 
-        if (isProxy) {
-            // --- 代理模式：发包给代理端转发 ---
+        // 1. 本服处理（单服/跨服都必须）
+        when (subChannel) {
+            "NotifyRequest" -> {
+                val applicantName = data[2] as String
+                sendNotifyRequestLocal(targetGuildId, applicantName)
+            }
+            "Chat" -> {
+                val senderName = data[1] as String
+                val msgContent = data[2] as String
+                val roleDisplayName = data.getOrNull(3) as? String ?: ""
+                val coloredMessage = data.getOrNull(6) as? String
+                if (coloredMessage != null) {
+                    // 跨服场景：发送端已解析并着色，直接发给本服成员
+                    sendToLocalGuildMembers(targetGuildId) { p -> p.sendMessage(coloredMessage) }
+                } else {
+                    // 本服场景：本地按格式解析后发送
+                    sendLocalChat(targetGuildId, senderName, msgContent, roleDisplayName)
+                }
+            }
+        }
+
+        // 2. 跨服额外广播（不阻断本服）
+        if (plugin.isProxyEnabled()) {
             val out = createDataOutput()
             out.outputStream.writeUTF(subChannel)
-            // 动态写入后续参数
             data.forEach {
                 when (it) {
                     is Int -> out.outputStream.writeInt(it)
                     is String -> out.outputStream.writeUTF(it)
                 }
             }
-            // 借用第一个在线玩家发包（如果没有在线玩家，单服消息通常也无意义）
-            val sender = plugin.server.onlinePlayers.firstOrNull()
-            sender?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+            plugin.server.onlinePlayers.firstOrNull()
+                ?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        }
+    }
 
+    /**
+     * 向本服属于指定公会的在线玩家执行动作。使用 membershipCache 判断身份（带查库兜底）。
+     */
+    private fun sendToLocalGuildMembers(guildId: Int, action: (org.bukkit.entity.Player) -> Unit) {
+        plugin.server.onlinePlayers.forEach { p ->
+            val cached = plugin.membershipCache.getGuildId(p)
+            if (cached == guildId) action(p)
+        }
+    }
 
-        } else {
-            // --- 单服模式：直接在当前服务器内查找并发送 ---
-            when (subChannel) {
-                "NotifyRequest" -> {
-                    val applicantName = data[2] as String
-
-                    plugin.server.onlinePlayers.forEach { p ->
-                        if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
-                            // 异步查一下权限
-                            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                                val role = plugin.dbManager.memberRepository.getPlayerRole(p.uniqueId)
-                                if (role == "OWNER" || role == "ADMIN") {
-                                    plugin.server.scheduler.runTask(plugin, Runnable {
-                                        val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
-                                        val viewBtn = MessageUtil.createClickableText(
-                                            text = lang.get("notify-view-btn"),
-                                            hoverText = lang.get("notify-view-btn-hover"),
-                                            command = "/kg requests"
-                                        )
-                                        msg.addExtra(viewBtn)
-                                        p.spigot().sendMessage(msg)
-                                        p.playSound(p.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
-                                    })
-                                }
-                            })
-                        }
+    /**
+     * 本服发送入会申请通知给管理员（OWNER/ADMIN）。
+     */
+    private fun sendNotifyRequestLocal(guildId: Int, applicantName: String) {
+        val lang = plugin.langManager
+        plugin.server.onlinePlayers.forEach { p ->
+            val cached = plugin.membershipCache.getGuildId(p)
+            if (cached == guildId) {
+                plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                    val role = plugin.dbManager.memberRepository.getPlayerRole(p.uniqueId)
+                    if (role == "OWNER" || role == "ADMIN") {
+                        plugin.server.scheduler.runTask(plugin, Runnable {
+                            val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
+                            val viewBtn = MessageUtil.createClickableText(
+                                text = lang.get("notify-view-btn"),
+                                hoverText = lang.get("notify-view-btn-hover"),
+                                command = "/kg requests"
+                            )
+                            msg.addExtra(viewBtn)
+                            p.spigot().sendMessage(msg)
+                            p.playSound(p.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+                        })
                     }
-                }
-                "Chat" -> {
-                    val senderName = data[1] as String
-                    val msgContent = data[2] as String
-                    val roleDisplayName = data.getOrNull(3) as? String ?: ""
-
-                    // 使用自定义聊天格式
-                    var format = plugin.config.getString("guild.chat-format", "&7[&e单公会聊天&7] &f{player}&f: {message}") ?: ""
-                    format = format.replace("{player}", senderName)
-                        .replace("{message}", msgContent)
-                        .replace("{role}", roleDisplayName)
-
-                    // 支持 PlaceholderAPI 变量（需要在主线程替换）
-                    plugin.server.scheduler.runTask(plugin, Runnable {
-                        val papiPlugin = plugin.server.pluginManager.getPlugin("PlaceholderAPI")
-                        val formattedMessage = if (papiPlugin != null) {
-                            me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(plugin.server.getPlayer(senderName), format)
-                        } else {
-                            format
-                        }
-
-                        // 转换颜色代码
-                        val coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', formattedMessage)
-
-                        // 发送消息给公会成员
-                        plugin.server.onlinePlayers.forEach { p ->
-                            if (plugin.playerGuildCache[p.uniqueId] == targetGuildId) {
-                                p.sendMessage(coloredMessage)
-                            }
-                        }
-                    })
-                }
+                })
             }
         }
+    }
+
+    /**
+     * 本服按聊天格式解析并发送给公会成员。
+     */
+    private fun sendLocalChat(guildId: Int, senderName: String, msgContent: String, roleDisplayName: String) {
+        var format = plugin.config.getString("guild.chat-format", "&7[&e公会聊天&7] &f{player}&f: {message}") ?: ""
+        format = format.replace("{player}", senderName)
+            .replace("{message}", msgContent)
+            .replace("{role}", roleDisplayName)
+
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            val papiPlugin = plugin.server.pluginManager.getPlugin("PlaceholderAPI")
+            val formattedMessage = if (papiPlugin != null) {
+                val sender = plugin.server.getPlayer(senderName)
+                me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(sender, format)
+            } else {
+                format
+            }
+            val coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', formattedMessage)
+            sendToLocalGuildMembers(guildId) { p -> p.sendMessage(coloredMessage) }
+        })
     }
     /**
      * 接受公会申请 (由管理员执行 /kg accept <玩家>)
@@ -529,7 +538,7 @@ class GuildService(private val plugin: KaGuilds) {
                 plugin.playerGuildCache[targetUuid] = guildId
                 plugin.taskManager.activatePlayerTasks(targetUuid, guildId)
 
-                val isProxy = plugin.config.getBoolean("proxy", false)
+                val isProxy = plugin.isProxyEnabled()
                 if (isProxy) {
                     syncPlayerCache(targetUuid, guildId) // 告诉其他子服同步缓存
                     broadcastMemberStatus(guildId, targetName, "JOIN") // 告诉其他子服发欢迎消息
@@ -627,8 +636,8 @@ class GuildService(private val plugin: KaGuilds) {
                 return@Runnable
             }
 
-            // 2. 更新一下本地缓存，确保后续逻辑也是对的
-            plugin.playerGuildCache[player.uniqueId] = guildId
+            // 2. 更新缓存
+            plugin.membershipCache.set(player.uniqueId, guildId)
 
             // 3. 获取玩家角色
             val role = plugin.dbManager.memberRepository.getPlayerRole(player.uniqueId)
@@ -656,18 +665,9 @@ class GuildService(private val plugin: KaGuilds) {
                 // 6. 转换颜色代码
                 val coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', formattedMessage)
 
-                // 7. 发送消息
-                if (plugin.config.getBoolean("proxy", false)) {
-                    // 跨服模式：发送已解析的消息给其他服务器
-                    dispatchGuildNotification(guildId, "Chat", guildId, player.name, message, roleDisplayName, coloredMessage)
-                } else {
-                    // 单服模式：直接在当前服务器内发送
-                    plugin.server.onlinePlayers.forEach { p ->
-                        if (plugin.playerGuildCache[p.uniqueId] == guildId) {
-                            p.sendMessage(coloredMessage)
-                        }
-                    }
-                }
+                // 7. 发送消息：本服先处理（sendLocalChat 内部走 membershipCache），
+                //    再在 proxy 可用时由 dispatchGuildNotification 额外广播给其他服
+                dispatchGuildNotification(guildId, "Chat", guildId, player.name, message, roleDisplayName, coloredMessage)
             })
         })
     }
@@ -718,9 +718,9 @@ class GuildService(private val plugin: KaGuilds) {
      * @param uuid 玩家UUID
      * @param guildId 公会ID (若为-1或不存在可表示退出公会，具体看业务逻辑)
      */
-    private fun syncPlayerCache(uuid: UUID, guildId: Int) {
+    fun syncPlayerCache(uuid: UUID, guildId: Int) {
         // 如果没开代理模式，不需要同步，因为只有一个服务器
-        if (!plugin.config.getBoolean("proxy", false)) return
+        if (!plugin.isProxyEnabled()) return
 
         plugin.server.scheduler.runTask(plugin, Runnable {
             val out = createDataOutput()
@@ -766,40 +766,35 @@ class GuildService(private val plugin: KaGuilds) {
     }
 
     /**
-     * 统一分发成员变动通知 (加入/退出/踢出)
+     * 统一分发成员变动通知 (加入/退出/踢出)。
+     * 本服先处理，proxy 可用时额外广播给其他服。
      */
     fun broadcastMemberStatus(guildId: Int, playerName: String, type: String) {
-        val isProxy = plugin.config.getBoolean("proxy", false)
         val subChannel = if (type == "JOIN") "MemberJoin" else "MemberLeave"
 
-        if (isProxy) {
-            // --- 跨服模式：发包给代理端 ---
+        // 1. 本服处理
+        sendLocalMemberStatus(guildId, playerName, type)
+
+        // 2. 跨服额外广播
+        if (plugin.isProxyEnabled()) {
             plugin.server.scheduler.runTask(plugin, Runnable {
                 val out = createDataOutput()
                 out.outputStream.writeUTF(subChannel)
                 out.outputStream.writeInt(guildId)
                 out.outputStream.writeUTF(playerName)
-
                 plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
             })
-        } else {
-            // --- 单服模式：直接向本地公会成员发送 ---
-            sendLocalMemberStatus(guildId, playerName, type)
         }
     }
 
     /**
-     * 单服模式：向本地公会成员发送通知
+     * 向本地公会成员发送成员变动通知
      */
     private fun sendLocalMemberStatus(guildId: Int, playerName: String, type: String) {
         val langKey = if (type == "JOIN") "member-join-notify" else "member-leave-notify"
         val msg = plugin.langManager.get(langKey, "player" to playerName)
 
-        plugin.server.onlinePlayers.forEach { p ->
-            if (plugin.playerGuildCache[p.uniqueId] == guildId) {
-                p.sendMessage(msg)
-            }
-        }
+        sendToLocalGuildMembers(guildId) { p -> p.sendMessage(msg) }
     }
 
     /**
@@ -841,7 +836,7 @@ class GuildService(private val plugin: KaGuilds) {
             }
 
             // 5. 准备坐标字符串 (格式: serverName:worldName,x,y,z,yaw,pitch)
-            val serverName = plugin.config.getString("server-id", "unknown")
+            val serverName = plugin.effectiveServerId
             val loc = player.location
             val locStr = "$serverName:${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
 
@@ -885,9 +880,9 @@ class GuildService(private val plugin: KaGuilds) {
             // 2. 跨服判断
             val mainParts = locStr.split(":")
             val targetServer = mainParts[0]
-            val currentServer = plugin.config.getString("server-id", "unknown")
+            val currentServer = plugin.effectiveServerId
 
-            if (plugin.config.getBoolean("proxy", false) && targetServer != currentServer) {
+            if (plugin.isProxyEnabled() && targetServer != currentServer) {
                 return@runAsync syncCallback(callback, OperationResult.Error(
                     plugin.langManager.get("tp-wrong-server", "server" to targetServer)
                 ))
@@ -1021,7 +1016,7 @@ class GuildService(private val plugin: KaGuilds) {
                 plugin.dbManager.bankRepository.updateGuildBalance(guildId, -cost)
                 plugin.dbManager.bankRepository.logBankTransaction(guildId, player.name, "RENAME", cost)
 
-                val isProxy = plugin.config.getBoolean("proxy", false)
+                val isProxy = plugin.isProxyEnabled()
 
                 if (isProxy) {
                     // 跨服模式：只发送跨服消息，不发送本地通知
@@ -1051,7 +1046,7 @@ class GuildService(private val plugin: KaGuilds) {
      * 跨服同步改名通知
      */
     fun syncRenameProxy(guildId: Int, newName: String) {
-        val isProxy = plugin.config.getBoolean("proxy", false)
+        val isProxy = plugin.isProxyEnabled()
         if (isProxy) {
             val out = createDataOutput()
             out.outputStream.writeUTF("RenameSync")
@@ -1066,7 +1061,7 @@ class GuildService(private val plugin: KaGuilds) {
      * @param type "deposit" 或 "withdraw"
      */
     internal fun dispatchBankNotification(guildId: Int, playerName: String, type: String, amount: Double) {
-        val isProxy = plugin.config.getBoolean("proxy", false)
+        val isProxy = plugin.isProxyEnabled()
 
         if (isProxy) {
             // 2. 跨服模式：只发送跨服通知，不发送本地通知
@@ -1205,7 +1200,7 @@ class GuildService(private val plugin: KaGuilds) {
 
             // 2. 执行改名
             if (plugin.dbManager.guildRepository.renameGuild(guildId, newName)) {
-                val isProxy = plugin.config.getBoolean("proxy", false)
+                val isProxy = plugin.isProxyEnabled()
 
                 if (isProxy) {
                     // 跨服模式：只发送跨服消息，不发送本地通知
@@ -1267,7 +1262,7 @@ class GuildService(private val plugin: KaGuilds) {
                 })
 
                 // 4. 跨服同步清理
-                if (plugin.config.getBoolean("proxy", false)) {
+                if (plugin.isProxyEnabled()) {
                     val out = createDataOutput()
                     out.outputStream.writeUTF("DeleteSync")
                     out.outputStream.writeInt(guildId)
@@ -1300,7 +1295,7 @@ class GuildService(private val plugin: KaGuilds) {
             // 2. 获取成员列表
             val uuids = plugin.dbManager.memberRepository.getMemberUUIDs(guildId)
             var online = 0
-            val isProxy = plugin.config.getBoolean("proxy", false)
+            val isProxy = plugin.isProxyEnabled()
 
             // 3. 获取成员名称列表并标记在线状态
             val members = uuids.map { uuid ->
@@ -1394,7 +1389,7 @@ class GuildService(private val plugin: KaGuilds) {
      * 分发 Buff (本地 + 跨服)
      */
     private fun dispatchBuff(guildId: Int, type: PotionEffectType, seconds: Int, amplifier: Int, buyerName: String, buffName: String) {
-        val isProxy = plugin.config.getBoolean("proxy", false)
+        val isProxy = plugin.isProxyEnabled()
         val durationTicks = seconds * 20
 
         if (isProxy) {
@@ -1447,7 +1442,7 @@ class GuildService(private val plugin: KaGuilds) {
                 refreshLocalMembersCache(guildId)
 
                 // 3. 处理跨服同步
-                if (plugin.config.getBoolean("proxy")) {
+                if (plugin.isProxyEnabled()) {
                     // 发送全服成员刷新指令 (强制其他服执行 refreshLocalMembersCache)
                     sendForceRefreshPacket(guildId)
 
@@ -1611,7 +1606,7 @@ class GuildService(private val plugin: KaGuilds) {
      */
     private fun sendVaultSyncPacket(guildId: Int, index: Int, uuid: UUID, type: String) {
         // 只有在 proxy 模式下才发送
-        if (!plugin.config.getBoolean("proxy")) return
+        if (!plugin.isProxyEnabled()) return
 
         val out = createDataOutput()
         try {
@@ -2001,3 +1996,4 @@ class GuildService(private val plugin: KaGuilds) {
         affectedPlayers.forEach { clearLocalPlayerGuildState(it) }
     }
 }
+

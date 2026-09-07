@@ -1,4 +1,4 @@
-package org.katacr.kaguilds.service
+﻿package org.katacr.kaguilds.service
 
 import org.bukkit.Bukkit
 import org.bukkit.boss.BarColor
@@ -513,7 +513,7 @@ class TaskManager(val plugin: KaGuilds) {
                     globalBossBarCache[guildId]?.remove(task.key)
 
                     // 跨服通知移除 BossBar
-                    if (plugin.config.getBoolean("proxy", false)) {
+                    if (plugin.isProxyEnabled()) {
                         sendGlobalTaskCompletedToProxy(guildId, task.key, task.name)
                     }
                 }
@@ -649,7 +649,7 @@ class TaskManager(val plugin: KaGuilds) {
             existingBar.progress = progressValue.coerceIn(0.0, 1.0)
 
             // 如果启用代理模式，发送跨服消息更新进展
-            if (plugin.config.getBoolean("proxy", false)) {
+            if (plugin.isProxyEnabled()) {
                 sendGlobalTaskBossBarToProxy(guildId, task.key, task.name, progress, target)
             }
 
@@ -711,7 +711,7 @@ class TaskManager(val plugin: KaGuilds) {
             globalBossBarTimerCache.getOrPut(guildId) { mutableMapOf() }[task.key] = taskId
 
             // 如果启用代理模式，发送跨服消息
-            if (plugin.config.getBoolean("proxy", false)) {
+            if (plugin.isProxyEnabled()) {
                 sendGlobalTaskBossBarToProxy(guildId, task.key, task.name, progress, target)
             }
         }
@@ -815,7 +815,7 @@ class TaskManager(val plugin: KaGuilds) {
      */
     private fun notifyGuildTaskCompletion(guildId: Int, task: TaskDefinition) {
         val lang = plugin.langManager
-        val isProxy = plugin.config.getBoolean("proxy", false)
+        val isProxy = plugin.isProxyEnabled()
 
         if (isProxy) {
             // 跨服模式：发包给代理端转发
@@ -1035,3 +1035,4 @@ class TaskManager(val plugin: KaGuilds) {
         return taskDefinitions
     }
 }
+

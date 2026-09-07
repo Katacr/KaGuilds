@@ -199,12 +199,12 @@ class PvPManager(private val plugin: KaGuilds) {
      * 通知双方公会在其他服务器的成员
      */
     private fun notifyCrossServerGuildMembers(match: ActiveMatch) {
-        val serverId = plugin.config.getString("server-id", "unknown") ?: "unknown"
+        val serverId = plugin.effectiveServerId
         val redName = plugin.dbManager.guildRepository.getGuildData(match.redGuildId)?.name ?: "红队"
         val blueName = plugin.dbManager.guildRepository.getGuildData(match.blueGuildId)?.name ?: "蓝队"
 
         // 检查是否启用代理模式
-        if (!plugin.config.getBoolean("proxy", false)) {
+        if (!plugin.isProxyEnabled()) {
             return // 单服模式不需要跨服通知
         }
 

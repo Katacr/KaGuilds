@@ -31,6 +31,10 @@ class GuildListener(private val plugin: KaGuilds) : Listener {
                 checkAndCalculateGuildInterest(guildId)
             }
         })
+
+        // 代理探测补发：开服瞬间可能无在线玩家，无法主动发包联系代理；
+        // 一旦有玩家上线即可补发 ServerHello 探针，触发代理回执 serverId 与在线列表。
+        plugin.proxyCapability.onPlayerJoinProbe()
     }
 
     /**

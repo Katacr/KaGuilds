@@ -10,10 +10,14 @@ class VaultRepository(private val db: DatabaseManager) {
     private val plugin = db.plugin
 
     fun saveVault(guildId: Int, index: Int, data: String, editorUuid: UUID): Boolean {
+        // 保存条件：当前玩家是锁持有者（last_editor 匹配），或该行尚未初始化持有者
+        // （last_editor 为 NULL 或空串，对应首次打开仓库的场景）。
+        // 若 last_editor 已是他人，则不匹配，避免覆盖其它会话的数据。
         val sql = """
             UPDATE guild_vaults
             SET items_data = ?, lock_expire = 0
-            WHERE guild_id = ? AND vault_index = ? AND last_editor = ?
+            WHERE guild_id = ? AND vault_index = ?
+            AND (last_editor = ? OR last_editor IS NULL OR last_editor = '')
         """.trimIndent()
 
         if (db.dataSource == null) return false
@@ -25,7 +29,14 @@ class VaultRepository(private val db: DatabaseManager) {
                     ps.setInt(2, guildId)
                     ps.setInt(3, index)
                     ps.setString(4, editorUuid.toString())
-                    ps.executeUpdate() > 0
+                    val updated = ps.executeUpdate() > 0
+                    if (!updated) {
+                        // 区分：锁已被他人持有（防覆盖）还是数据行异常
+                        plugin.logger.warning(
+                            "公会 $guildId 仓库 $index 保存失败：锁可能已被其他会话持有（last_editor != $editorUuid）"
+                        )
+                    }
+                    updated
                 }
             }
         } catch (e: Exception) {
@@ -72,10 +83,12 @@ class VaultRepository(private val db: DatabaseManager) {
         return try {
             db.dataSource?.connection?.use { conn ->
                 val isMySQL = db.dataSource?.jdbcUrl?.contains("mysql", ignoreCase = true) == true
+                // 显式初始化 last_editor 为空串（而非依赖 DEFAULT NULL），
+                // 避免 saveVault 的 WHERE last_editor=? 对 NULL 行永远不匹配导致物品丢失。
                 val initSql = if (isMySQL) {
-                    "INSERT IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                    "INSERT IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire, last_editor) VALUES (?, ?, 0, '')"
                 } else {
-                    "INSERT OR IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire) VALUES (?, ?, 0)"
+                    "INSERT OR IGNORE INTO guild_vaults (guild_id, vault_index, lock_expire, last_editor) VALUES (?, ?, 0, '')"
                 }
 
                 conn.prepareStatement(initSql).use { ps ->
