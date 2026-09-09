@@ -174,6 +174,58 @@ class GuildRepository(private val db: DatabaseManager) {
         }
     }
 
+    fun incrementTotalContribution(guildId: Int, amount: Long): Boolean {
+        val sql = "UPDATE guild_data SET total_contribution = total_contribution + ? WHERE id = ?"
+        return executeGuildUpdate(sql, "增加公会总贡献度时出错") { ps ->
+            ps.setLong(1, amount)
+            ps.setInt(2, guildId)
+        }
+    }
+
+    /**
+     * 查询指定排名的公会（按胜场降序）。
+     * @return GuildData 或 null（排名超出范围）
+     */
+    fun getTopGuildByWins(rank: Int): GuildData? {
+        if (rank < 1) return null
+        val sql = "SELECT * FROM guild_data ORDER BY pvp_wins DESC, id ASC LIMIT 1 OFFSET ?"
+        return try {
+            db.connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, rank - 1)
+                    ps.executeQuery().use { rs ->
+                        if (rs.next()) mapGuildData(rs) else null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("查询公会胜场排行榜时出错: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 查询指定排名的公会（按总贡献度降序）。
+     * @return GuildData 或 null（排名超出范围）
+     */
+    fun getTopGuildByContribution(rank: Int): GuildData? {
+        if (rank < 1) return null
+        val sql = "SELECT * FROM guild_data ORDER BY total_contribution DESC, id ASC LIMIT 1 OFFSET ?"
+        return try {
+            db.connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, rank - 1)
+                    ps.executeQuery().use { rs ->
+                        if (rs.next()) mapGuildData(rs) else null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("查询公会贡献度排行榜时出错: ${e.message}")
+            null
+        }
+    }
+
     /**
      * 查询单个公会数据，供按 ID、名称等入口复用。
      */
@@ -252,7 +304,8 @@ class GuildRepository(private val db: DatabaseManager) {
             pvpLosses = getIntOrDefault(rs, "pvp_losses", 0),
             pvpDraws = getIntOrDefault(rs, "pvp_draws", 0),
             pvpTotal = getIntOrDefault(rs, "pvp_total", 0),
-            lastInterestDate = getLongOrDefault(rs, "last_interest_date", 0)
+            lastInterestDate = getLongOrDefault(rs, "last_interest_date", 0),
+            totalContribution = getLongOrDefault(rs, "total_contribution", 0)
         )
     }
 

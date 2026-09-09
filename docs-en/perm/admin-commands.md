@@ -60,7 +60,7 @@ Server administration commands use `/kg admin <action> [arguments...]`. On this 
 - `add` increases a value, `remove` decreases it, and `set` replaces it.
 - `bank` accepts decimal values; `exp` accepts integers.
 - `-s` suppresses successful output only. Invalid arguments, missing guilds, and database failures are still reported.
-- Admin bank changes do not apply the player-facing guild-level cap or contribution rules. Use them carefully.
+- Admin bank changes do not apply the player-facing guild-level cap. Use them carefully.
 
 ## Vault Management
 

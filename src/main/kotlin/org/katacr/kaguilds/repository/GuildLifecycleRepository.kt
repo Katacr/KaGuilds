@@ -42,8 +42,8 @@ class GuildLifecycleRepository(private val db: DatabaseManager) {
         val config = plugin.config
         val sqlGuild = """
         INSERT INTO guild_data
-        (name, owner_uuid, owner_name, level, balance, exp, icon, icon_item_model, icon_custom_data, create_time, announcement, max_members)
-        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, ?, ?, ?);
+        (name, owner_uuid, owner_name, level, balance, exp, icon, icon_item_model, icon_custom_data, create_time, announcement, max_members, total_contribution)
+        VALUES (?, ?, ?, 1, 0, 0, ?, ?, ?, ?, ?, ?, 0);
         """.trimIndent()
 
         return db.dataSource?.connection?.use { conn ->

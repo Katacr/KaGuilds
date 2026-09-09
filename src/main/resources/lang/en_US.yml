@@ -1,4 +1,4 @@
-# Command Help Menu
+﻿# Command Help Menu
 help-header: "§8§m-------§r §bKaGuilds Help Menu §8§m-------"
 help-footer: "§8---------- §7Page: §e%page% §7/ §e%max% §8----------"
 help-next-page: "§8Tip: Type §6/kg help %page% §8to view next page"
@@ -172,7 +172,6 @@ bank-usage: "§cUsage: /kg bank <add/take/log> [amount/page]"
 bank-invalid-amount: "§cPlease enter a valid positive integer amount."
 bank-insufficient-player: "§cYou don't have enough gold in your account!"
 bank-insufficient-guild: "§cThe guild bank doesn't have enough gold!"
-bank-insufficient-contribution: "§cInsufficient contribution! Required %required%, you only have %current%."
 bank-full: "§cGuild bank is full, cannot deposit more gold (limit: %max%)."
 bank-add-success: "§aSuccessfully donated §f%amount% §agold to the bank."
 bank-get-success: "§aSuccessfully withdrew §f%amount% §agold from the bank."
@@ -503,6 +502,7 @@ papi-role-member: "Member"
 papi-role-none: "Visitor"
 papi-boolean-true: "Yes"
 papi-boolean-false: "No"
+papi-no-data: "No Data"
 papi-contribution: "Contribution"
 papi-reset-countdown: "%h%h %m%m %s%s"
 

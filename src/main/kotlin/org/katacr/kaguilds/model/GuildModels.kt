@@ -25,7 +25,8 @@ data class GuildData(
     val pvpLosses: Int = 0,
     val pvpDraws: Int = 0,
     val pvpTotal: Int = 0,
-    val lastInterestDate: Long = 0
+    val lastInterestDate: Long = 0,
+    val totalContribution: Long = 0
 )
 
 /**

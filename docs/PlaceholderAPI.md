@@ -43,6 +43,7 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_max_members%`  | 最大成员数 | `20`                        |
 | `%kaguilds_member_list%`  | 成员列表  | `Player1, Player2, Player3` |
 | `%kaguilds_contribution%` | 个人贡献值 | `500`                       |
+| `%kaguilds_guild_contribution%` | 公会累计总贡献度 | `12000`                     |
 
 ### 职位权限
 
@@ -69,3 +70,12 @@ KaGuilds 插件完全支持 PlaceholderAPI（PAPI），您可以在聊天、记�
 | `%kaguilds_pending_requests%` | 待处理申请数         | `3`              |
 | `%kaguilds_has_guild%`        | 玩家是否已加入公会      | `是/否`            |
 | `%kaguilds_reset_countdown%` | 每日任务重置倒计时（时:分:秒） | `5小时30分钟20秒` |
+
+### 排行榜
+
+| 变量                              | 说明               | 示例                          |
+| ------------------------------- | ---------------- | --------------------------- |
+| `%kaguilds_top_wins_N%`        | 第 N 名公会（按胜场降序）    | `1. 我的公会 Steve 10`        |
+| `%kaguilds_top_contribution_N%` | 第 N 名公会（按总贡献度降序） | `1. 我的公会 Steve 900`       |
+
+格式为 `排名. 公会名称 会长名 数值`，超出范围时返回"无数据"。

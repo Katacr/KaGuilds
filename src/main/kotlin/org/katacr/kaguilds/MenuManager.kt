@@ -993,7 +993,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * @return 变量映射表
      */
     fun getGuildPlaceholders(guild: GuildData, player: Player): Map<String, String> {
-        val onlineCount = plugin.playerGuildCache.values.count { it == guild.id }
+        val onlineCount = plugin.server.onlinePlayers.count { plugin.membershipCache.getGuildId(it.uniqueId) == guild.id }
         val formatPattern = plugin.config.getString("date-format", "yyyy-MM-dd HH:mm:ss")!!
         val createTimeStr = SimpleDateFormat(formatPattern).format(Date(guild.createTime))
 

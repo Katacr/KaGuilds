@@ -426,47 +426,6 @@ Task reset time.
 
 ***
 
-## contribution - Contribution System Settings
-
-```yaml
-contribution:
-  enabled: true
-  bank-deposit-ratio: 1.0
-  bank-withdraw-ratio: 1.0
-```
-
-### `enabled`
-
-Whether to enable the contribution system.
-
-* **Default**: `true`
-* **Type**: Boolean
-* **Description**:
-  * `true`: Enable contribution system
-  * `false`: Disable contribution system
-
-### `bank-deposit-ratio`
-
-Contribution ratio when depositing gold.
-
-* **Default**: `1.0`
-* **Type**: Float
-* **Description**:
-  * How much contribution earned per gold deposited
-  * Example: `1.0` means 1:1, `0.5` means 1 gold = 0.5 contribution
-
-### `bank-withdraw-ratio`
-
-Contribution deducted when withdrawing gold.
-
-* **Default**: `1.0`
-* **Type**: Float
-* **Description**:
-  * How much contribution deducted per gold withdrawn
-  * Example: `1.0` means 1:1, `2.0` means 1 gold withdrawn costs 2 contribution
-
-***
-
 ## menu-default-icon - Menu Default Icon Settings
 
 Used to configure default icons for various menus, used when menu items don't have individually configured icons.

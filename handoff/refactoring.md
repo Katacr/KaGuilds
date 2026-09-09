@@ -46,6 +46,28 @@
 - 重写 README/README_CN 及 docs/docs-en 首页、安装、Velocity、命令、权限索引。
 - 配置文档注明战斗计时器读 `guild.arena.battle-time`(旧 `pvp-time` 不生效)。
 
+### 跨服架构重构(2026-09-07/08,P0-P2)
+- 详见 `research/cross-server-arch-redesign.md`(方案与进度)与 `research/cross-server-bugs.md`(根因调研)。
+- P0:`MembershipCache`(并发+TTL+查库兜底,身份判断唯一入口)、`ProxyCapability`(运行时探测+SQLite 前置拦截+降级写回 config)、`effectiveServerId`(代理 `ServerIdentify` 下发覆盖)。
+- P1:传播统一(本地先处理再广播,消除 proxy 分叉);`invitePlayer` 本地优先;接收端改用 `membershipCache` + `removeLocal`/`updateLocal` 防回声;~18 处 `config.getBoolean("proxy")` → `isProxyEnabled()`。
+- P2:仓库物品消失根因修复(`initSql` 初始化 `last_editor=''`、`saveVault` 放宽 NULL 匹配、保存失败保留锁)。
+- KaProxy 双向修正:`ServerHello`/`ServerIdentify`(真实 serverId 下发)、`broadcastToServer`、周期广播 `OnlinePlayersList`(每 5s,解决空服探测)。
+- 跨服探测流程详见 `cross-server.md`。
+
+### 业务变更:银行不再联动贡献度(2026-09-08)
+- `BankService.deposit` 删除加贡献度;`withdraw` 删除贡献度检查与扣除(取款不再要求贡献度)。
+- 贡献度改为纯管理员管理(`/kg admin contribution`);管理员命令、PAPI、菜单显示不受影响。
+- 删除 `config.yml`/`config_en.yml` 的 `contribution` 配置段;删除 lang 键 `bank-insufficient-contribution`(zh_CN/en_US)。
+- 中英文文档同步:`docs{,-en}/config/config.md` 删 contribution 章节;`player-commands.md`/`admin-commands.md` 银行行为描述更新。
+
+### 公会累计总贡献度(2026-09-08)
+- `guild_data` 表新增 `total_contribution BIGINT DEFAULT 0`(SchemaManager 迁移兼容已有库)。
+- `GuildData` 模型新增 `totalContribution: Long = 0`。
+- `GuildRepository.mapGuildData` 读取新列;新增 `incrementTotalContribution(guildId, amount)` 原子 SQL。
+- `GuildLifecycleRepository.createGuild` INSERT 包含 `total_contribution = 0`。
+- `AdminContributionCommandHandler` 的 `add`(单人和 `-all`)成功后调用 `guildRepository.incrementTotalContribution`;`set`/`clear` 不影响公会总贡献度(仅管理员操作改变)。
+- PAPI 新增 `%kaguilds_guild_contribution%`;中英文文档已更新。
+
 ## 进行中(可继续)
 
 - 指令层第一轮结构拆分完成；可抽公共命令辅助组件(权限检查/确认提示)。
@@ -56,12 +78,12 @@
 
 | 优先级 | 项 | 说明 |
 |--------|----|------|
-| 高 | 贡献度扣减仍是先查后改 | 需补条件更新或事务，防并发超额扣减 |
-| 高 | 内存缓存线程安全未收敛 | `playerGuildCache`、`guildChatPlayers`、`pendingConfirmations`、任务缓存仍是普通 `MutableMap`/`MutableSet` |
+| 高 | 内存缓存线程安全未收敛 | `guildChatPlayers`、`pendingConfirmations`、任务缓存仍是普通 `MutableMap`/`MutableSet`;`playerGuildCache` 已由 `MembershipCache` 收敛(2026-09-07) |
 | 中 | 任务奖励两步提交原子性 | 写凭证后执行命令间异常退出会凭证占用但奖励未发；建议 reward outbox/补偿队列 |
-| 中 | 仓库保存错误类型细化 | 区分数据库异常 vs 锁已失效 |
+| 中 | 仓库保存错误类型细化 | 区分数据库异常 vs 锁已失效(已加部分区分日志) |
 | 低 | 指令 Handler 重复 `checkPermission`/`sendConfirmHint` | 可收敛为公共辅助类，不改行为 |
-| 低 | Gradle wrapper 外网超时 | 当前用本机 Gradle 绕过 |
+| 低 | Gradle wrapper 外网超时 | 当前用本机 Gradle 绕过(Windows 用 JDK 12 + wrapper --offline) |
+| 低 | P3/P4 收尾 | `NetworkBus` 离线补发、清理 `NotifyStaff` 死代码、单服/两服/断网降级实测 |
 
 ## 跨服代理注意事项(红线)
 - 代理插件 `/home/plugins/KaProxy`，Guilds 模块处理公会消息；核心通道 `kaguilds:chat`。

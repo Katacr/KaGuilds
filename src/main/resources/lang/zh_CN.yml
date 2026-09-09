@@ -1,4 +1,4 @@
-# 指令帮助菜单
+﻿# 指令帮助菜单
 help-header: "§8§m-------§r §bKaGuilds 帮助菜单 §8§m-------"
 help-footer: "§8---------- §7页码: §e%page% §7/ §e%max% §8----------"
 help-next-page: "§8提示: 输入 §6/kg help %page% §8查看下一页"
@@ -180,7 +180,6 @@ bank-usage: "§c用法: /kg bank <add/take/log> [金额/页码]"
 bank-invalid-amount: "§c请输入有效的正整数金额。"
 bank-insufficient-player: "§c你账户里的金币不足！"
 bank-insufficient-guild: "§c公会金库里的金币不足！"
-bank-insufficient-contribution: "§c你的贡献度不足！需要 %required% 贡献度，当前仅有 %current%。"
 bank-full: "§c公会金库已满，无法再存入更多金币（上限: %max%）。"
 bank-add-success: "§a成功向金库捐赠了 §f%amount% §a金币。"
 bank-get-success: "§a成功从金库提取了 §f%amount% §a金币。"
@@ -518,6 +517,7 @@ papi-role-member: "成员"
 papi-role-none: "游客"
 papi-boolean-true: "true"
 papi-boolean-false: "false"
+papi-no-data: "无数据"
 papi-contribution: "贡献度"
 papi-reset-countdown: "%h%小时%m%分钟%s%秒"
 # 管理员 release 命令

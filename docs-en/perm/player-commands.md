@@ -86,7 +86,7 @@ Only one pending action is stored per player. Starting another action replaces t
 
 - Bank deposit and withdrawal amounts must be positive integers. These operations require Vault and a working economy provider.
 - Deposits cannot exceed the bank limit for the current guild level in `levels.yml`.
-- Withdrawals may consume personal contribution points according to `config.yml`.
+- Bank operations do not affect personal contribution points; contribution is managed by admins via `/kg admin contribution`.
 - Available buff keys and prices are defined in `buffs.yml`.
 - Vault numbers range from `1` to `9`; players can only open vaults unlocked by the current guild level.
 

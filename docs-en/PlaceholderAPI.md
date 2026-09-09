@@ -43,6 +43,7 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_max_members%` | Maximum members | `20` |
 | `%kaguilds_member_list%` | Member list | `Player1, Player2, Player3` |
 | `%kaguilds_contribution%` | Personal contribution | `500` |
+| `%kaguilds_guild_contribution%` | Guild cumulative total contribution | `12000` |
 
 ### Rank Permissions
 
@@ -69,3 +70,12 @@ All KaGuilds placeholders use `kaguilds` as the prefix:
 | `%kaguilds_pending_requests%` | Pending join requests | `3` |
 | `%kaguilds_has_guild%` | Player has a guild | `Yes/No` |
 | `%kaguilds_reset_countdown%` | Daily task reset countdown (HH:MM:SS) | `5h 30m 20s` |
+
+### Leaderboards
+
+| Placeholder | Description | Example |
+|:-----------|:------------|:--------|
+| `%kaguilds_top_wins_N%` | Nth guild by wins (descending) | `1. My Guild Steve 10` |
+| `%kaguilds_top_contribution_N%` | Nth guild by total contribution (descending) | `1. My Guild Steve 900` |
+
+Format: `Rank. GuildName OwnerName Value`. Returns "No Data" if rank is out of range.

@@ -86,7 +86,7 @@ class BankService(private val plugin: KaGuilds) {
 
             when (action) {
                 "add" -> deposit(player, playerUuid, playerName, guildId, guildData.balance, amount, amountLong, maxBank, econ)
-                "take" -> withdraw(player, playerUuid, playerName, guildId, guildData.balance, amount, amountLong, econ)
+                "take" -> withdraw(player, playerName, guildId, guildData.balance, amount, amountLong, econ)
                 else -> plugin.runMain {
                     player.sendMessage(lang.get("bank-usage"))
                 }
@@ -130,13 +130,6 @@ class BankService(private val plugin: KaGuilds) {
                 if (plugin.dbManager.bankRepository.depositGuildBalanceIfWithinLimit(guildId, amount, maxBank)) {
                     plugin.dbManager.bankRepository.logBankTransaction(guildId, playerName, "ADD", amount)
 
-                    val contributionEnabled = plugin.config.getBoolean("contribution.enabled", true)
-                    if (contributionEnabled) {
-                        val bankDepositRatio = plugin.config.getDouble("contribution.bank-deposit-ratio", 1.0)
-                        val earnedContribution = (amount * bankDepositRatio).toInt()
-                        plugin.dbManager.memberRepository.addContribution(playerUuid, earnedContribution)
-                    }
-
                     plugin.runMain {
                         player.sendMessage(lang.get("bank-add-success", "amount" to amountLong.toString()))
                         plugin.guildService.dispatchBankNotification(guildId, playerName, "deposit", amount)
@@ -154,7 +147,6 @@ class BankService(private val plugin: KaGuilds) {
 
     private fun withdraw(
         player: Player,
-        playerUuid: java.util.UUID,
         playerName: String,
         guildId: Int,
         currentBalance: Double,
@@ -171,32 +163,8 @@ class BankService(private val plugin: KaGuilds) {
             return
         }
 
-        val contributionEnabled = plugin.config.getBoolean("contribution.enabled", true)
-        if (contributionEnabled) {
-            val contributionRatio = plugin.config.getDouble("contribution.bank-withdraw-ratio", 1.0)
-            val requiredContribution = (amount * contributionRatio).toInt()
-            val currentContribution = plugin.dbManager.memberRepository.getPlayerContribution(playerUuid)
-
-            if (currentContribution < requiredContribution) {
-                plugin.runMain {
-                    player.sendMessage(lang.get(
-                        "bank-insufficient-contribution",
-                        "required" to requiredContribution.toString(),
-                        "current" to currentContribution.toString()
-                    ))
-                }
-                return
-            }
-        }
-
         if (plugin.dbManager.bankRepository.withdrawGuildBalanceIfEnough(guildId, amount)) {
             plugin.dbManager.bankRepository.logBankTransaction(guildId, playerName, "GET", amount)
-
-            if (contributionEnabled) {
-                val contributionRatio = plugin.config.getDouble("contribution.bank-withdraw-ratio", 1.0)
-                val requiredContribution = (amount * contributionRatio).toInt()
-                plugin.dbManager.memberRepository.addContribution(playerUuid, -requiredContribution)
-            }
 
             plugin.runMain {
                 econ.depositPlayer(player, amount)

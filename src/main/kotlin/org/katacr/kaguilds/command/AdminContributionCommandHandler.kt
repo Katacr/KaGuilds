@@ -74,6 +74,10 @@ class AdminContributionCommandHandler(private val plugin: KaGuilds) {
                     }
                 }
 
+                if (successCount > 0) {
+                    plugin.dbManager.guildRepository.incrementTotalContribution(guildId, amount.toLong() * successCount)
+                }
+
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     sender.sendMessage(
                         lang.get(
@@ -147,6 +151,10 @@ class AdminContributionCommandHandler(private val plugin: KaGuilds) {
             "add" -> {
                 val amount = parseNonNegativeAmount(sender, args, "admin-contribution-add-usage") ?: return
                 val success = plugin.dbManager.memberRepository.addContribution(targetUuid, amount)
+
+                if (success) {
+                    plugin.dbManager.guildRepository.incrementTotalContribution(guildId, amount.toLong())
+                }
 
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     if (success) {

@@ -136,6 +136,7 @@ class SchemaManager(private val db: DatabaseManager) {
 
             addColumnIfMissing(statement, "guild_data", "icon_item_model VARCHAR(128) DEFAULT NULL")
             addColumnIfMissing(statement, "guild_data", "icon_custom_data INT DEFAULT 0")
+            addColumnIfMissing(statement, "guild_data", "total_contribution BIGINT DEFAULT 0")
         }
     }
 

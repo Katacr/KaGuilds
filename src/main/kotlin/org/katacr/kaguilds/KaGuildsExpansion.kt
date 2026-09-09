@@ -37,6 +37,21 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             return getResetCountdown()
         }
 
+        // 排行榜变量：%kaguilds_top_wins_N%、%kaguilds_top_contribution_N%
+        val topWinsMatch = Regex("^top_wins_(\\d+)$").matchEntire(params)
+        if (topWinsMatch != null) {
+            val rank = topWinsMatch.groupValues[1].toIntOrNull() ?: return ""
+            val guild = plugin.dbManager.guildRepository.getTopGuildByWins(rank) ?: return lang.get("papi-no-data")
+            return "$rank. ${guild.name} ${guild.ownerName ?: "?"} ${guild.pvpWins}"
+        }
+
+        val topContributionMatch = Regex("^top_contribution_(\\d+)$").matchEntire(params)
+        if (topContributionMatch != null) {
+            val rank = topContributionMatch.groupValues[1].toIntOrNull() ?: return ""
+            val guild = plugin.dbManager.guildRepository.getTopGuildByContribution(rank) ?: return lang.get("papi-no-data")
+            return "$rank. ${guild.name} ${guild.ownerName ?: "?"} ${guild.totalContribution}"
+        }
+
         // 1. 获取该玩家所属的公会 ID
         val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
             ?: return lang.get("papi-no-guild")
@@ -57,6 +72,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "max_members" -> guild.maxMembers.toString()
             "exp" -> guild.exp.toString()
             "contribution" -> plugin.dbManager.memberRepository.getPlayerContribution(player.uniqueId).toString()
+            "guild_contribution" -> guild.totalContribution.toString()
             "need_exp" -> {
                 // 获取下一级所需经验
                 val nextLevel = guild.level + 1

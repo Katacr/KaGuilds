@@ -5,9 +5,9 @@ import org.bukkit.Location
 import org.bukkit.inventory.ItemStack
 import org.bukkit.util.io.BukkitObjectInputStream
 import org.bukkit.util.io.BukkitObjectOutputStream
-import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.util.Base64
 
 object SerializationUtil {
 
@@ -22,7 +22,7 @@ object SerializationUtil {
                     dataOutput.writeObject(item)
                 }
             }
-            return Base64Coder.encodeLines(outputStream.toByteArray())
+            return Base64.getMimeEncoder().encodeToString(outputStream.toByteArray())
         } catch (e: Exception) {
             throw IllegalStateException("无法序列化物品栏", e)
         }
@@ -30,7 +30,7 @@ object SerializationUtil {
 
     // 反序列化：字符串 -> 物品数组
     fun itemStackArrayFromBase64(data: String): Array<ItemStack?> {
-        val inputStream = ByteArrayInputStream(Base64Coder.decodeLines(data))
+        val inputStream = ByteArrayInputStream(Base64.getMimeDecoder().decode(data))
         BukkitObjectInputStream(inputStream).use { dataInput ->
             val size = dataInput.readInt()
             val items = arrayOfNulls<ItemStack>(size)

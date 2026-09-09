@@ -15,16 +15,17 @@
   - `TaskRepository.kt`(513)：任务进度查询/递增/重置/完成列表/过期检查/奖励凭证写入。
   - `GuildLifecycleRepository.kt`(132)：`createGuild`/`deleteGuild`/`transferGuildOwnership` 跨表事务。
   - `PvPRepository.kt`(48)：战绩计数 + `guild_pvp_history` 写入。
-- `model/GuildModels.kt`(62)：`GuildData`、`MemberData`、`GuildTaskProgress`。
+- `model/GuildModels.kt`(66)：`GuildData`(含 `totalContribution`)、`MemberData`、`GuildTaskProgress`。
 
 ## 关键决策
 
 - 旧方法名保留为兼容委托，逐步迁移调用点到 `dbManager.xxxRepository.xxx()`(部分已完成)。
 - 仓库锁保存校验 `last_editor`，降低关闭事件覆盖新仓库数据风险。
-- 余额更新走条件更新(防超存/超取)，贡献度更新尚未条件化(见待办)。
+- 余额更新走条件更新(防超存/超取)，贡献度更新走原子 SQL(`UPDATE ... SET contribution = contribution + ?`)无先查后改竞态。
+- 公会累计总贡献度(`total_contribution`)走 `incrementTotalContribution` 原子 SQL，`set`/`clear` 不影响公会总贡献度。
 
 ## 待办
 
-- 贡献度扣减改条件更新/事务(高优先级)。
-- 仓库保存区分错误类型(数据库异常 vs 锁失效)。
+- 贡献度扣减条件更新(2026-09-08 已解除高风险)：银行存取款不再联动贡献度(`BankService` 改动)；现仅管理员命令 `/kg admin contribution` 直接写贡献度，走 `UPDATE ... SET contribution = contribution + ?` 原子 SQL，无先查后改竞态。
+- 仓库保存区分错误类型(数据库异常 vs 锁失效)——已加部分区分日志(P2)，可继续细化错误类型供上层提示。
 - 任务进度写入事务边界已在 `TaskRepository` 内统一，仍需核对其他调用点是否绕过。

@@ -157,6 +157,9 @@ class KaGuilds : JavaPlugin() {
     override fun onEnable() {
         // 1. 基础配置与语言
         saveDefaultConfig()
+        val configFile = File(dataFolder, "config.yml")
+        ConfigUpdater.checkAndUpdateConfig(this, configFile)
+        reloadConfig()
         langManager = LanguageManager(this)
         langManager.load()
 
@@ -289,7 +292,7 @@ class KaGuilds : JavaPlugin() {
         loadTasksConfig()
         loadEnglishConfig()
         taskManager.reload()
-        langManager.load()
+        langManager.reload()
         menuManager.reload()
         sender.sendMessage(langManager.get("reload-success"))
     }
