@@ -5,19 +5,22 @@ import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.Bukkit.getPluginManager
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.repository.PvPRepository
 import org.katacr.kaguilds.util.MessageUtil
+import org.katacr.kaguilds.util.SerializationUtil
+import java.io.File
 import java.util.UUID
 
 class PvPManager(private val plugin: KaGuilds) {
 
     // 记录邀请：接收公会ID -> 发起公会ID
-    val pendingInvites = mutableMapOf<Int, Int>()
+    val pendingInvites = java.util.concurrent.ConcurrentHashMap<Int, Int>()
     // 记录邀请的时间戳，用于超时处理
-    val inviteTimestamp = mutableMapOf<Int, Long>()
+    val inviteTimestamp = java.util.concurrent.ConcurrentHashMap<Int, Long>()
 
     // 当前战斗状态（后续步骤使用）
     var currentMatch: ActiveMatch? = null
@@ -25,11 +28,22 @@ class PvPManager(private val plugin: KaGuilds) {
     // 记录当前的BossBar
     private var pvpBar: BossBar? = null
 
-    // 记录玩家的背包快照，用于战斗结束时恢复
-    private val inventorySnapshots = mutableMapOf<UUID, Array<org.bukkit.inventory.ItemStack?>>()
+    // 当前准备/战斗计时器句柄，用于 stopBattle 时显式取消，防止旧计时器污染新比赛
+    private var readyTask: org.bukkit.scheduler.BukkitTask? = null
+    private var matchTask: org.bukkit.scheduler.BukkitTask? = null
+
+    // 记录玩家的背包快照，用于战斗结束时恢复（含主背包、盔甲、副手）
+    private val inventorySnapshots = java.util.concurrent.ConcurrentHashMap<UUID, PvPSnapshot>()
+
+    /** 玩家参战前的完整背包快照。 */
+    private data class PvPSnapshot(
+        val contents: Array<org.bukkit.inventory.ItemStack?>,
+        val armor: Array<org.bukkit.inventory.ItemStack?>,
+        val offhand: org.bukkit.inventory.ItemStack?
+    )
 
     // 记录公会上次战斗时间，用于冷却检查：公会ID -> 时间戳
-    private val guildBattleCooldown = mutableMapOf<Int, Long>()
+    private val guildBattleCooldown = java.util.concurrent.ConcurrentHashMap<Int, Long>()
 
     /**
      * 发起挑战
@@ -37,8 +51,14 @@ class PvPManager(private val plugin: KaGuilds) {
     fun sendChallenge(senderGuildId: Int, targetGuildId: Int): Boolean {
         if (currentMatch != null) return false // 竞技场已被占用
 
+        // 清理超过 60 秒未被接受的过期邀请，避免缓存无限增长
+        val now = System.currentTimeMillis()
+        inviteTimestamp.entries.removeIf { now - it.value > 60_000 }
+        inviteTimestamp.keys.forEach { if (!pendingInvites.containsKey(it)) inviteTimestamp.remove(it) }
+        pendingInvites.keys.forEach { if (!inviteTimestamp.containsKey(it)) pendingInvites.remove(it) }
+
         pendingInvites[targetGuildId] = senderGuildId
-        inviteTimestamp[targetGuildId] = System.currentTimeMillis()
+        inviteTimestamp[targetGuildId] = now
         return true
     }
 
@@ -51,11 +71,12 @@ class PvPManager(private val plugin: KaGuilds) {
         val currentTime = System.currentTimeMillis()
         val lastBattle = guildBattleCooldown[guildId]
 
-        return if (lastBattle != null && currentTime - lastBattle < cooldown) {
-            ((cooldown - (currentTime - lastBattle)) / 1000).toInt()
-        } else {
-            0
+        if (lastBattle == null || currentTime - lastBattle >= cooldown) {
+            // 冷却已过：顺带清理过期条目，避免 guildBattleCooldown 无限增长
+            if (lastBattle != null) guildBattleCooldown.remove(guildId)
+            return 0
         }
+        return ((cooldown - (currentTime - lastBattle)) / 1000).toInt()
     }
 
     /**
@@ -96,8 +117,13 @@ class PvPManager(private val plugin: KaGuilds) {
      * 保存玩家背包快照（不自动清空）
      */
     fun takeSnapshot(player: Player) {
-        // 深度备份当前背包
-        inventorySnapshots[player.uniqueId] = player.inventory.contents.clone()
+        // 深度备份完整背包：主背包(0-35) + 盔甲(36-39) + 副手
+        inventorySnapshots[player.uniqueId] = PvPSnapshot(
+            contents = player.inventory.contents.clone(),
+            armor = player.inventory.armorContents.clone(),
+            offhand = player.inventory.itemInOffHand?.clone()
+        )
+        persistSnapshots()
     }
 
     /**
@@ -105,11 +131,86 @@ class PvPManager(private val plugin: KaGuilds) {
      */
     fun restoreSnapshot(player: Player) {
         val lang = plugin.langManager
-        val savedItems = inventorySnapshots.remove(player.uniqueId)
-        if (savedItems != null) {
-            player.inventory.contents = savedItems
+        val snapshot = inventorySnapshots.remove(player.uniqueId)
+        if (snapshot != null) {
+            player.inventory.clear()
+            player.inventory.contents = snapshot.contents
+            player.inventory.armorContents = snapshot.armor
+            player.inventory.setItemInOffHand(snapshot.offhand)
+            player.updateInventory()
             player.sendMessage(lang.get("arena-pvp-restore-inventory"))
+            persistSnapshots()
         }
+    }
+
+    /** 快照落盘文件，防止服务器崩溃/重启导致参战玩家装备永久丢失。 */
+    private val snapshotFile: File
+        get() = File(plugin.dataFolder, "pvp_snapshots.yml")
+
+    /**
+     * 将内存中的快照写入磁盘（每次变更后调用，保证崩溃可恢复）。
+     */
+    private fun persistSnapshots() {
+        try {
+            val yaml = YamlConfiguration()
+            inventorySnapshots.forEach { (uuid, snap) ->
+                val base = uuid.toString()
+                yaml.set("$base.contents", SerializationUtil.itemsToBase64(snap.contents))
+                yaml.set("$base.armor", SerializationUtil.itemsToBase64(snap.armor))
+                yaml.set("$base.offhand", snap.offhand?.let { SerializationUtil.itemsToBase64(arrayOf(it)) })
+            }
+            snapshotFile.parentFile?.mkdirs()
+            yaml.save(snapshotFile)
+        } catch (e: Exception) {
+            plugin.logger.warning("保存 PvP 背包快照失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 启动时从磁盘加载未结算的快照（上次异常退出遗留），并尽力恢复在线玩家。
+     */
+    fun loadPersistedSnapshots() {
+        if (!snapshotFile.exists()) return
+        try {
+            val yaml = YamlConfiguration.loadConfiguration(snapshotFile)
+            yaml.getKeys(false).forEach { key ->
+                val uuid = try {
+                    UUID.fromString(key)
+                } catch (e: Exception) {
+                    return@forEach
+                }
+                val contents = yaml.getString("$key.contents")?.let {
+                    SerializationUtil.itemStackArrayFromBase64(it)
+                } ?: return@forEach
+                val armor = yaml.getString("$key.armor")?.let {
+                    SerializationUtil.itemStackArrayFromBase64(it)
+                } ?: arrayOfNulls(4)
+                val offhand = yaml.getString("$key.offhand")?.let {
+                    SerializationUtil.itemStackArrayFromBase64(it).firstOrNull()
+                }
+                inventorySnapshots[uuid] = PvPSnapshot(contents, armor, offhand)
+            }
+            // 在线玩家（插件异常重载场景）立即恢复
+            inventorySnapshots.keys.toList().forEach { uuid ->
+                plugin.server.getPlayer(uuid)?.let { restoreSnapshot(it) }
+            }
+            persistSnapshots()
+            if (inventorySnapshots.isNotEmpty()) {
+                plugin.logger.info("已加载 ${inventorySnapshots.size} 份未结算的 PvP 背包快照。")
+            }
+        } catch (e: Exception) {
+            plugin.logger.warning("加载 PvP 背包快照失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 插件关闭时：尽最大努力恢复在线玩家的快照并落盘遗留快照。
+     */
+    fun restoreAllSnapshotsOnDisable() {
+        inventorySnapshots.keys.toList().forEach { uuid ->
+            plugin.server.getPlayer(uuid)?.let { restoreSnapshot(it) }
+        }
+        persistSnapshots()
     }
 
     /**
@@ -149,7 +250,7 @@ class PvPManager(private val plugin: KaGuilds) {
         // 通知双方公会在其他服务器的玩家
         notifyCrossServerGuildMembers(match)
 
-        object : org.bukkit.scheduler.BukkitRunnable() {
+        val runnable = object : org.bukkit.scheduler.BukkitRunnable() {
             var timeLeft = readyTime
 
             override fun run() {
@@ -192,7 +293,8 @@ class PvPManager(private val plugin: KaGuilds) {
 
                 timeLeft--
             }
-        }.runTaskTimer(plugin, 0L, 20L)
+        }
+        readyTask = runnable.runTaskTimer(plugin, 0L, 20L)
     }
 
     /**
@@ -218,21 +320,7 @@ class PvPManager(private val plugin: KaGuilds) {
      * 发送跨服公会战通知
      */
     private fun sendCrossServerBattleNotify(guildId: Int, serverId: String, ownGuildName: String, enemyGuildName: String) {
-
-        val out = java.io.ByteArrayOutputStream()
-        val dos = java.io.DataOutputStream(out)
-        try {
-            dos.writeUTF("PvPBattleStart")
-            dos.writeInt(guildId)
-            dos.writeUTF(serverId)
-            dos.writeUTF(ownGuildName)
-            dos.writeUTF(enemyGuildName)
-
-            // 使用第一个在线玩家发送跨服消息
-            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-        } catch (e: Exception) {
-            plugin.logger.warning("发送跨服公会战通知失败: ${e.message}")
-        }
+        plugin.networkBus.send(org.katacr.kaguilds.util.NetworkCodec.encodePvPBattleStart(guildId, serverId, ownGuildName, enemyGuildName))
     }
 
     /**
@@ -337,15 +425,15 @@ class PvPManager(private val plugin: KaGuilds) {
         val match = currentMatch ?: return
         match.totalTime = battleTime
 
-        object : org.bukkit.scheduler.BukkitRunnable() {
+        val runnable = object : org.bukkit.scheduler.BukkitRunnable() {
             var timeLeft = battleTime
 
             override fun run() {
                 val m = currentMatch ?: run { removeBossBar(); cancel(); return }
 
                 if (timeLeft <= 0) {
-                    // 时间到，判定当前存活人数
-                    checkWinCondition() // 如果两边都有人，checkWinCondition 会触发平局逻辑
+                    // 时间到，强制结算（按存活人数判定，双方人数相同则平局）
+                    checkWinCondition(forceCutoff = true)
                     cancel()
                     return
                 }
@@ -356,7 +444,8 @@ class PvPManager(private val plugin: KaGuilds) {
 
                 timeLeft--
             }
-        }.runTaskTimer(plugin, 0L, 20L)
+        }
+        matchTask = runnable.runTaskTimer(plugin, 0L, 20L)
     }
 
 
@@ -380,8 +469,12 @@ class PvPManager(private val plugin: KaGuilds) {
         val match = currentMatch ?: return
         val started = match.isStarted // 记录战斗是否真正开始过
 
-        // 1. 立即停止 UI 和 逻辑任务
+        // 1. 立即停止 UI 和 逻辑任务（显式取消计时器，避免旧计时器污染下一场比赛）
         removeBossBar()
+        readyTask?.cancel()
+        readyTask = null
+        matchTask?.cancel()
+        matchTask = null
 
         if (started) {
             // --- 场景 A: 战斗已正式开始过，进行结算 ---

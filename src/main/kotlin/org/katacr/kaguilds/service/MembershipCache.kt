@@ -29,6 +29,12 @@ class MembershipCache(private val plugin: KaGuilds) {
 
     private data class CachedEntry(val guildId: Int?, val expireAt: Long)
 
+    /** 查询结果：区分"确无公会(null)"与"查询失败"。 */
+    private sealed class QueryResult {
+        data class Ok(val guildId: Int?) : QueryResult()
+        object Failed : QueryResult()
+    }
+
     /**
      * 获取玩家所属公会 ID。
      * @param player 用于主线程调用时回退到"返回旧值 + 后台刷新"，避免阻塞主线程。
@@ -53,15 +59,24 @@ class MembershipCache(private val plugin: KaGuilds) {
                 return existing.guildId
             }
             // 完全没有缓存：主线程同步查一次（多数命令/菜单场景可接受一次短查询）
-            val fresh = queryDb(uuid)
-            put(uuid, fresh)
-            return fresh
+            return when (val fresh = queryDb(uuid)) {
+                is QueryResult.Ok -> {
+                    put(uuid, fresh.guildId)
+                    fresh.guildId
+                }
+                // 查询失败：不缓存（避免把失败当"无公会"），返回 null
+                QueryResult.Failed -> null
+            }
         }
 
         // 异步线程或主线程要求最新：同步查库
-        val fresh = queryDb(uuid)
-        put(uuid, fresh)
-        return fresh
+        return when (val fresh = queryDb(uuid)) {
+            is QueryResult.Ok -> {
+                put(uuid, fresh.guildId)
+                fresh.guildId
+            }
+            QueryResult.Failed -> null
+        }
     }
 
     /**
@@ -79,13 +94,21 @@ class MembershipCache(private val plugin: KaGuilds) {
                 refreshAsync(uuid)
                 return existing.guildId
             }
-            val fresh = queryDb(uuid)
-            put(uuid, fresh)
-            return fresh
+            return when (val fresh = queryDb(uuid)) {
+                is QueryResult.Ok -> {
+                    put(uuid, fresh.guildId)
+                    fresh.guildId
+                }
+                QueryResult.Failed -> null
+            }
         }
-        val fresh = queryDb(uuid)
-        put(uuid, fresh)
-        return fresh
+        return when (val fresh = queryDb(uuid)) {
+            is QueryResult.Ok -> {
+                put(uuid, fresh.guildId)
+                fresh.guildId
+            }
+            QueryResult.Failed -> null
+        }
     }
 
     /**
@@ -141,9 +164,13 @@ class MembershipCache(private val plugin: KaGuilds) {
      * 玩家上线时加载缓存（由 GuildListener 调用），并触发任务激活。
      */
     fun loadOnJoin(player: org.bukkit.entity.Player): Int? {
-        val fresh = queryDb(player.uniqueId)
-        put(player.uniqueId, fresh)
-        return fresh
+        return when (val fresh = queryDb(player.uniqueId)) {
+            is QueryResult.Ok -> {
+                put(player.uniqueId, fresh.guildId)
+                fresh.guildId
+            }
+            QueryResult.Failed -> null
+        }
     }
 
     private fun put(uuid: UUID, guildId: Int?) {
@@ -151,19 +178,22 @@ class MembershipCache(private val plugin: KaGuilds) {
         cache[uuid] = CachedEntry(guildId, System.currentTimeMillis() + ttl)
     }
 
-    private fun queryDb(uuid: UUID): Int? {
+    private fun queryDb(uuid: UUID): QueryResult {
         return try {
-            db.memberRepository.getGuildIdByPlayer(uuid)
+            QueryResult.Ok(db.memberRepository.getGuildIdByPlayer(uuid))
         } catch (e: Exception) {
             plugin.logger.warning("查询玩家 $uuid 公会身份失败: ${e.message}")
-            null
+            QueryResult.Failed
         }
     }
 
     private fun refreshAsync(uuid: UUID) {
         plugin.runAsync {
-            val fresh = queryDb(uuid)
-            put(uuid, fresh)
+            when (val fresh = queryDb(uuid)) {
+                is QueryResult.Ok -> put(uuid, fresh.guildId)
+                // 查询失败：保留旧缓存，不覆盖为"无公会"
+                QueryResult.Failed -> {}
+            }
         }
     }
 }

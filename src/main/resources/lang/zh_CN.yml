@@ -36,6 +36,7 @@ desc-upgrade: "升级公会等级"
 desc-transfer: "转让公会"
 desc-pvp: "公会战相关指令"
 desc-menu: "打开公会主菜单"
+desc-list: "查看服务器全部公会列表"
 
 # 通用错误消息
 no-permission: "§c你没有权限执行此指令。"
@@ -168,6 +169,7 @@ owner-cannot-leave: "§c会长无法直接退出公会，请先转让会长位�
 
 delete-only-owner: "§c只有会长可以解散公会。"
 delete-success: "§a公会已成功解散。"
+delete-notify: "§c§l[公会公告] §e你的公会已被解散。"
 
 rename-usage: "§c用法: /kg rename <新名称>"
 rename-only-owner: "§c只有会长可以修改公会名称。"
@@ -423,7 +425,8 @@ admin-task-reset-success: "§a任务 %task_key% 已重置"
 admin-task-reset-failed: "§c重置任务失败"
 admin-task-add-success: "§a任务 %task_key% 的进度已增加 %amount%"
 admin-task-add-failed: "§c增加任务进度失败"
-admin-task-add-require-amount: "§c用法: /kg admin task #ID <任务键> add <数值>"
+admin-task-add-require-amount: "§c用法: /kg admin task #ID <任务键> add <数值> [玩家名]"
+admin-task-add-require-player: "§c每日任务需指定玩家名: /kg admin task #ID <任务键> add <数值> <玩家名>"
 
 # 贡献度管理
 admin-contribution-usage: "§c用法: /kg admin contribution #ID <玩家名|-all> <set|add|clear> [数值]"

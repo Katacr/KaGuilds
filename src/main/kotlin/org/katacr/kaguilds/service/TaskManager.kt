@@ -17,19 +17,19 @@ import kotlin.math.roundToInt
  * 负责管理公会任务系统的配置、进度跟踪和奖励执行
  */
 class TaskManager(val plugin: KaGuilds) {
-    private val tasksByType = mutableMapOf<String, MutableList<TaskDefinition>>()
-    val guildDoneCache = mutableMapOf<Int, MutableSet<String>>()
-    val dailyDoneCache = mutableMapOf<UUID, MutableSet<String>>()
+    private val tasksByType = java.util.concurrent.ConcurrentHashMap<String, MutableList<TaskDefinition>>()
+    val guildDoneCache = java.util.concurrent.ConcurrentHashMap<Int, MutableSet<String>>()
+    val dailyDoneCache = java.util.concurrent.ConcurrentHashMap<UUID, MutableSet<String>>()
 
     // BossBar 缓存: PlayerUUID -> TaskKey -> BossBar (个人任务)
-    private val bossBarCache = mutableMapOf<UUID, MutableMap<String, org.bukkit.boss.BossBar>>()
+    private val bossBarCache = java.util.concurrent.ConcurrentHashMap<UUID, MutableMap<String, org.bukkit.boss.BossBar>>()
     // 全局任务 BossBar 缓存: GuildId -> TaskKey -> BossBar (同一公会的所有玩家共享)
-    private val globalBossBarCache = mutableMapOf<Int, MutableMap<String, org.bukkit.boss.BossBar>>()
+    private val globalBossBarCache = java.util.concurrent.ConcurrentHashMap<Int, MutableMap<String, org.bukkit.boss.BossBar>>()
 
     // BossBar 定时器缓存: PlayerUUID -> TaskKey -> TaskId (个人任务)
-    private val bossBarTimerCache = mutableMapOf<UUID, MutableMap<String, Int>>()
+    private val bossBarTimerCache = java.util.concurrent.ConcurrentHashMap<UUID, MutableMap<String, Int>>()
     // 全局任务 BossBar 定时器缓存: GuildId -> TaskKey -> TaskId
-    private val globalBossBarTimerCache = mutableMapOf<Int, MutableMap<String, Int>>()
+    private val globalBossBarTimerCache = java.util.concurrent.ConcurrentHashMap<Int, MutableMap<String, Int>>()
 
     /**
      * 任务显示配置数据类
@@ -63,7 +63,7 @@ class TaskManager(val plugin: KaGuilds) {
         val display: TaskDisplay?  // 任务菜单显示配置（可选）
     )
 
-    val taskDefinitions = mutableMapOf<String, TaskDefinition>()
+    val taskDefinitions = java.util.concurrent.ConcurrentHashMap<String, TaskDefinition>()
 
     // 午夜缓存检查定时器
     private val midnightTimer = Timer("KaGuilds-Midnight-Checker", true)
@@ -195,6 +195,20 @@ class TaskManager(val plugin: KaGuilds) {
     }
 
     /**
+     * 插件关闭时清理全部任务 BossBar 与定时器，避免玩家屏幕残留进度条与缓存泄漏。
+     */
+    fun shutdown() {
+        bossBarCache.values.forEach { m -> m.values.forEach { it.removeAll() } }
+        bossBarCache.clear()
+        globalBossBarCache.values.forEach { m -> m.values.forEach { it.removeAll() } }
+        globalBossBarCache.clear()
+        bossBarTimerCache.values.forEach { m -> m.values.forEach { id -> if (id != -1) plugin.server.scheduler.cancelTask(id) } }
+        bossBarTimerCache.clear()
+        globalBossBarTimerCache.values.forEach { m -> m.values.forEach { id -> if (id != -1) plugin.server.scheduler.cancelTask(id) } }
+        globalBossBarTimerCache.clear()
+    }
+
+    /**
      * 启动任务重置检查任务
      * 根据配置的 reset_time 在指定时间触发重置
      */
@@ -296,54 +310,7 @@ class TaskManager(val plugin: KaGuilds) {
      * @param activeGuildIds 活跃公会ID列表
      */
     private fun calculateInterestForActiveGuilds(activeGuildIds: List<Int>) {
-        val today = getTodayDateLong()
-
-        val updatedGuilds = mutableListOf<Int>()
-
-        activeGuildIds.forEach { guildId ->
-            val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return@forEach
-
-            val lastInterestDate = guildData.lastInterestDate
-
-            // 计算距离上次计息的天数
-            val daysSinceLastInterest = calculateDaysBetween(lastInterestDate, today)
-
-            if (daysSinceLastInterest > 0) {
-                // 获取该等级的利息率
-                val interestRate = getInterestRate(guildData.level)
-                if (interestRate == null || interestRate <= 0) {
-
-                    return@forEach
-                }
-
-                // 复利计算：每天的利息都会累加到本金中
-                val rateMultiplier = 1 + (interestRate / 100.0)
-                val finalBalance = guildData.balance * rateMultiplier.pow(daysSinceLastInterest.toDouble())
-                val totalInterest = ((finalBalance - guildData.balance) * 100).roundToInt() / 100.0
-
-                if (totalInterest > 0) {
-                    // 更新公会余额
-                    val success = plugin.dbManager.bankRepository.updateGuildBalance(guildId, totalInterest)
-
-                    if (success) {
-                        // 记录利息日志
-                        plugin.dbManager.bankRepository.logBankTransaction(
-                            guildId,
-                            "系统",
-                            "INTEREST",
-                            totalInterest
-                        )
-
-                        updatedGuilds.add(guildId)
-                    }
-                }
-            }
-        }
-
-        // 批量更新计息日期
-        if (updatedGuilds.isNotEmpty()) {
-            plugin.dbManager.guildRepository.batchUpdateLastInterestDate(updatedGuilds, today)
-        }
+        plugin.interestService.settleAll(activeGuildIds)
     }
     /**
      * @param lastTimestamp 上次时间戳
@@ -353,8 +320,10 @@ class TaskManager(val plugin: KaGuilds) {
     private fun calculateDaysBetween(lastTimestamp: Long, currentTimestamp: Long): Int {
         if (lastTimestamp == 0L) return 1 // 首次计息，按1天计算
 
-        val lastDate = java.time.LocalDate.ofEpochDay(lastTimestamp / 86400000)
-        val currentDate = java.time.LocalDate.ofEpochDay(currentTimestamp / 86400000)
+        // 用系统时区把"本地 0 点毫秒"还原为日期，避免直接除以 86400000 按 UTC 计算导致差一天
+        val zone = java.time.ZoneId.systemDefault()
+        val lastDate = java.time.Instant.ofEpochMilli(lastTimestamp).atZone(zone).toLocalDate()
+        val currentDate = java.time.Instant.ofEpochMilli(currentTimestamp).atZone(zone).toLocalDate()
 
         return (currentDate.toEpochDay() - lastDate.toEpochDay()).toInt()
     }
@@ -447,89 +416,87 @@ class TaskManager(val plugin: KaGuilds) {
     fun handleEvent(player: Player, eventType: String, target: String = "*", increment: Int = 1) {
         val tasks = tasksByType[eventType] ?: return
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: return
+        val playerUuid = player.uniqueId
 
-
-
-        for (task in tasks) {
-            // 基础匹配
-            if (task.target != "*" && !task.target.equals(target, ignoreCase = true)) {
-                continue
-            }
-
-            // 内存检查 (如果内存没有，isTaskDone 会自动去数据库预热)
-            val isDone = isTaskDone(guildId, player, task)
-            if (isDone) {
-                continue
-            }
-
-
-
-            // 3. 数据库原子更新
-            val result = plugin.dbManager.taskRepository.incrementTaskProgress(
-                guildId, task.key,
-                if (task.type == "daily") player.uniqueId else null,
-                increment, task.amount
-            )
-
-            if (result != null) {
-                // 显示任务进度 BossBar
-                if (task.type == "daily" && !result.completed) {
-                    // 个人任务 BossBar
-                    if (plugin.config.getBoolean("task.daily_boss_bar", true)) {
-                        showTaskProgressBossBar(player, task, result.progress, result.target)
-                    }
-                } else if (task.type == "global" && !result.completed) {
-                    // 全局任务 BossBar
-                    if (plugin.config.getBoolean("task.global_boss_bar", true)) {
-                        showGlobalTaskProgressBossBar(guildId, task, result.progress, result.target)
-                    }
-                }
-            } else {
-                plugin.logger.warning("[Task] 任务 ${task.key} 进度更新失败，返回 null")
-                return
-            }
-
-            if (result.completed) {
-                // 移除该任务的 BossBar
-                if (task.type == "daily") {
-                    // 取消并清理个人任务 BossBar 定时器
-                    val oldTaskId = bossBarTimerCache[player.uniqueId]?.get(task.key)
-                    if (oldTaskId != null && oldTaskId != -1) {
-                        Bukkit.getScheduler().cancelTask(oldTaskId)
-                        bossBarTimerCache[player.uniqueId]?.remove(task.key)
-                    }
-                    // 移除个人任务 BossBar
-                    bossBarCache[player.uniqueId]?.get(task.key)?.removeAll()
-                    bossBarCache[player.uniqueId]?.remove(task.key)
-                } else if (task.type == "global") {
-                    // 取消并清理全局任务 BossBar 定时器
-                    val oldTaskId = globalBossBarTimerCache[guildId]?.get(task.key)
-                    if (oldTaskId != null && oldTaskId != -1) {
-                        Bukkit.getScheduler().cancelTask(oldTaskId)
-                        globalBossBarTimerCache[guildId]?.remove(task.key)
-                    }
-                    // 移除全局任务 BossBar
-                    globalBossBarCache[guildId]?.get(task.key)?.removeAll()
-                    globalBossBarCache[guildId]?.remove(task.key)
-
-                    // 跨服通知移除 BossBar
-                    if (plugin.isProxyEnabled()) {
-                        sendGlobalTaskCompletedToProxy(guildId, task.key, task.name)
-                    }
+        // 事件在主线程触发；数据库更新与缓存判断放异步，BossBar/奖励等 Bukkit 操作回主线程。
+        plugin.runAsync {
+            for (task in tasks) {
+                // 基础匹配
+                if (task.target != "*" && !task.target.equals(target, ignoreCase = true)) {
+                    continue
                 }
 
-                // 更新内存，确保下次直接从内存返回 true
-                if (task.type == "daily") {
-                    dailyDoneCache.getOrPut(player.uniqueId) { mutableSetOf() }.add(task.key)
+                // 内存检查 (如果内存没有，isTaskDone 会自动去数据库预热)
+                if (isTaskDone(guildId, player, task)) {
+                    continue
+                }
+
+                // 3. 数据库原子更新
+                val result = plugin.dbManager.taskRepository.incrementTaskProgress(
+                    guildId, task.key,
+                    if (task.type == "daily") playerUuid else null,
+                    increment, task.amount
+                )
+
+                if (result == null) {
+                    plugin.logger.warning("[Task] 任务 ${task.key} 进度更新失败，返回 null")
+                    return@runAsync
+                }
+
+                if (result.completed) {
+                    // 更新内存，确保下次直接从内存返回 true
+                    if (task.type == "daily") {
+                        dailyDoneCache.getOrPut(playerUuid) { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(task.key)
+                    } else {
+                        guildDoneCache.getOrPut(guildId) { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(task.key)
+                    }
+
+                    // BossBar 清理、跨服通知、奖励动作都涉及 Bukkit API，回主线程
+                    plugin.runMain {
+                        clearTaskBossBar(playerUuid, guildId, task)
+                        if (task.type == "global" && plugin.isProxyEnabled()) {
+                            sendGlobalTaskCompletedToProxy(guildId, task.key, task.name)
+                        }
+                        if (result.rewardGranted) {
+                            grantTaskReward(guildId, task, player)
+                        }
+                    }
                 } else {
-                    guildDoneCache.getOrPut(guildId) { mutableSetOf() }.add(task.key)
-                }
-
-                if (result.rewardGranted) {
-                    executeTaskActions(player, guildId, task)
-                    notifyTaskCompletion(player, task, guildId)
+                    // 未完成：显示进度 BossBar（主线程）
+                    val showDaily = task.type == "daily" && plugin.config.getBoolean("task.daily_boss_bar", true)
+                    val showGlobal = task.type == "global" && plugin.config.getBoolean("task.global_boss_bar", true)
+                    if (showDaily) {
+                        plugin.runMain { showTaskProgressBossBar(player, task, result.progress, result.target) }
+                    } else if (showGlobal) {
+                        plugin.runMain { showGlobalTaskProgressBossBar(guildId, task, result.progress, result.target) }
+                    }
                 }
             }
+        }
+    }
+
+    /** 清理某任务完成后的 BossBar 与定时器（须在主线程调用）。 */
+    private fun clearTaskBossBar(playerUuid: UUID, guildId: Int, task: TaskDefinition) {
+        if (task.type == "daily") {
+            val oldTaskId = bossBarTimerCache[playerUuid]?.get(task.key)
+            if (oldTaskId != null && oldTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(oldTaskId)
+            }
+            bossBarTimerCache[playerUuid]?.remove(task.key)
+            bossBarTimerCache[playerUuid]?.let { if (it.isEmpty()) bossBarTimerCache.remove(playerUuid) }
+            bossBarCache[playerUuid]?.get(task.key)?.removeAll()
+            bossBarCache[playerUuid]?.remove(task.key)
+            bossBarCache[playerUuid]?.let { if (it.isEmpty()) bossBarCache.remove(playerUuid) }
+        } else if (task.type == "global") {
+            val oldTaskId = globalBossBarTimerCache[guildId]?.get(task.key)
+            if (oldTaskId != null && oldTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(oldTaskId)
+            }
+            globalBossBarTimerCache[guildId]?.remove(task.key)
+            globalBossBarTimerCache[guildId]?.let { if (it.isEmpty()) globalBossBarTimerCache.remove(guildId) }
+            globalBossBarCache[guildId]?.get(task.key)?.removeAll()
+            globalBossBarCache[guildId]?.remove(task.key)
+            globalBossBarCache[guildId]?.let { if (it.isEmpty()) globalBossBarCache.remove(guildId) }
         }
     }
 
@@ -726,23 +693,42 @@ class TaskManager(val plugin: KaGuilds) {
      * @param target 目标值
      */
     private fun sendGlobalTaskBossBarToProxy(guildId: Int, taskKey: String, taskName: String, progress: Int, target: Int) {
-        val out = plugin.guildService.createDataOutputForTask()
-        out.outputStream.writeUTF("GlobalTaskProgress")
-        out.outputStream.writeInt(guildId)
-        out.outputStream.writeUTF(taskKey)
-        out.outputStream.writeUTF(taskName)
-        out.outputStream.writeInt(progress)
-        out.outputStream.writeInt(target)
+        plugin.networkBus.send(org.katacr.kaguilds.util.NetworkCodec.encodeGlobalTaskProgress(guildId, taskKey, taskName, progress, target))
+    }
 
-        // 借用第一个在线玩家发包
-        plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+    /**
+     * 发放任务奖励（唯一入口）。
+     *
+     * 统一从"已完成凭证"驱动奖励动作，保证玩家正常完成与管理员手动加进度两条路径
+     * 都能真正执行奖励，避免"凭证已写但奖励未发"。
+     *
+     * @param player 奖励归属玩家；每日任务为本人，全局任务可为触发者。为空时回退到本服该公会任意在线成员。
+     */
+    internal fun grantTaskReward(guildId: Int, task: TaskDefinition, player: Player?) {
+        val context = player
+            ?: plugin.server.onlinePlayers.firstOrNull { plugin.membershipCache.getGuildId(it) == guildId }
+        if (context == null) {
+            plugin.logger.warning("[Task] 任务 ${task.key} 已完成，但本服无可用玩家上下文，奖励动作已跳过")
+            return
+        }
+        executeTaskActions(context, guildId, task)
+        notifyTaskCompletion(context, task, guildId)
     }
 
     /**
      * 执行任务完成后的动作
+     * @param player 用于解析玩家占位符/PAPI 的上下文玩家；为空时回退到本服该公会任意在线成员。
      */
-    internal fun executeTaskActions(player: Player, guildId: Int, task: TaskDefinition) {
+    internal fun executeTaskActions(player: Player?, guildId: Int, task: TaskDefinition) {
         val guildData = plugin.dbManager.guildRepository.getGuildData(guildId) ?: return
+
+        // 解析玩家上下文：优先传入玩家，否则取本服该公会任意在线成员（用于控制台/无触发者场景）
+        val context = player
+            ?: plugin.server.onlinePlayers.firstOrNull { plugin.membershipCache.getGuildId(it) == guildId }
+            ?: run {
+                plugin.logger.warning("[Task] 任务 ${task.key} 奖励动作缺少可用玩家上下文，已跳过")
+                return
+            }
 
         for (action in task.actions) {
             try {
@@ -755,15 +741,15 @@ class TaskManager(val plugin: KaGuilds) {
 
                 // 替换变量
                 var processedCommand = command
-                    .replace("{player}", player.name)
-                    .replace("{player_name}", player.name)
-                    .replace("{player_uuid}", player.uniqueId.toString())
+                    .replace("{player}", context.name)
+                    .replace("{player_name}", context.name)
+                    .replace("{player_uuid}", context.uniqueId.toString())
                     .replace("{guild_id}", guildId.toString())
                     .replace("{guild_name}", guildData.name)
 
                 // 处理 PlaceholderAPI 变量
                 if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
-                    processedCommand = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, processedCommand)
+                    processedCommand = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(context, processedCommand)
                 }
 
                 // 转换为 MenuListener 支持的动作类型
@@ -771,11 +757,11 @@ class TaskManager(val plugin: KaGuilds) {
                     "console" -> "console:$processedCommand"
                     "command" -> "command:$processedCommand"
                     "tell" -> "tell:$processedCommand"
-                    else -> return
+                    else -> continue
                 }
 
                 // 复用 MenuListener 的 executeActionLine 方法
-                plugin.menuListener.executeActionLine(player, menuListenerAction)
+                plugin.menuListener.executeActionLine(context, menuListenerAction)
             } catch (e: Exception) {
                 plugin.logger.warning(plugin.langManager.get("task-action-error") + ": $action, ${e.message}")
             }
@@ -815,28 +801,20 @@ class TaskManager(val plugin: KaGuilds) {
      */
     private fun notifyGuildTaskCompletion(guildId: Int, task: TaskDefinition) {
         val lang = plugin.langManager
-        val isProxy = plugin.isProxyEnabled()
+        val message = lang.get("task-global-completed", "name" to task.name)
 
-        if (isProxy) {
-            // 跨服模式：发包给代理端转发
-            val out = plugin.guildService.createDataOutputForTask()
-            out.outputStream.writeUTF("TaskCompleted")
-            out.outputStream.writeInt(guildId)
-            out.outputStream.writeUTF(task.name)
-
-            // 借用第一个在线玩家发包
-            plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-        } else {
-            // 单服模式：直接在当前服务器内查找并发送
+        // 本地先处理（单服/跨服都必须）
+        plugin.runMain {
             plugin.server.onlinePlayers.forEach { p ->
-                if (plugin.playerGuildCache[p.uniqueId] == guildId) {
-                    val message = lang.get("task-global-completed", "name" to task.name)
+                if (plugin.membershipCache.getGuildId(p) == guildId) {
                     val msg = MessageUtil.createText(message)
                     p.spigot().sendMessage(msg)
                     p.playSound(p.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
                 }
             }
         }
+        // 再额外广播给其他服
+        plugin.networkBus.send(org.katacr.kaguilds.util.NetworkCodec.encodeTaskCompleted(guildId, task.name))
     }
 
     /**
@@ -1018,14 +996,7 @@ class TaskManager(val plugin: KaGuilds) {
      * @param taskName 任务名称
      */
     private fun sendGlobalTaskCompletedToProxy(guildId: Int, taskKey: String, taskName: String) {
-        val out = plugin.guildService.createDataOutputForTask()
-        out.outputStream.writeUTF("GlobalTaskCompleted")
-        out.outputStream.writeInt(guildId)
-        out.outputStream.writeUTF(taskKey)
-        out.outputStream.writeUTF(taskName)
-
-        // 借用第一个在线玩家发包
-        plugin.server.onlinePlayers.firstOrNull()?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+        plugin.networkBus.send(org.katacr.kaguilds.util.NetworkCodec.encodeGlobalTaskCompleted(guildId, taskKey, taskName))
     }
 
     /**

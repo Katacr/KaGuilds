@@ -23,9 +23,15 @@
 
 ## 通道约定(不可随意改)
 
-- 核心通道：`kaguilds:chat`。
+- 核心通道：`kaguilds:chat`（常量 `util/NetworkCodec.CHANNEL`）。
+- **协议集中定义**：所有子频道名与字段序列集中在 `util/NetworkCodec`，收发两端都引用它；发送统一走 `service/NetworkBus`（`isProxyEnabled` 校验 + 空服入队补发）。
+- **身份一律用 UUID**（`MemberKick`/`CrossInvite`/`MemberJoin`/`SyncCache`/`DeleteSync`/`GuildTransfer`/`VaultSync`）；玩家名/公会名仅作显示（玩家可能从未进过接收服）。
+- **策略统一**：所有业务包"本地先处理再广播"，不依赖代理回环（KaProxy `broadcast` 排除来源服）。
+- 已删除死子频道：`RequestPlayersSync`/`PlayerJoin`/`CLEAR_GUILD`/`NotifyStaff`。
+- 改字段需全服后端同版本升级；通道名与子频道首字段名不变则 KaProxy 无需改动。
 - 代理转发规则：**排除来源服**广播给其它后端（防回声）。因此后端必须"本地先处理再广播"——这是 P1 的核心修复（原 proxy 模式只发包不本地处理，导致本服功能死循环依赖代理回传，而代理根本不会回传来源服）。
-- 子频道清单：`OnlinePlayersList`、`ServerHello`、`ServerIdentify`、`RequestPlayersSync`、`PlayerJoin`、`Chat`、`TaskCompleted`、`GlobalTaskProgress`、`GlobalTaskCompleted`、`SyncCache`、`CLEAR_GUILD`、`NotifyStaff`(死代码待清理)、`NotifyRequest`、`CrossInvite`、`MemberJoin`、`MemberLeave`、`MemberKick`、`RenameSync`、`BankSync`、`BuffSync`、`DeleteSync`、`AdminRenameSync`、`VaultSync`、`GuildTransfer`、`ForceRefreshMembers`、`PvPBattleStart`。
+- 子频道清单(以 `NetworkCodec` 为准)：`OnlinePlayersList`、`ServerHello`、`ServerIdentify`、`Chat`、`TaskCompleted`、`GlobalTaskProgress`、`GlobalTaskCompleted`、`SyncCache`、`NotifyRequest`、`CrossInvite`、`MemberJoin`、`MemberLeave`、`MemberKick`、`RenameSync`、`BankSync`、`BuffSync`、`DeleteSync`、`AdminRenameSync`、`VaultSync`、`GuildTransfer`、`ForceRefreshMembers`、`PvPBattleStart`。
+  (已删除: `RequestPlayersSync`/`PlayerJoin`/`CLEAR_GUILD`/`NotifyStaff`)
 - `OnlinePlayersList` 字段顺序固定：`writeUTF("OnlinePlayersList")` → `writeInt(count)` → 循环 `writeUTF(name)`/`writeUTF(serverId)`。
 - `ServerHello`(后端→代理) 与 `ServerIdentify`(代理→后端) 为新增子频道，KaProxy 侧识别 `ServerHello` 不广播、定向回 `ServerIdentify`。
 

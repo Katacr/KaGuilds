@@ -10,11 +10,33 @@ import kotlin.collections.forEach
 
 class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListener {
     override fun onPluginMessageReceived(channel: String, player: Player, message: ByteArray) {
+        if (channel != org.katacr.kaguilds.util.NetworkCodec.CHANNEL) return
+        // Bukkit 插件消息回调在 Netty 线程触发；所有分支会操作在线玩家/BossBar/查库，
+        // 统一切回主线程处理，避免异步线程调用 Bukkit API。
+        val data = message.copyOf()
+        if (plugin.server.isPrimaryThread) {
+            handle(data)
+        } else {
+            plugin.runMain { handle(data) }
+        }
+    }
 
-        if (channel != "kaguilds:chat") return
-
+    private fun handle(message: ByteArray) {
         val `in` = DataInputStream(ByteArrayInputStream(message))
-        val subChannel = `in`.readUTF()
+        val subChannel = try {
+            `in`.readUTF()
+        } catch (e: Exception) {
+            return
+        }
+        try {
+            dispatch(subChannel, `in`)
+        } catch (e: Exception) {
+            // 畸形/字段错位的包不应逃逸到网络线程
+            plugin.logger.warning("处理跨服包 $subChannel 失败: ${e.message}")
+        }
+    }
+
+    private fun dispatch(subChannel: String, `in`: DataInputStream) {
         when (subChannel) {
             /*
              * 处理在线玩家完整列表（来自Velocity端）
@@ -49,26 +71,6 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 }
             }
 
-            /*
-             * 处理在线玩家同步请求
-             */
-            "RequestPlayersSync" -> {
-                // 广播本服务器的所有在线玩家
-                plugin.server.onlinePlayers.forEach { player ->
-                    val serverId = plugin.effectiveServerId
-                    val out = java.io.ByteArrayOutputStream()
-                    val dos = java.io.DataOutputStream(out)
-                    try {
-                        dos.writeUTF("PlayerJoin")
-                        dos.writeUTF(player.name)
-                        if (serverId != null) {
-                            dos.writeUTF(serverId)
-                        }
-                        player.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-                    } catch (e: Exception) {
-                    }
-                }
-            }
             /*
              * 处理跨服聊天
              */
@@ -157,54 +159,21 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 }
             }
             /*
-             * 处理跨服公会清除
-             */
-            "CLEAR_GUILD" -> {
-                val targetId = `in`.readInt()
-                plugin.membershipCache.invalidateGuildLocal(targetId)
-            }
-            /*
-             * 处理跨服公会通知
-             */
-            "NotifyStaff" -> {
-                val targetGuildId = `in`.readInt()
-                val applicantName = `in`.readUTF()
-
-                val lang = plugin.langManager
-
-                // 找到本服所有属于该公会且具有管理权限的玩家
-                plugin.server.onlinePlayers.forEach { onlinePlayer ->
-                    val cachedGuildId = plugin.membershipCache.getGuildId(onlinePlayer.uniqueId)
-                    if (cachedGuildId == targetGuildId) {
-                        // 异步检查权限，或者如果你把权限也缓存了会更快
-                        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-                            if (plugin.dbManager.memberRepository.isStaff(onlinePlayer.uniqueId, targetGuildId)) {
-                                plugin.server.scheduler.runTask(plugin, Runnable {
-                                    val msg = MessageUtil.createText(lang.get("notify-new-request", "player" to applicantName))
-                                    val viewBtn = MessageUtil.createClickableText(
-                                        text = lang.get("notify-view-btn"),
-                                        hoverText = lang.get("notify-view-btn-hover"),
-                                        command = "/kg requests"
-                                    )
-                                    msg.addExtra(viewBtn)
-                                    onlinePlayer.spigot().sendMessage(msg)
-                                })
-                            }
-                        })
-                    }
-                }
-            }
-            /*
              * 处理跨服邀请
              */
             "CrossInvite" -> {
-                val targetName = `in`.readUTF()
+                // 身份用 UUID（名称仅显示）
+                val targetUuid = try {
+                    UUID.fromString(`in`.readUTF())
+                } catch (e: Exception) {
+                    return
+                }
                 val guildId = `in`.readInt()
                 val guildName = `in`.readUTF()
                 val senderName = `in`.readUTF()
 
-                // 寻找目标玩家是否在本服
-                val targetPlayer = plugin.server.onlinePlayers.find { it.name.equals(targetName, true) }
+                // 寻找目标玩家是否在本服（按 UUID）
+                val targetPlayer = plugin.server.onlinePlayers.find { it.uniqueId == targetUuid }
 
                 if (targetPlayer != null) {
                     // 异步检查目标玩家是否有公会（防止他在别的服刚加了公会）
@@ -253,11 +222,10 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "NotifyRequest" -> {
                 val targetId = `in`.readInt()
-                val guildName = `in`.readUTF()  // 公会名（未使用但需要读取以消耗数据）
+                `in`.readUTF()  // guildName（显示用，本分支不展示）
                 val appName = `in`.readUTF()
 
                 val lang = plugin.langManager
-                var notifiedCount = 0
 
                 plugin.server.onlinePlayers.forEach { onlinePlayer ->
                     // 先查缓存确认公会
@@ -276,7 +244,6 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                                     msg.addExtra(viewBtn)
                                     onlinePlayer.spigot().sendMessage(msg)
                                     onlinePlayer.playSound(onlinePlayer.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
-                                    notifiedCount++
                                 })
                             }
                         })
@@ -289,6 +256,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "MemberJoin" -> {
                 val gId = `in`.readInt()
+                // 身份用 UUID；名称仅显示
+                val newUuid = try { UUID.fromString(`in`.readUTF()) } catch (e: Exception) { null }
                 val pName = `in`.readUTF()
 
                 val msg = plugin.langManager.get("member-join-notify", "player" to pName)
@@ -297,13 +266,11 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                 plugin.server.onlinePlayers.forEach { p ->
                     // 逻辑 A: 发送给公会里的老成员 (通过缓存判断)
                     if (plugin.membershipCache.getGuildId(p.uniqueId) == gId) {
-                        // 注意：如果新人已经在该服更新了缓存，他也会收到这条"热烈欢迎 XXX"
                         p.sendMessage(msg)
                     }
 
-                    // 逻辑 B: 专门给新人发私信 (通过名字判断，不依赖缓存)
-                    // 这样即使缓存同步慢了几毫秒，他也能第一时间看到
-                    else if (p.name.equals(pName, ignoreCase = true)) {
+                    // 逻辑 B: 专门给新人发私信（按 UUID，不依赖缓存）
+                    else if (newUuid != null && p.uniqueId == newUuid) {
                         p.sendMessage(welcomeMsg)
                         p.playSound(p.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
                     }
@@ -315,6 +282,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "MemberLeave" -> {
                 val gId = `in`.readInt()
+                `in`.readUTF() // playerUuid（本分支仅需公会ID做通知）
                 val pName = `in`.readUTF()
                 val msg = plugin.langManager.get("member-leave-notify", "player" to pName)
 
@@ -330,6 +298,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "MemberKick" -> {
                 val gId = `in`.readInt()
+                // 身份用 UUID；名称仅显示
+                val targetUuid = try { UUID.fromString(`in`.readUTF()) } catch (e: Exception) { null }
                 val tName = `in`.readUTF()
 
                 val kickMsg = plugin.langManager.get("member-kick-notify", "player" to tName)
@@ -340,8 +310,8 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                     if (plugin.membershipCache.getGuildId(p.uniqueId) == gId) {
                         p.sendMessage(kickMsg)
                     }
-                    // 寻找被踢的目标玩家并私信
-                    if (p.name.equals(tName, ignoreCase = true)) {
+                    // 寻找被踢的目标玩家并私信（按 UUID 精确匹配）
+                    if (targetUuid != null && p.uniqueId == targetUuid) {
                         p.sendMessage(targetPrivateMsg)
                         // 踢出时清理该服可能存在的内存缓存(双重保险)
                         plugin.membershipCache.removeLocal(p.uniqueId)
@@ -417,13 +387,37 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
              */
             "DeleteSync" -> {
                 val gId = `in`.readInt()
-                // 清理本子服所有该公会成员的缓存并通知
+                // 新格式：notifyKey + 成员 UUID 列表（按 UUID 精确通知，不依赖可能过期的缓存）；
+                // 兼容旧格式：读取 notifyKey 失败时回退默认文案并按缓存判断。
+                val notifyKey = try {
+                    `in`.readUTF()
+                } catch (e: Exception) {
+                    "admin-delete-notify"
+                }
+                val memberUuids = try {
+                    val count = `in`.readInt()
+                    (0 until count).mapNotNull {
+                        try {
+                            UUID.fromString(`in`.readUTF())
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+
+                val notifyMsg = plugin.langManager.get(notifyKey)
                 plugin.server.onlinePlayers.forEach { p ->
-                    val gid = plugin.membershipCache.getGuildId(p)
-                    if (gid == gId) {
+                    val affected = if (memberUuids.isNotEmpty()) {
+                        memberUuids.contains(p.uniqueId)
+                    } else {
+                        plugin.membershipCache.getGuildId(p) == gId
+                    }
+                    if (affected) {
                         plugin.membershipCache.removeLocal(p.uniqueId)
                         plugin.guildChatPlayers.remove(p.uniqueId)
-                        p.sendMessage(plugin.langManager.get("admin-delete-notify"))
+                        p.sendMessage(notifyMsg)
                     }
                 }
             }
@@ -457,7 +451,7 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
 
                 when (action) {
                     "Lock" -> plugin.guildService.syncRemoteLock(gId, vIndex, uId)
-                    "Unlock" -> plugin.guildService.releaseVaultLock(gId, vIndex, true)
+                    "Unlock" -> plugin.guildService.releaseVaultLock(gId, vIndex, true, uId)
                     "ForceUnlockAll" -> plugin.guildService.vaultLocks.clear() // 强制全清
                 }
             }
@@ -513,17 +507,6 @@ class PluginMessageListener(private val plugin: KaGuilds) : PluginMessageListene
                         }
                     })
                 }
-            }
-
-            /*
-             * 处理跨服玩家加入（兼容旧的消息格式）
-             */
-            "PlayerJoin" -> {
-                val playerName = `in`.readUTF()
-                val serverId = `in`.readUTF()
-
-                // 更新跨服在线玩家缓存
-                plugin.crossServerOnlinePlayers[playerName] = serverId
             }
 
             /*

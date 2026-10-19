@@ -38,6 +38,7 @@ kaguilds.use = true
 | `kaguilds.command.bank` | `false` | 使用公会金库 |
 | `kaguilds.command.chat` | `false` | 使用公会聊天 |
 | `kaguilds.command.menu` | `false` | 打开公会主菜单 |
+| `kaguilds.command.list` | `true` | 查看服务器全部公会列表 |
 | `kaguilds.command.motd` | `false` | 修改公会公告 |
 | `kaguilds.command.rename` | `false` | 重命名公会 |
 | `kaguilds.command.seticon` | `false` | 设置公会图标 |

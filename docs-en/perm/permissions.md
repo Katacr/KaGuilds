@@ -38,6 +38,7 @@ Denying only one command-specific permission is ineffective because most command
 | `kaguilds.command.bank` | `false` | Use the guild bank |
 | `kaguilds.command.chat` | `false` | Use guild chat |
 | `kaguilds.command.menu` | `false` | Open the main guild menu |
+| `kaguilds.command.list` | `true` | View the server-wide guild list |
 | `kaguilds.command.motd` | `false` | Change the guild announcement |
 | `kaguilds.command.rename` | `false` | Rename a guild |
 | `kaguilds.command.seticon` | `false` | Set the guild icon |

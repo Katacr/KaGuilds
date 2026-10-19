@@ -23,19 +23,23 @@ class MemberRepository(private val db: DatabaseManager) {
     }
 
     fun getMemberCount(guildId: Int, existingConn: Connection? = null): Int {
-        val conn = existingConn ?: db.dataSource?.connection ?: throw IllegalStateException(plugin.langManager.get("error-database"))
-        val ps = conn.prepareStatement("SELECT COUNT(*) FROM guild_members WHERE guild_id = ?")
-        ps.setInt(1, guildId)
-        val rs = ps.executeQuery()
-        val count = if (rs.next()) rs.getInt(1) else 0
-
-        if (existingConn == null) {
-            rs.close()
-            ps.close()
-            conn.close()
+        if (existingConn != null) {
+            // 复用外部连接：仅用 use 关闭 Statement/ResultSet，不关连接
+            existingConn.prepareStatement("SELECT COUNT(*) FROM guild_members WHERE guild_id = ?").use { ps ->
+                ps.setInt(1, guildId)
+                ps.executeQuery().use { rs ->
+                    return if (rs.next()) rs.getInt(1) else 0
+                }
+            }
         }
-
-        return count
+        db.connection.use { conn ->
+            conn.prepareStatement("SELECT COUNT(*) FROM guild_members WHERE guild_id = ?").use { ps ->
+                ps.setInt(1, guildId)
+                ps.executeQuery().use { rs ->
+                    return if (rs.next()) rs.getInt(1) else 0
+                }
+            }
+        }
     }
 
     fun getMemberNames(guildId: Int): List<String> {
@@ -145,62 +149,65 @@ class MemberRepository(private val db: DatabaseManager) {
     }
 
     fun addMember(guildId: Int, playerUuid: UUID, playerName: String, role: String): Boolean {
-        val checkSql = "SELECT id FROM guild_members WHERE player_uuid = ? AND guild_id = -1"
-        db.connection.use { conn ->
-            conn.prepareStatement(checkSql).use { ps ->
-                ps.setString(1, playerUuid.toString())
-                val rs = ps.executeQuery()
-                if (rs.next()) {
-                    val updateSql = "UPDATE guild_members SET guild_id = ?, player_name = ?, role = ?, join_time = ? WHERE player_uuid = ? AND guild_id = -1"
-                    conn.prepareStatement(updateSql).use { updatePs ->
-                        updatePs.setInt(1, guildId)
-                        updatePs.setString(2, playerName)
-                        updatePs.setString(3, role)
-                        updatePs.setLong(4, System.currentTimeMillis())
-                        updatePs.setString(5, playerUuid.toString())
-                        return updatePs.executeUpdate() > 0
-                    }
+        val now = System.currentTimeMillis()
+        // 冲突安全写入：唯一键为 player_uuid，存在则更新（复用软删除行或已在会行）
+        val sql = if (db.isMySQL) {
+            """
+            INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE guild_id = VALUES(guild_id), player_name = VALUES(player_name),
+                role = VALUES(role), join_time = VALUES(join_time)
+            """.trimIndent()
+        } else {
+            """
+            INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(player_uuid) DO UPDATE SET guild_id = excluded.guild_id,
+                player_name = excluded.player_name, role = excluded.role, join_time = excluded.join_time
+            """.trimIndent()
+        }
+        return try {
+            db.connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, playerUuid.toString())
+                    ps.setString(3, playerName)
+                    ps.setString(4, role)
+                    ps.setLong(5, now)
+                    ps.executeUpdate() > 0
                 }
             }
-
-            val sql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time) VALUES (?, ?, ?, ?, ?)"
-            val ps = conn.prepareStatement(sql)
-            ps.setInt(1, guildId)
-            ps.setString(2, playerUuid.toString())
-            ps.setString(3, playerName)
-            ps.setString(4, role)
-            ps.setLong(5, System.currentTimeMillis())
-            return ps.executeUpdate() > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
     fun ensurePlayerExists(playerUuid: UUID, playerName: String): Boolean {
+        // 唯一键为 player_uuid：已入会玩家也只需更新显示名，不能新建 -1 行。
+        val sql = if (db.isMySQL) {
+            """
+            INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time, contribution)
+            VALUES (-1, ?, ?, 'NONE', 0, 0)
+            ON DUPLICATE KEY UPDATE player_name = VALUES(player_name)
+            """.trimIndent()
+        } else {
+            """
+            INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time, contribution)
+            VALUES (-1, ?, ?, 'NONE', 0, 0)
+            ON CONFLICT(player_uuid) DO UPDATE SET player_name = excluded.player_name
+            """.trimIndent()
+        }
         return try {
             db.dataSource?.connection?.use { conn ->
-                val checkSql = "SELECT id FROM guild_members WHERE player_uuid = ? AND guild_id = -1 LIMIT 1"
-                conn.prepareStatement(checkSql).use { ps ->
-                    ps.setString(1, playerUuid.toString())
-                    val rs = ps.executeQuery()
-                    if (rs.next()) {
-                        val updateSql = "UPDATE guild_members SET player_name = ? WHERE player_uuid = ? AND guild_id = -1"
-                        conn.prepareStatement(updateSql).use { updatePs ->
-                            updatePs.setString(1, playerName)
-                            updatePs.setString(2, playerUuid.toString())
-                            updatePs.executeUpdate()
-                        }
-                        return true
-                    }
-                }
-
-                val insertSql = "INSERT INTO guild_members (guild_id, player_uuid, player_name, role, join_time, contribution) VALUES (-1, ?, ?, 'NONE', 0, 0)"
-                conn.prepareStatement(insertSql).use { ps ->
+                conn.prepareStatement(sql).use { ps ->
                     ps.setString(1, playerUuid.toString())
                     ps.setString(2, playerName)
                     ps.executeUpdate() > 0
                 }
             } ?: false
         } catch (e: Exception) {
-            e.printStackTrace()
+            plugin.logger.warning("ensurePlayerExists 失败 ($playerUuid): ${e.message}")
             false
         }
     }

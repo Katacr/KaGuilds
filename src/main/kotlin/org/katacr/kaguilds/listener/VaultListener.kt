@@ -32,9 +32,11 @@ class VaultListener(private val plugin: KaGuilds) : Listener {
             val saveSuccess = plugin.dbManager.vaultRepository.saveVault(guildId, index, data, playerUuid)
 
             if (saveSuccess) {
-                // 4. 只有保存成功，才释放物理锁与内存锁
+                // 4. 只有保存成功，才释放物理锁与内存锁，并广播跨服解锁（回到主线程发包）
                 plugin.dbManager.vaultRepository.releaseLock(guildId, index, playerUuid)
-                plugin.vaultService.vaultLocks.remove(Pair(guildId, index))
+                plugin.runMain {
+                    plugin.vaultService.releaseVaultLock(guildId, index, isFromNetwork = false)
+                }
             } else {
                 // 5. 保存失败：保留物理锁（不释放 releaseLock），直到租约过期。
                 // 保留内存锁，避免本服在锁仍有效时重复打开导致数据竞争。

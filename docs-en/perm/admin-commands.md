@@ -29,7 +29,7 @@ Server administration commands use `/kg admin <action> [arguments...]`. On this 
 | `/kg admin unlockall` | Force-release every vault lock | Player or console | `kaguilds.admin.unlockall` |
 | `/kg admin task #ID <task-key> see` | Show task definition and progress | Player or console | `kaguilds.admin.task` |
 | `/kg admin task #ID <task-key> reset` | Reset task progress | Player or console | `kaguilds.admin.task` |
-| `/kg admin task #ID <task-key> add <amount>` | Add task progress | Player or console | `kaguilds.admin.task` |
+| `/kg admin task #ID <task-key> add <amount> [player]` | Add task progress (daily tasks require a player name) | Player or console | `kaguilds.admin.task` |
 | `/kg admin contribution #ID <player\|-all> set <amount>` | Set contribution points | Player or console | `kaguilds.admin.contribution` |
 | `/kg admin contribution #ID <player\|-all> add <amount>` | Add contribution points | Player or console | `kaguilds.admin.contribution` |
 | `/kg admin contribution #ID <player\|-all> clear` | Clear contribution points | Player or console | `kaguilds.admin.contribution` |

@@ -32,7 +32,7 @@ class AdminCommandHandler(private val plugin: KaGuilds) {
         AdminHelpEntry("exp #ID <add|remove|set> <amount> [-s]", "admin-desc-exp", "exp"),
         AdminHelpEntry("open <menu>", "admin-desc-open", "open"),
         AdminHelpEntry("arena <setpos|setspawn|setkit|info>", "admin-desc-arena", "arena"),
-        AdminHelpEntry("task #ID <task> <see|reset|add>", "admin-desc-task", "task"),
+        AdminHelpEntry("task #ID <task> <see|reset|add> [玩家名]", "admin-desc-task", "task"),
         AdminHelpEntry("contribution #ID <player|-all> <set|add|clear>", "admin-desc-contribution", "contribution"),
         AdminHelpEntry("release <CN|EN>", "admin-desc-release", "release")
     )

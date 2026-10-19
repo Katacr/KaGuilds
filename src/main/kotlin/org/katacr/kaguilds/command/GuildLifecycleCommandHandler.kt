@@ -114,26 +114,9 @@ class GuildLifecycleCommandHandler(private val plugin: KaGuilds) {
         }
     }
 
-    private fun checkPermission(player: Player, command: String? = null): Boolean {
-        val lang = plugin.langManager
+private fun checkPermission(player: Player, command: String? = null): Boolean =
+        CommandSupport.checkPermission(plugin, player, command)
 
-        if (player.hasPermission("kaguilds.use")) return true
-        if (command != null && player.hasPermission("kaguilds.command.$command")) return true
-
-        player.sendMessage(lang.get("no-permission"))
-        return false
-    }
-
-    private fun sendConfirmHint(player: Player) {
-        val lang = plugin.langManager
-        val prefix = TextComponent(lang.get("confirm-hint-prefix"))
-        val clickBtn = MessageUtil.createClickableText(
-            lang.get("confirm-hint-button"),
-            lang.get("confirm-hint-button-hover"),
-            "/kg confirm"
-        )
-        val suffix = TextComponent(lang.get("confirm-hint-suffix"))
-
-        player.spigot().sendMessage(prefix, clickBtn, suffix)
-    }
+private fun sendConfirmHint(player: Player) =
+        CommandSupport.sendConfirmHint(plugin, player)
 }

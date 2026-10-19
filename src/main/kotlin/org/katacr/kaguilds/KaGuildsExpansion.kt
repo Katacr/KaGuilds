@@ -6,6 +6,28 @@ import org.bukkit.OfflinePlayer
 
 class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
 
+    // 短 TTL 缓存：PAPI 常被计分板/tab 高频刷新，避免每次请求都查库
+    private val ttlMs = 3_000L
+    private data class CacheEntry<T>(val value: T, val expireAt: Long)
+    private val guildCache = java.util.concurrent.ConcurrentHashMap<Int, CacheEntry<org.katacr.kaguilds.model.GuildData?>>()
+    private val memberCountCache = java.util.concurrent.ConcurrentHashMap<Int, CacheEntry<Int>>()
+
+    private fun cachedGuild(guildId: Int): org.katacr.kaguilds.model.GuildData? {
+        val now = System.currentTimeMillis()
+        guildCache[guildId]?.let { if (it.expireAt > now) return it.value }
+        val fresh = plugin.dbManager.guildRepository.getGuildById(guildId)
+        guildCache[guildId] = CacheEntry(fresh, now + ttlMs)
+        return fresh
+    }
+
+    private fun cachedMemberCount(guildId: Int): Int {
+        val now = System.currentTimeMillis()
+        memberCountCache[guildId]?.let { if (it.expireAt > now) return it.value }
+        val fresh = plugin.dbManager.memberRepository.getMemberCount(guildId)
+        memberCountCache[guildId] = CacheEntry(fresh, now + ttlMs)
+        return fresh
+    }
+
     // 变量的前缀，即 %kaguilds_xxx% 中的 kaguilds
     override fun getIdentifier(): String = "kaguilds"
 
@@ -19,12 +41,20 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
     // 核心逻辑：处理变量请求
     override fun onRequest(player: OfflinePlayer?, params: String): String? {
         if (player == null) return ""
+        return try {
+            onRequestInternal(player, params)
+        } catch (e: Exception) {
+            plugin.logger.warning("处理占位符 $params 失败: ${e.message}")
+            null
+        }
+    }
 
+    private fun onRequestInternal(player: OfflinePlayer, params: String): String? {
         val lang = plugin.langManager
 
         // 特殊变量：检查玩家是否已加入公会
         if (params == "has_guild") {
-            val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
+            val guildId = plugin.membershipCache.getGuildId(player.uniqueId)
             return if (guildId != null) {
                 lang.get("papi-boolean-true")
             } else {
@@ -52,12 +82,12 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             return "$rank. ${guild.name} ${guild.ownerName ?: "?"} ${guild.totalContribution}"
         }
 
-        // 1. 获取该玩家所属的公会 ID
-        val guildId = plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
+        // 1. 获取该玩家所属的公会 ID（走身份缓存，带查库兜底）
+        val guildId = plugin.membershipCache.getGuildId(player.uniqueId)
             ?: return lang.get("papi-no-guild")
 
-        // 2. 根据 ID 获取公会对象
-        val guild = plugin.dbManager.guildRepository.getGuildById(guildId)
+        // 2. 根据 ID 获取公会对象（短 TTL 缓存）
+        val guild = cachedGuild(guildId)
             ?: return lang.get("papi-error")
 
 
@@ -68,7 +98,7 @@ class KaGuildsExpansion(private val plugin: KaGuilds) : PlaceholderExpansion() {
             "owner" -> guild.ownerName
             "balance" -> guild.balance.toString()
             "motd" -> guild.announcement
-            "member_count" -> plugin.dbManager.memberRepository.getMemberCount(guildId).toString()
+            "member_count" -> cachedMemberCount(guildId).toString()
             "max_members" -> guild.maxMembers.toString()
             "exp" -> guild.exp.toString()
             "contribution" -> plugin.dbManager.memberRepository.getPlayerContribution(player.uniqueId).toString()

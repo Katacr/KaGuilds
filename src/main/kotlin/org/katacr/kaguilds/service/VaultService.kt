@@ -5,14 +5,14 @@ import org.bukkit.scheduler.BukkitTask
 import org.katacr.kaguilds.KaGuilds
 import org.katacr.kaguilds.listener.VaultHolder
 import org.katacr.kaguilds.util.SerializationUtil
-import java.io.DataOutputStream
 import java.util.UUID
 
 /**
  * 公会仓库服务，负责仓库打开、锁同步、租约刷新和跨服锁消息。
  */
 class VaultService(private val plugin: KaGuilds) {
-    val vaultLocks = mutableMapOf<Pair<Int, Int>, UUID>()
+    // 内存锁：主线程（开仓库/跨服收包）与异步线程（关闭保存后释放）都会访问，必须线程安全
+    val vaultLocks = java.util.concurrent.ConcurrentHashMap<Pair<Int, Int>, UUID>()
 
     /**
      * 玩家尝试开启仓库。
@@ -28,11 +28,16 @@ class VaultService(private val plugin: KaGuilds) {
             return
         }
 
+        // 先抢本服内存锁并广播 Lock（与管理员路径一致），避免绕过跨服锁同步导致多服同时编辑
+        if (!tryLockVault(guildId, vaultIndex, player)) return
+
         plugin.runAsync {
             val success = plugin.dbManager.vaultRepository.tryGrabLock(guildId, vaultIndex, player.uniqueId)
 
             if (!success) {
                 plugin.runMain {
+                    // DB 抢锁失败：回滚内存锁并广播 Unlock，避免其他服一直认为被占用
+                    releaseVaultLock(guildId, vaultIndex, false)
                     player.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
                 }
                 return@runAsync
@@ -70,7 +75,7 @@ class VaultService(private val plugin: KaGuilds) {
             return true
         }
 
-        if (plugin.config.getBoolean("proxy", false) && !isFromNetwork) {
+        if (plugin.isProxyEnabled() && !isFromNetwork) {
             val isLocked = plugin.dbManager.vaultRepository.isVaultLocked(guildId, vaultIndex)
             if (isLocked) {
                 player.sendMessage(plugin.langManager.get("vault-locked", "index" to vaultIndex.toString()))
@@ -80,7 +85,7 @@ class VaultService(private val plugin: KaGuilds) {
 
         vaultLocks[lockKey] = player.uniqueId
 
-        if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
+        if (!isFromNetwork && plugin.isProxyEnabled()) {
             sendVaultSyncPacket(guildId, vaultIndex, player.uniqueId, "Lock")
         }
 
@@ -99,7 +104,7 @@ class VaultService(private val plugin: KaGuilds) {
 
             vaultLocks.remove(lockKey)
 
-            if (plugin.config.getBoolean("proxy")) {
+            if (plugin.isProxyEnabled()) {
                 sendVaultSyncPacket(guildId, index, playerUuid, "Unlock")
             }
 
@@ -112,22 +117,29 @@ class VaultService(private val plugin: KaGuilds) {
      */
     fun forceResetAllLocks() {
         vaultLocks.clear()
-        if (plugin.config.getBoolean("proxy")) {
+        if (plugin.isProxyEnabled()) {
             sendVaultSyncPacket(0, 0, UUID.randomUUID(), "ForceUnlockAll")
         }
     }
 
     /**
      * 释放仓库内存锁，并在需要时广播跨服解锁。
+     * @param occupant 远端 Unlock 携带的操作者；仅当与当前内存锁持有者一致时才删除，
+     *                 防止其他服的任意玩家关闭仓库时误清本服正在使用的锁。
      */
-    fun releaseVaultLock(guildId: Int, vaultIndex: Int, isFromNetwork: Boolean = false) {
+    fun releaseVaultLock(guildId: Int, vaultIndex: Int, isFromNetwork: Boolean = false, occupant: UUID? = null) {
         val lockKey = Pair(guildId, vaultIndex)
-        if (vaultLocks.containsKey(lockKey)) {
-            vaultLocks.remove(lockKey)
-
-            if (!isFromNetwork && plugin.config.getBoolean("proxy")) {
-                sendVaultSyncPacket(guildId, vaultIndex, UUID.randomUUID(), "Unlock")
+        if (isFromNetwork && occupant != null) {
+            val current = vaultLocks[lockKey]
+            if (current != null && current != occupant) {
+                // 持有者不匹配，忽略该远端解锁，避免误清他人锁
+                return
             }
+        }
+        val holder = vaultLocks.remove(lockKey) ?: return
+        if (!isFromNetwork && plugin.isProxyEnabled()) {
+            // 广播真实的锁持有者 UUID，接收端据此校验，避免误清他人锁
+            sendVaultSyncPacket(guildId, vaultIndex, holder, "Unlock")
         }
     }
 
@@ -155,7 +167,8 @@ class VaultService(private val plugin: KaGuilds) {
 
             if (!success) {
                 plugin.runMain {
-                    vaultLocks.remove(Pair(guildId, vaultIndex))
+                    // 回滚内存锁并广播 Unlock，避免其他服一直认为该仓库被占用
+                    releaseVaultLock(guildId, vaultIndex, false)
                     admin.sendMessage(lang.get("vault-locked", "index" to vaultIndex.toString()))
                 }
                 return@runAsync
@@ -190,45 +203,27 @@ class VaultService(private val plugin: KaGuilds) {
      * 开启仓库锁租约刷新任务。
      */
     fun startVaultLeaseTask(player: Player, guildId: Int, index: Int): BukkitTask {
-        return plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-            val topInv = player.openInventory.topInventory
-            val holder = topInv.holder as? VaultHolder ?: return@Runnable
-
-            if (holder.guildId != guildId || holder.vaultIndex != index) return@Runnable
-
-            plugin.runAsync {
-                val nextExpire = System.currentTimeMillis() + 30000
-                plugin.dbManager.vaultRepository.refreshLockLease(guildId, index, player.uniqueId, nextExpire)
+        return object : org.bukkit.scheduler.BukkitRunnable() {
+            override fun run() {
+                // 玩家离线或已切走该仓库界面：停止空转（不再刷新租约，交由租约自然过期）
+                if (!player.isOnline) {
+                    cancel()
+                    return
+                }
+                val holder = player.openInventory.topInventory.holder as? VaultHolder
+                if (holder == null || holder.guildId != guildId || holder.vaultIndex != index) {
+                    cancel()
+                    return
+                }
+                plugin.runAsync {
+                    val nextExpire = System.currentTimeMillis() + 30000
+                    plugin.dbManager.vaultRepository.refreshLockLease(guildId, index, player.uniqueId, nextExpire)
+                }
             }
-        }, 100L, 100L)
+        }.runTaskTimer(plugin, 100L, 100L)
     }
 
     private fun sendVaultSyncPacket(guildId: Int, index: Int, uuid: UUID, type: String) {
-        if (!plugin.config.getBoolean("proxy")) return
-
-        val out = createDataOutput()
-        try {
-            out.outputStream.writeUTF("VaultSync")
-            out.outputStream.writeUTF(type)
-            out.outputStream.writeInt(guildId)
-            out.outputStream.writeInt(index)
-            out.outputStream.writeUTF(uuid.toString())
-
-            val messenger = plugin.server.onlinePlayers.firstOrNull()
-            messenger?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
-        } catch (e: Exception) {
-            plugin.logger.warning(plugin.langManager.get("error-send-packet", "error" to e.message.toString()))
-        }
-    }
-
-    private fun createDataOutput(): ByteArrayDataOutputStream {
-        return ByteArrayDataOutputStream()
-    }
-
-    private class ByteArrayDataOutputStream {
-        private val byteArrayStream = java.io.ByteArrayOutputStream()
-        val outputStream = DataOutputStream(byteArrayStream)
-
-        fun toByteArray(): ByteArray = byteArrayStream.toByteArray()
+        plugin.networkBus.send(org.katacr.kaguilds.util.NetworkCodec.encodeVaultSync(type, guildId, index, uuid))
     }
 }

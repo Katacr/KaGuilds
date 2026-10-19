@@ -135,13 +135,6 @@ class AdminUtilityCommandHandler(private val plugin: KaGuilds) {
         })
     }
 
-    private fun checkAdminPermission(sender: CommandSender, action: String? = null): Boolean {
-        val lang = plugin.langManager
-
-        if (sender.hasPermission("kaguilds.admin")) return true
-        if (action != null && sender.hasPermission("kaguilds.admin.$action")) return true
-
-        sender.sendMessage(lang.get("no-permission"))
-        return false
-    }
+private fun checkAdminPermission(sender: CommandSender, action: String? = null): Boolean =
+        CommandSupport.checkAdminPermission(plugin, sender, action)
 }

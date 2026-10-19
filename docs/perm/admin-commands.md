@@ -29,7 +29,7 @@
 | `/kg admin unlockall` | 强制释放全部仓库锁 | 玩家或控制台 | `kaguilds.admin.unlockall` |
 | `/kg admin task #ID <任务键> see` | 查看任务定义和进度 | 玩家或控制台 | `kaguilds.admin.task` |
 | `/kg admin task #ID <任务键> reset` | 重置任务进度 | 玩家或控制台 | `kaguilds.admin.task` |
-| `/kg admin task #ID <任务键> add <数量>` | 增加任务进度 | 玩家或控制台 | `kaguilds.admin.task` |
+| `/kg admin task #ID <任务键> add <数量> [玩家名]` | 增加任务进度（每日任务必须指定玩家名） | 玩家或控制台 | `kaguilds.admin.task` |
 | `/kg admin contribution #ID <玩家\|-all> set <数量>` | 设置贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |
 | `/kg admin contribution #ID <玩家\|-all> add <数量>` | 增加贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |
 | `/kg admin contribution #ID <玩家\|-all> clear` | 清零贡献度 | 玩家或控制台 | `kaguilds.admin.contribution` |

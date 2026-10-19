@@ -20,7 +20,7 @@ class GuildTabCompleter(private val plugin: KaGuilds) {
                     "help", "create", "join", "info", "requests", "accept", "promote",
                     "demote", "leave", "kick", "delete", "chat", "bank", "invite",
                     "settp", "tp", "rename", "buff", "deny", "transfer", "vault",
-                    "menu", "seticon", "motd", "upgrade", "pvp"
+                    "menu", "list", "seticon", "motd", "upgrade", "pvp"
                 )
                 if (hasAnyAdminPermission(sender)) {
                     list.addAll(listOf("reload", "admin"))
@@ -137,6 +137,18 @@ class GuildTabCompleter(private val plugin: KaGuilds) {
                         "bank", "exp" -> filterList(listOf("-s"), args[5])
                         else -> emptyList()
                     }
+                }
+                emptyList()
+            }
+
+            7 -> {
+                val sub = args[0].lowercase()
+                val adminAction = args[1].lowercase()
+
+                if (sub == "admin" && adminAction == "task") {
+                    if (!hasAdminPermission(sender, adminAction)) return emptyList()
+                    // 每日任务 add 需要玩家名
+                    return filterList(plugin.server.onlinePlayers.map { it.name }, args[6])
                 }
                 emptyList()
             }

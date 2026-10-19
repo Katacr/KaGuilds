@@ -58,6 +58,9 @@ permissions:
   kaguilds.command.menu:
     description: 允许玩家使用公会主菜单指令
     default: false
+  kaguilds.command.list:
+    description: 允许玩家查看服务器全部公会列表
+    default: true
   kaguilds.command.motd:
     description: 允许玩家使用公会公告指令
     default: false

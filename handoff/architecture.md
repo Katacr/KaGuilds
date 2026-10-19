@@ -39,10 +39,22 @@ gradlew.bat runServer   # minecraftVersion("1.16")
 
 ## 构建环境约束(重要)
 
-- 原 Linux 环境使用本机 Gradle `/opt/gradle/gradle-8.8` + JDK 12 `/opt/jdks/jdk-12.0.2+10`，通过 `/root/.gradle/gradle.properties` 指定，避免 wrapper 外网下载超时。
+- Linux 构建：JDK 12 位于 `/opt/jdks/jdk-12.0.2`(Zulu 12.0.2+3)；无本机 Gradle，改用项目 wrapper 的 `gradle-8.8`(缓存于 `~/.gradle/wrapper/dists/gradle-8.8-bin`)。
+- `kotlin.jvmToolchain(12)` 需要 Gradle 能定位 JDK 12：在 `/root/.gradle/gradle.properties` 写入 `org.gradle.java.installations.paths=/opt/jdks/jdk-12.0.2`(用户级，不进仓库)。
+- 启动 wrapper 用系统 JDK 21 即可(仅负责运行 Gradle)：`JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 sh gradlew compileKotlin`。
 - Windows 同步开发时，若 wrapper 下载超时，优先用本机 Gradle 或国内镜像(阿里云/腾讯/NJU)，不要改仓库源以免影响 Windows 与 Linux 同步。
 - 阿里云镜像已在 `build.gradle.kts` repositories 中配置。
 - `libs/` 下放置本地 jar(compileOnly fileTree)，注意平台无关性。
+
+### 构建命令(Linux 当前环境)
+
+```bash
+cd /home/Plugins/KaGuilds-refactor
+JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 sh gradlew compileKotlin --console=plain
+# 打包：把 compileKotlin 换成 shadowJar
+```
+
+> 2026-10-08：环境重建。原 `/opt/gradle/gradle-8.8` 与 JDK 12 均不存在，已重新安装 JDK 12 并改用 wrapper。首次编译 `BUILD SUCCESSFUL in 49s`。
 
 ## 运行配置(runtime)
 

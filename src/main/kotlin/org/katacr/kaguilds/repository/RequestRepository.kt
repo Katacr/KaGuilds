@@ -33,14 +33,34 @@ class RequestRepository(private val db: DatabaseManager) {
     }
 
     fun addRequest(guildId: Int, playerUuid: UUID, playerName: String): Boolean {
-        val sql = "INSERT INTO guild_requests (guild_id, player_uuid, player_name, request_time) VALUES (?, ?, ?, ?)"
-        db.connection.use { conn ->
-            val ps = conn.prepareStatement(sql)
-            ps.setInt(1, guildId)
-            ps.setString(2, playerUuid.toString())
-            ps.setString(3, playerName)
-            ps.setLong(4, System.currentTimeMillis())
-            return ps.executeUpdate() > 0
+        // 冲突安全：唯一键 (guild_id, player_uuid)，重复申请则更新时间戳
+        val sql = if (db.isMySQL) {
+            """
+            INSERT INTO guild_requests (guild_id, player_uuid, player_name, request_time)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE player_name = VALUES(player_name), request_time = VALUES(request_time)
+            """.trimIndent()
+        } else {
+            """
+            INSERT INTO guild_requests (guild_id, player_uuid, player_name, request_time)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id, player_uuid) DO UPDATE SET player_name = excluded.player_name,
+                request_time = excluded.request_time
+            """.trimIndent()
+        }
+        return try {
+            db.connection.use { conn ->
+                conn.prepareStatement(sql).use { ps ->
+                    ps.setInt(1, guildId)
+                    ps.setString(2, playerUuid.toString())
+                    ps.setString(3, playerName)
+                    ps.setLong(4, System.currentTimeMillis())
+                    ps.executeUpdate() > 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }

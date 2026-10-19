@@ -37,7 +37,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             return true
         }
 
-        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no", "menu", "chat")
+        val whiteList = listOf("help", "create", "join", "accept", "requests", "reload", "admin", "confirm", "yes", "no", "menu", "chat", "list")
         val subCommand = args[0].lowercase()
 
         if (subCommand == "help") {
@@ -106,6 +106,7 @@ class GuildCommand(private val plugin: KaGuilds) : CommandExecutor, TabCompleter
             "upgrade" -> guildSettingsCommandHandler.handleUpgrade(sender as Player)
             "pvp" -> pvpCommandHandler.handle(sender as Player, args)
             "menu" -> guildInfoCommandHandler.handleMenu(sender as Player)
+            "list" -> guildInfoCommandHandler.handleList(sender as Player)
             else -> sender.sendMessage(lang.get("help-hint"))
         }
         return true

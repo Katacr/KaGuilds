@@ -104,13 +104,14 @@ class ProxyCapability(private val plugin: KaGuilds) {
 
     private fun sendServerHello() {
         try {
+            // 探针必须在 proxy 能力验证前发出，故不经 NetworkBus（后者依赖 isProxyEnabled）
             val out = java.io.ByteArrayOutputStream()
-            java.io.DataOutputStream(out).use { it.writeUTF("ServerHello") }
+            java.io.DataOutputStream(out).use { it.writeUTF(org.katacr.kaguilds.util.NetworkCodec.SERVER_HELLO) }
             plugin.server.onlinePlayers.firstOrNull()
-                ?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+                ?.sendPluginMessage(plugin, org.katacr.kaguilds.util.NetworkCodec.CHANNEL, out.toByteArray())
                 ?: plugin.server.scheduler.runTaskLater(plugin, Runnable {
                     plugin.server.onlinePlayers.firstOrNull()
-                        ?.sendPluginMessage(plugin, "kaguilds:chat", out.toByteArray())
+                        ?.sendPluginMessage(plugin, org.katacr.kaguilds.util.NetworkCodec.CHANNEL, out.toByteArray())
                 }, 20L)
         } catch (e: Exception) {
             plugin.logger.warning("发送 ServerHello 探针失败: ${e.message}")

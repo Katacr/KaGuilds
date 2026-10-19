@@ -38,6 +38,21 @@ class BankRepository(private val db: DatabaseManager) {
         }
     }
 
+    /**
+     * 结算利息：条件更新，仅当 last_interest_date 仍为读取时的旧值时更新余额并推进计息日期。
+     * 避免多服/多线程并发重复计息（先查后改竞态）。
+     * @return true 表示本次成功结算（含推进日期），false 表示已被其它线程结算或无需计息。
+     */
+    fun applyInterestIfDateUnchanged(guildId: Int, oldLastInterestDate: Long, newBalance: Double, newLastInterestDate: Long): Boolean {
+        val sql = "UPDATE guild_data SET balance = ?, last_interest_date = ? WHERE id = ? AND last_interest_date = ?"
+        return executeBalanceUpdate(sql) { ps ->
+            ps.setDouble(1, newBalance)
+            ps.setLong(2, newLastInterestDate)
+            ps.setInt(3, guildId)
+            ps.setLong(4, oldLastInterestDate)
+        }
+    }
+
     fun getBankLogs(guildId: Int, page: Int): List<String> {
         val logs = mutableListOf<String>()
         val offset = (page - 1) * 10

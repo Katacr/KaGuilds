@@ -30,6 +30,7 @@ Most player commands are allowed when either condition is true:
 | `/kg no` | Decline a pending guild invitation | None | `kaguilds.command.no` |
 | `/kg info` | Show the player's own guild | Guild member | `kaguilds.command.info` |
 | `/kg menu` | Open the guild menu | None | `kaguilds.command.menu` |
+| `/kg list` | Open the server-wide guild list | None | `kaguilds.command.list` |
 | `/kg invite <player>` | Invite a player | Owner or admin | `kaguilds.command.invite` |
 | `/kg requests` | List join requests for the guild | Guild member | `kaguilds.command.requests` |
 | `/kg accept <player>` | Approve a join request | Owner or admin | `kaguilds.command.accept` |

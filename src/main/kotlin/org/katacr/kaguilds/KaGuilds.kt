@@ -15,7 +15,9 @@ import org.katacr.kaguilds.arena.PvPManager
 import org.katacr.kaguilds.listener.*
 import org.katacr.kaguilds.service.BankService
 import org.katacr.kaguilds.service.GuildService
+import org.katacr.kaguilds.service.InterestService
 import org.katacr.kaguilds.service.MembershipCache
+import org.katacr.kaguilds.service.NetworkBus
 import org.katacr.kaguilds.service.ProxyCapability
 import org.katacr.kaguilds.service.TaskManager
 import org.katacr.kaguilds.service.VaultService
@@ -24,12 +26,16 @@ import java.util.*
 
 class KaGuilds : JavaPlugin() {
 
-    val inviteCache = mutableMapOf<UUID, Int>()
+    val inviteCache = java.util.concurrent.ConcurrentHashMap<UUID, Int>()
     var economy: Economy? = null
     // 公会身份缓存：全插件判断"玩家属于哪个公会"的唯一入口（线程安全 + TTL + 查库兜底）
     lateinit var membershipCache: MembershipCache
     // 代理能力探测与降级（运行时验证，而非配置假设）
     lateinit var proxyCapability: ProxyCapability
+    // 跨服消息发送统一入口
+    lateinit var networkBus: NetworkBus
+    // 银行利息结算
+    lateinit var interestService: InterestService
     // 兼容旧读取点：委托到 membershipCache。新代码请直接用 membershipCache。
     @Deprecated("使用 membershipCache 替代")
     val playerGuildCache: MutableMap<UUID, Int>
@@ -54,9 +60,9 @@ class KaGuilds : JavaPlugin() {
             }
         }
     // 跨服在线玩家缓存：Map<玩家名, 所在服务器ID>（仅用于展示，不参与功能正确性）
-    val crossServerOnlinePlayers = mutableMapOf<String, String>()
+    val crossServerOnlinePlayers = java.util.concurrent.ConcurrentHashMap<String, String>()
     // 公会聊天模式玩家集合
-    val guildChatPlayers = mutableSetOf<UUID>()
+    val guildChatPlayers = java.util.concurrent.ConcurrentHashMap.newKeySet<UUID>()
     // 本服真实服务器标识：proxy 模式下由 KaProxy 下发的 ServerIdentify 覆盖本地配置，
     // 避免多服误用默认 server-id。单服模式直接用配置值。
     @Volatile
@@ -88,7 +94,7 @@ class KaGuilds : JavaPlugin() {
      * 在 Bukkit 主线程执行任务，用于统一处理玩家、世界、GUI、Vault 等线程敏感 API。
      */
     fun runMain(block: () -> Unit) {
-        server.scheduler.runTask(this, Runnable { block() })
+        if (server.isPrimaryThread) block() else server.scheduler.runTask(this, Runnable { block() })
     }
 
     /**
@@ -174,6 +180,8 @@ class KaGuilds : JavaPlugin() {
         arenaManager = ArenaManager(this)
         pvpManager = PvPManager(this)
         arenaManager.loadKit()
+        // 恢复上次异常退出遗留的 PvP 背包快照，防止参战玩家装备永久丢失
+        pvpManager.loadPersistedSnapshots()
 
         // 3. 数据库初始化
         try {
@@ -192,6 +200,8 @@ class KaGuilds : JavaPlugin() {
         // 4. 服务层与指令注册
         membershipCache = MembershipCache(this)
         proxyCapability = ProxyCapability(this)
+        networkBus = NetworkBus(this)
+        interestService = InterestService(this)
         // 单服模式直接用配置 server-id；proxy 模式下待 KaProxy 下发 ServerIdentify 覆盖
         effectiveServerId = config.getString("server-id", "server") ?: "server"
         proxyCapability.start()
@@ -214,8 +224,8 @@ class KaGuilds : JavaPlugin() {
             dbManager.guildRepository.getGuildCount()
         })
 
-        server.messenger.registerOutgoingPluginChannel(this, "kaguilds:chat")
-        server.messenger.registerIncomingPluginChannel(this, "kaguilds:chat", PluginMessageListener(this))
+        server.messenger.registerOutgoingPluginChannel(this, org.katacr.kaguilds.util.NetworkCodec.CHANNEL)
+        server.messenger.registerIncomingPluginChannel(this, org.katacr.kaguilds.util.NetworkCodec.CHANNEL, PluginMessageListener(this))
 
         // 7. 打印Logo
         sendStartupMessage()
@@ -248,10 +258,11 @@ class KaGuilds : JavaPlugin() {
      * 关闭插件
      */
     override fun onDisable() {
-        // 1. 停止任务管理器的定时器
+        // 1. 停止任务管理器的定时器并清理任务 BossBar
         if (::taskManager.isInitialized) {
             taskManager.stopMidnightCheck()
             taskManager.stopTaskResetCheck()
+            taskManager.shutdown()
         }
 
         if (::pvpManager.isInitialized) {
@@ -267,6 +278,8 @@ class KaGuilds : JavaPlugin() {
                 // 移除 BossBar
                 pvpManager.removeBossBar()
             }
+            // 恢复所有未结算的参战背包快照并落盘，防止重启丢装备
+            pvpManager.restoreAllSnapshotsOnDisable()
         }
         // 2. 关闭数据库连接
         if (::dbManager.isInitialized) {

@@ -89,7 +89,12 @@ class GuildRepository(private val db: DatabaseManager) {
 
     fun getGuildsByPage(page: Int, size: Int): List<GuildData> {
         val guilds = mutableListOf<GuildData>()
-        val sql = "SELECT * FROM guild_data ORDER BY level DESC, id ASC LIMIT ? OFFSET ?"
+        // 用子查询一次性带出成员数，避免逐行查库（N+1）
+        val sql = """
+            SELECT g.*, (SELECT COUNT(*) FROM guild_members m WHERE m.guild_id = g.id) AS member_count
+            FROM guild_data g
+            ORDER BY g.level DESC, g.id ASC LIMIT ? OFFSET ?
+        """.trimIndent()
         val offset = page * size
 
         try {
@@ -97,9 +102,10 @@ class GuildRepository(private val db: DatabaseManager) {
                 conn.prepareStatement(sql).use { ps ->
                     ps.setInt(1, size)
                     ps.setInt(2, offset)
-                    val rs = ps.executeQuery()
-                    while (rs.next()) {
-                        guilds.add(mapGuildData(rs, conn))
+                    ps.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            guilds.add(mapGuildData(rs, conn, memberCountFromRow = true))
+                        }
                     }
                 }
             }
@@ -279,7 +285,7 @@ class GuildRepository(private val db: DatabaseManager) {
     /**
      * 将当前 ResultSet 行转换为 GuildData，可复用传入连接查询成员数量。
      */
-    private fun mapGuildData(rs: ResultSet, conn: Connection? = null): GuildData {
+    private fun mapGuildData(rs: ResultSet, conn: Connection? = null, memberCountFromRow: Boolean = false): GuildData {
         val guildId = rs.getInt("id")
         return GuildData(
             id = guildId,
@@ -293,7 +299,9 @@ class GuildRepository(private val db: DatabaseManager) {
             maxMembers = rs.getInt("max_members"),
             teleportLocation = rs.getString("teleport_location"),
             createTime = rs.getLong("create_time"),
-            memberCount = conn?.let { db.memberRepository.getMemberCount(guildId, it) } ?: 0,
+            memberCount = if (memberCountFromRow) {
+                try { rs.getInt("member_count") } catch (e: Exception) { 0 }
+            } else 0,
             icon = rs.getString("icon") ?: "SHIELD",
             iconItemModel = try { rs.getString("icon_item_model") } catch (e: Exception) { null },
             iconCustomData = try {

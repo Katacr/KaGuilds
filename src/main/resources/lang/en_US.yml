@@ -51,6 +51,7 @@ desc-upgrade: "Upgrade guild level"
 desc-transfer: "Transfer guild"
 desc-pvp: "Guild war commands"
 desc-menu: "Open guild main menu"
+desc-list: "View the server-wide guild list"
 
 # Common Error Messages
 no-permission: "§cYou do not have permission to execute this command."
@@ -160,6 +161,7 @@ owner-cannot-leave: "§cLeader cannot leave the guild directly, please transfer 
 
 delete-only-owner: "§cOnly leader can dissolve the guild."
 delete-success: "§aGuild has been successfully dissolved."
+delete-notify: "§c§l[Guild Announcement] §eYour guild has been dissolved."
 
 rename-usage: "§cUsage: /kg rename <new name>"
 rename-only-owner: "§cOnly leader can modify guild name."
@@ -410,7 +412,8 @@ admin-task-reset-success: "§aTask %task_key% has been reset"
 admin-task-reset-failed: "§cFailed to reset task"
 admin-task-add-success: "§aTask %task_key% progress increased by %amount%"
 admin-task-add-failed: "§cFailed to increase task progress"
-admin-task-add-require-amount: "§cUsage: /kg admin task #ID <task_key> add <amount>"
+admin-task-add-require-amount: "§cUsage: /kg admin task #ID <task_key> add <amount> [player]"
+admin-task-add-require-player: "§cDaily task requires a player: /kg admin task #ID <task_key> add <amount> <player>"
 
 # Contribution Management
 admin-contribution-usage: "§cUsage: /kg admin contribution #ID <player|-all> <set|add|clear> [amount]"

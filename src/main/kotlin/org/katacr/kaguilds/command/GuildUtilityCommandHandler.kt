@@ -121,13 +121,6 @@ class GuildUtilityCommandHandler(private val plugin: KaGuilds) {
         plugin.guildService.openVault(player, index)
     }
 
-    private fun checkPermission(player: Player, command: String? = null): Boolean {
-        val lang = plugin.langManager
-
-        if (player.hasPermission("kaguilds.use")) return true
-        if (command != null && player.hasPermission("kaguilds.command.$command")) return true
-
-        player.sendMessage(lang.get("no-permission"))
-        return false
-    }
+private fun checkPermission(player: Player, command: String? = null): Boolean =
+        CommandSupport.checkPermission(plugin, player, command)
 }

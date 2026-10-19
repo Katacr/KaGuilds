@@ -156,91 +156,9 @@ class MenuManager(private val plugin: KaGuilds) {
      * @param display 显示配置
      */
     private fun setItemModel(meta: org.bukkit.inventory.meta.ItemMeta, display: ConfigurationSection) {
-        // 1. 尝试使用 1.21.4+ 的 ItemModel API
-        if (display.contains("item_model")) {
-            val itemModelString = display.getString("item_model") ?: return
-
-            try {
-                // 检查服务器版本
-                val serverVersion = Bukkit.getBukkitVersion()
-                val versionParts = serverVersion.split(".")
-                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
-                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
-
-                // 检查是否是 1.21.4 或更高版本
-                val isModernVersion = when {
-                    minorVersion == null -> false
-                    minorVersion > 21 -> true
-                    minorVersion == 21 -> {
-                        // 1.21.4 及以上才支持 ItemModel
-                        (patchVersion ?: 0) >= 4
-                    }
-                    else -> false
-                }
-
-                // 解析 item_model 字符串
-                val parts = itemModelString.split(":")
-
-                if (parts.size != 2) {
-                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
-                    applyCustomModelData(meta, display)
-                    return
-                }
-
-                val namespace = parts[0]
-                val key = parts[1]
-
-                // 对于旧版本，降级到 CustomModelData
-                if (!isModernVersion) {
-                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
-                    applyCustomModelData(meta, display)
-                    return
-                }
-
-                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
-                try {
-                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
-                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
-
-                    // 获取 setItemModel(NamespacedKey) 方法
-                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
-
-                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
-                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
-                        String::class.java,
-                        String::class.java
-                    ).newInstance(namespace, key)
-
-                    // 应用 ItemModel
-                    setItemModelMethod.invoke(meta, modelKey)
-                } catch (e: ClassNotFoundException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    applyCustomModelData(meta, display)
-                } catch (e: NoSuchMethodException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    applyCustomModelData(meta, display)
-                } catch (e: Exception) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    applyCustomModelData(meta, display)
-                }
-            } catch (e: Exception) {
-                plugin.logger.warning("Unexpected exception: ${e.message}")
-                plugin.logger.info("Falling back to CustomModelData")
-                applyCustomModelData(meta, display)
-            }
-        } else {
-            applyCustomModelData(meta, display)
-        }
-    }
-
-    /**
-     * 应用自定义模型数据（降级方案）
-     */
-    private fun applyCustomModelData(meta: org.bukkit.inventory.meta.ItemMeta, display: ConfigurationSection) {
-        if (display.contains("custom_data")) {
-            val customData = display.getInt("custom_data")
-            meta.setCustomModelData(customData)
-        }
+        val itemModel = if (display.contains("item_model")) display.getString("item_model") else null
+        val customData = if (display.contains("custom_data")) display.getInt("custom_data") else null
+        org.katacr.kaguilds.util.ItemModelSupport.apply(meta, itemModel, customData)
     }
 
     /**
@@ -250,163 +168,14 @@ class MenuManager(private val plugin: KaGuilds) {
      */
     private fun applyMenuDefaultIcon(meta: org.bukkit.inventory.meta.ItemMeta, iconKey: String) {
         val iconConfig = menuDefaultIcons[iconKey] ?: return
-
-        // 1. 尝试使用 1.21.4+ 的 ItemModel API
-        if (iconConfig.itemModel != null) {
-            val itemModelString = iconConfig.itemModel
-
-            try {
-                // 检查服务器版本
-                val serverVersion = Bukkit.getBukkitVersion()
-                val versionParts = serverVersion.split(".")
-                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
-                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
-
-                // 检查是否是 1.21.4 或更高版本
-                val isModernVersion = when {
-                    minorVersion == null -> false
-                    minorVersion > 21 -> true
-                    minorVersion == 21 -> {
-                        // 1.21.4 及以上才支持 ItemModel
-                        (patchVersion ?: 0) >= 4
-                    }
-                    else -> false
-                }
-
-                // 解析 item_model 字符串
-                val parts = itemModelString.split(":")
-
-                if (parts.size != 2) {
-                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
-                    meta.setCustomModelData(iconConfig.customData)
-                    return
-                }
-
-                val namespace = parts[0]
-                val key = parts[1]
-
-                // 对于旧版本，降级到 CustomModelData
-                if (!isModernVersion) {
-                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
-                    meta.setCustomModelData(iconConfig.customData)
-                    return
-                }
-
-                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
-                try {
-                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
-                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
-
-                    // 获取 setItemModel(NamespacedKey) 方法
-                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
-
-                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
-                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
-                        String::class.java,
-                        String::class.java
-                    ).newInstance(namespace, key)
-
-                    // 应用 ItemModel
-                    setItemModelMethod.invoke(meta, modelKey)
-                } catch (e: ClassNotFoundException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(iconConfig.customData)
-                } catch (e: NoSuchMethodException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(iconConfig.customData)
-                } catch (e: Exception) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(iconConfig.customData)
-                }
-            } catch (e: Exception) {
-                plugin.logger.warning("Unexpected exception: ${e.message}")
-                meta.setCustomModelData(iconConfig.customData)
-            }
-        } else {
-            // 降级到 CustomModelData
-            meta.setCustomModelData(iconConfig.customData)
-        }
+        org.katacr.kaguilds.util.ItemModelSupport.apply(meta, iconConfig.itemModel, iconConfig.customData)
     }
 
     /**
      * 应用任务定义的物品显示配置
      */
     private fun applyTaskItemDisplay(meta: org.bukkit.inventory.meta.ItemMeta, taskDisplay: TaskManager.TaskItemDisplay) {
-        // 1. 尝试使用 1.21.4+ 的 ItemModel API
-        if (taskDisplay.itemModel != null) {
-            val itemModelString = taskDisplay.itemModel
-
-            try {
-                // 检查服务器版本
-                val serverVersion = Bukkit.getBukkitVersion()
-                val versionParts = serverVersion.split(".")
-                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
-                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
-
-                // 检查是否是 1.21.4 或更高版本
-                val isModernVersion = when {
-                    minorVersion == null -> false
-                    minorVersion > 21 -> true
-                    minorVersion == 21 -> {
-                        // 1.21.4 及以上才支持 ItemModel
-                        (patchVersion ?: 0) >= 4
-                    }
-                    else -> false
-                }
-
-                // 解析 item_model 字符串
-                val parts = itemModelString.split(":")
-
-                if (parts.size != 2) {
-                    plugin.logger.warning("Invalid item_model format: '$itemModelString'. Expected format: 'namespace:key'")
-                    meta.setCustomModelData(taskDisplay.customData)
-                    return
-                }
-
-                val namespace = parts[0]
-                val key = parts[1]
-
-                // 对于旧版本，降级到 CustomModelData
-                if (!isModernVersion) {
-                    plugin.logger.info("Server version $serverVersion does not support ItemModel API (requires 1.21.4+), using CustomModelData")
-                    meta.setCustomModelData(taskDisplay.customData)
-                    return
-                }
-
-                // 尝试使用 ItemModel API（setItemModel(NamespacedKey)）
-                try {
-                    val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
-                    val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
-
-                    // 获取 setItemModel(NamespacedKey) 方法
-                    val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
-
-                    // 创建 NamespacedKey（支持任何命名空间，包括 oraxen）
-                    val modelKey = namespacedKeyClass.getDeclaredConstructor(
-                        String::class.java,
-                        String::class.java
-                    ).newInstance(namespace, key)
-
-                    // 应用 ItemModel
-                    setItemModelMethod.invoke(meta, modelKey)
-                } catch (e: ClassNotFoundException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(taskDisplay.customData)
-                } catch (e: NoSuchMethodException) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(taskDisplay.customData)
-                } catch (e: Exception) {
-                    plugin.logger.warning("Failed to apply ItemModel '$itemModelString': ${e.message}")
-                    meta.setCustomModelData(taskDisplay.customData)
-                }
-            } catch (e: Exception) {
-                plugin.logger.warning("Unexpected exception: ${e.message}")
-                meta.setCustomModelData(taskDisplay.customData)
-            }
-        } else {
-            // 降级到 CustomModelData
-            meta.setCustomModelData(taskDisplay.customData)
-        }
+        org.katacr.kaguilds.util.ItemModelSupport.apply(meta, taskDisplay.itemModel, taskDisplay.customData)
     }
 
     /**
@@ -620,79 +389,7 @@ class MenuManager(private val plugin: KaGuilds) {
      * 应用公会图标配置
      */
     private fun applyGuildIcon(meta: org.bukkit.inventory.meta.ItemMeta, guild: GuildData) {
-        // 优先使用 icon_item_model
-        if (!guild.iconItemModel.isNullOrEmpty()) {
-            try {
-                // 检查服务器版本
-                val serverVersion = Bukkit.getBukkitVersion()
-                val versionParts = serverVersion.split(".")
-                val minorVersion = versionParts.getOrNull(1)?.toIntOrNull()
-                val patchVersion = versionParts.getOrNull(2)?.split("-")?.get(0)?.toIntOrNull()
-
-                // 检查是否是 1.21.4 或更高版本
-                val isModernVersion = when {
-                    minorVersion == null -> false
-                    minorVersion > 21 -> true
-                    minorVersion == 21 -> {
-                        // 1.21.4 及以上才支持 ItemModel
-                        (patchVersion ?: 0) >= 4
-                    }
-                    else -> false
-                }
-
-                if (isModernVersion) {
-                    // 解析 item_model 字符串
-                    val parts = guild.iconItemModel.split(":")
-                    if (parts.size == 2) {
-                        val namespace = parts[0]
-                        val key = parts[1]
-
-                        try {
-                            val namespacedKeyClass = Class.forName("org.bukkit.NamespacedKey")
-                            val itemMetaClass = Class.forName("org.bukkit.inventory.meta.ItemMeta")
-
-                            // 获取 setItemModel(NamespacedKey) 方法
-                            val setItemModelMethod = itemMetaClass.getMethod("setItemModel", namespacedKeyClass)
-
-                            // 创建 NamespacedKey
-                            val modelKey = namespacedKeyClass.getDeclaredConstructor(
-                                String::class.java,
-                                String::class.java
-                            ).newInstance(namespace, key)
-
-                            // 应用 ItemModel
-                            setItemModelMethod.invoke(meta, modelKey)
-                        } catch (e: Exception) {
-                            // 失败则尝试使用 CustomModelData
-                            plugin.logger.warning("Failed to apply ItemModel: ${e.message}")
-                            if (guild.iconCustomData != null) {
-                                meta.setCustomModelData(guild.iconCustomData)
-                            }
-                        }
-                    } else {
-                        plugin.logger.warning("Invalid ItemModel format: ${guild.iconItemModel}")
-                        if (guild.iconCustomData != null) {
-                            // 格式不正确，使用 CustomModelData
-                            meta.setCustomModelData(guild.iconCustomData)
-                        }
-                    }
-                } else {
-                    // 旧版本，使用 CustomModelData
-                    if (guild.iconCustomData != null) {
-                        meta.setCustomModelData(guild.iconCustomData)
-                    }
-                }
-            } catch (e: Exception) {
-                // 解析失败，忽略
-                plugin.logger.warning("Error in applyGuildIcon: ${e.message}")
-                e.printStackTrace()
-            }
-        } else {
-            // 使用 CustomModelData
-            if (guild.iconCustomData != null) {
-                meta.setCustomModelData(guild.iconCustomData)
-            }
-        }
+        org.katacr.kaguilds.util.ItemModelSupport.apply(meta, guild.iconItemModel, guild.iconCustomData)
     }
 
     /**
@@ -812,7 +509,7 @@ class MenuManager(private val plugin: KaGuilds) {
 
                         val placeholders = mapOf(
                             "player_name" to playerName,
-                            "player_uuid" to playerUUID.toString(),
+                            "player_uuid" to (playerUUID?.toString() ?: ""),
                             "player_guild_name" to guildName
                         )
                         inv.setItem(slot, buildAllPlayerItem(btnSection, playerName, playerUUID, placeholders, player))

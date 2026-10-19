@@ -15,6 +15,11 @@ import java.sql.Connection
 
 class DatabaseManager(val plugin: KaGuilds) {
     var dataSource: HikariDataSource? = null
+
+    /** 当前是否使用 MySQL（影响 upsert / 冲突忽略语法）。 */
+    val isMySQL: Boolean
+        get() = (plugin.config.getString("database.type", "SQLite") ?: "SQLite").equals("MySQL", ignoreCase = true)
+
     val bankRepository = BankRepository(this)
     val guildLifecycleRepository = GuildLifecycleRepository(this)
     val guildRepository = GuildRepository(this)

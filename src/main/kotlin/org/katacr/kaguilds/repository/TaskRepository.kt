@@ -19,7 +19,7 @@ class TaskRepository(private val db: DatabaseManager) {
         val sql = if (playerUuid != null) {
             "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
         } else {
-            "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND (player_uuid IS NULL OR player_uuid = '')"
+            "SELECT * FROM guild_task_progress WHERE guild_id = ? AND task_key = ? AND (player_uuid = '')"
         }
         return try {
             db.connection.use { conn ->
@@ -211,7 +211,7 @@ class TaskRepository(private val db: DatabaseManager) {
         playerUuid: UUID?
     ): GuildTaskProgress? {
         val playerCondition = if (playerUuid == null) {
-            "(player_uuid IS NULL OR player_uuid = '')"
+            "(player_uuid = '')"
         } else {
             "player_uuid = ?"
         }
@@ -319,7 +319,7 @@ class TaskRepository(private val db: DatabaseManager) {
         val sql = if (playerUuid != null) {
             "UPDATE guild_task_progress SET progress = 0, completed = 0, last_date = ? WHERE guild_id = ? AND task_key = ? AND player_uuid = ?"
         } else {
-            "UPDATE guild_task_progress SET progress = 0, completed = 0, last_date = ? WHERE guild_id = ? AND task_key = ? AND (player_uuid IS NULL OR player_uuid = '')"
+            "UPDATE guild_task_progress SET progress = 0, completed = 0, last_date = ? WHERE guild_id = ? AND task_key = ? AND (player_uuid = '')"
         }
         return try {
             db.connection.use { conn ->
@@ -384,15 +384,17 @@ class TaskRepository(private val db: DatabaseManager) {
                     }
                 }
 
+                // 个人任务也要带 guild_id，避免换公会后旧公会的完成状态污染新公会
                 val legacySql = if (playerUuid != null) {
-                    "SELECT task_key FROM guild_task_progress WHERE player_uuid = ? AND last_date = ? AND completed = 1"
+                    "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND player_uuid = ? AND last_date = ? AND completed = 1"
                 } else {
-                    "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND (player_uuid IS NULL OR player_uuid = '') AND last_date = ? AND completed = 1"
+                    "SELECT task_key FROM guild_task_progress WHERE guild_id = ? AND (player_uuid = '') AND last_date = ? AND completed = 1"
                 }
                 conn.prepareStatement(legacySql).use { ps ->
                     if (playerUuid != null) {
-                        ps.setString(1, playerUuid.toString())
-                        ps.setString(2, today)
+                        ps.setInt(1, guildId)
+                        ps.setString(2, playerUuid.toString())
+                        ps.setString(3, today)
                     } else {
                         ps.setInt(1, guildId)
                         ps.setString(2, today)
@@ -461,7 +463,7 @@ class TaskRepository(private val db: DatabaseManager) {
         val today = currentTaskDate()
         val sql = """
             SELECT task_key FROM guild_task_progress
-            WHERE guild_id = ? AND (player_uuid IS NULL OR player_uuid = '') AND last_date != ?
+            WHERE guild_id = ? AND (player_uuid = '') AND last_date != ?
         """.trimIndent()
 
         try {
@@ -481,7 +483,7 @@ class TaskRepository(private val db: DatabaseManager) {
                         val updateSql = """
                             UPDATE guild_task_progress
                             SET progress = 0, completed = 0, last_date = ?
-                            WHERE guild_id = ? AND (player_uuid IS NULL OR player_uuid = '') AND task_key = ?
+                            WHERE guild_id = ? AND (player_uuid = '') AND task_key = ?
                         """.trimIndent()
 
                         conn.prepareStatement(updateSql).use { updatePs ->

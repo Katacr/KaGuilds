@@ -33,7 +33,7 @@ class GuildInfoCommandHandler(private val plugin: KaGuilds) {
                     player.sendMessage(lang.get("info-footer"))
                 }
                 is OperationResult.NotInGuild -> player.sendMessage(lang.get("not-in-guild"))
-                else -> player.sendMessage("§cError: $result")
+                else -> CommandSupport.failureMessage(plugin, result)?.let { player.sendMessage(it) }
             }
         }
     }
@@ -49,6 +49,7 @@ class GuildInfoCommandHandler(private val plugin: KaGuilds) {
         val allCmds = listOf(
             "help [page]" to "desc-help",
             "menu" to "desc-menu",
+            "list" to "desc-list",
             "create <Name>" to "desc-create",
             "join <Name>" to "desc-join",
             "info" to "desc-info",
@@ -113,6 +114,15 @@ class GuildInfoCommandHandler(private val plugin: KaGuilds) {
         openDefaultMenu(player)
     }
 
+    /**
+     * 打开服务器全部公会列表菜单（无需加入公会）。
+     */
+    fun handleList(player: Player) {
+        if (!checkPermission(player, "list")) return
+
+        plugin.menuManager.openMenu(player, "guilds_list")
+    }
+
     fun openDefaultMenu(player: Player) {
         val guildId = plugin.playerGuildCache[player.uniqueId] ?: plugin.dbManager.memberRepository.getGuildIdByPlayer(player.uniqueId)
         val menuName = if (guildId == null) "guild_create" else "main_menu"
@@ -130,13 +140,6 @@ class GuildInfoCommandHandler(private val plugin: KaGuilds) {
         }
     }
 
-    private fun checkPermission(player: Player, command: String? = null): Boolean {
-        val lang = plugin.langManager
-
-        if (player.hasPermission("kaguilds.use")) return true
-        if (command != null && player.hasPermission("kaguilds.command.$command")) return true
-
-        player.sendMessage(lang.get("no-permission"))
-        return false
-    }
+private fun checkPermission(player: Player, command: String? = null): Boolean =
+        CommandSupport.checkPermission(plugin, player, command)
 }

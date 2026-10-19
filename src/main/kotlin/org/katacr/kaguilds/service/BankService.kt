@@ -137,7 +137,10 @@ class BankService(private val plugin: KaGuilds) {
                     }
                 } else {
                     plugin.runMain {
-                        econ.depositPlayer(player, amount)
+                        val refund = econ.depositPlayer(player, amount)
+                        if (!refund.transactionSuccess()) {
+                            plugin.logger.severe("[退款失败] 玩家 ${player.name} 存入公会 $amount 失败且退款失败，请人工补偿。")
+                        }
                         player.sendMessage(lang.get("bank-full", "max" to maxBank.toString()))
                     }
                 }
@@ -167,7 +170,16 @@ class BankService(private val plugin: KaGuilds) {
             plugin.dbManager.bankRepository.logBankTransaction(guildId, playerName, "GET", amount)
 
             plugin.runMain {
-                econ.depositPlayer(player, amount)
+                val give = econ.depositPlayer(player, amount)
+                if (!give.transactionSuccess()) {
+                    // 玩家入账失败：回退公会余额并记严重日志，避免公会钱被扣而玩家未收到
+                    plugin.logger.severe("[入账失败] 玩家 ${player.name} 取出公会 $amount 未到账，已回退公会余额。")
+                    plugin.runAsync {
+                        plugin.dbManager.bankRepository.updateGuildBalance(guildId, amount)
+                    }
+                    player.sendMessage(lang.get("error-vault"))
+                    return@runMain
+                }
                 player.sendMessage(lang.get("bank-get-success", "amount" to amountLong.toString()))
                 plugin.guildService.dispatchBankNotification(guildId, playerName, "withdraw", amount)
             }

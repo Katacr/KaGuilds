@@ -652,7 +652,7 @@ class MenuListener(private val plugin: KaGuilds) : Listener {
     }
 
     companion object {
-        private val chatCatchers = mutableMapOf<UUID, String>()
+        private val chatCatchers = java.util.concurrent.ConcurrentHashMap<UUID, String>()
 
     }
 

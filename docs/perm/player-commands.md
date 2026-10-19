@@ -30,6 +30,7 @@ KaGuilds 的主命令为 `/kaguilds`，可使用 `/kg` 或 `/guild` 作为别名
 | `/kg no` | 拒绝待处理的公会邀请 | 无 | `kaguilds.command.no` |
 | `/kg info` | 查看自己的公会信息 | 公会成员 | `kaguilds.command.info` |
 | `/kg menu` | 打开公会菜单 | 无 | `kaguilds.command.menu` |
+| `/kg list` | 打开服务器全部公会列表 | 无 | `kaguilds.command.list` |
 | `/kg invite <玩家>` | 邀请玩家 | 会长或管理员 | `kaguilds.command.invite` |
 | `/kg requests` | 查看本公会入会申请 | 公会成员 | `kaguilds.command.requests` |
 | `/kg accept <玩家>` | 批准入会申请 | 会长或管理员 | `kaguilds.command.accept` |

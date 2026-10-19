@@ -166,6 +166,7 @@ class AdminTaskCommandHandler(private val plugin: KaGuilds) {
         }
 
         val amount = args[5].toIntOrNull() ?: return sender.sendMessage(lang.get("error-invalid-number"))
+        val playerArg = args.getOrNull(6)
 
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
             val taskDef = plugin.taskManager.getTaskDefinition(taskKey)
@@ -177,10 +178,37 @@ class AdminTaskCommandHandler(private val plugin: KaGuilds) {
                 return@Runnable
             }
 
+            // 每日任务需要指定玩家：解析玩家名 → UUID
+            var targetUuid: java.util.UUID? = null
+            var targetPlayer: org.bukkit.entity.Player? = null
+            if (taskDef.type == "daily") {
+                if (playerArg.isNullOrBlank()) {
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        sender.sendMessage(lang.get("admin-task-add-require-player"))
+                    })
+                    return@Runnable
+                }
+                targetUuid = plugin.dbManager.memberRepository.getUuidByPlayerName(playerArg)
+                if (targetUuid == null) {
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        sender.sendMessage(lang.get("task-not-found", "task_key" to taskKey))
+                    })
+                    return@Runnable
+                }
+                targetPlayer = plugin.server.getPlayer(targetUuid)
+                // 每日任务奖励含玩家占位符，必须能定位到在线玩家才能安全发放，否则拒绝写入以避免"凭证已写但奖励丢失"
+                if (targetPlayer == null) {
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        sender.sendMessage(lang.get("admin-task-add-require-player"))
+                    })
+                    return@Runnable
+                }
+            }
+
             val result = plugin.dbManager.taskRepository.incrementTaskProgress(
                 guildId,
                 taskKey,
-                if (taskDef.type == "daily") null else null,
+                targetUuid,
                 amount,
                 taskDef.amount
             )
@@ -194,8 +222,16 @@ class AdminTaskCommandHandler(private val plugin: KaGuilds) {
                             "amount" to amount.toString()
                         )
                     )
-                    if (result.completed && taskDef.type == "global") {
-                        plugin.taskManager.guildDoneCache[guildId]?.add(taskKey)
+                    if (result.completed) {
+                        if (taskDef.type == "global") {
+                            plugin.taskManager.guildDoneCache.getOrPut(guildId) { mutableSetOf() }.add(taskKey)
+                        } else {
+                            plugin.taskManager.dailyDoneCache.getOrPut(targetUuid!!) { mutableSetOf() }.add(taskKey)
+                        }
+                        // 关键修复：管理员加进度触发完成时同样执行奖励动作，避免"凭证已写但奖励未发"
+                        if (result.rewardGranted) {
+                            plugin.taskManager.grantTaskReward(guildId, taskDef, targetPlayer)
+                        }
                     }
                 } else {
                     sender.sendMessage(lang.get("admin-task-add-failed"))
@@ -204,13 +240,6 @@ class AdminTaskCommandHandler(private val plugin: KaGuilds) {
         })
     }
 
-    private fun checkAdminPermission(sender: CommandSender, action: String? = null): Boolean {
-        val lang = plugin.langManager
-
-        if (sender.hasPermission("kaguilds.admin")) return true
-        if (action != null && sender.hasPermission("kaguilds.admin.$action")) return true
-
-        sender.sendMessage(lang.get("no-permission"))
-        return false
-    }
+private fun checkAdminPermission(sender: CommandSender, action: String? = null): Boolean =
+        CommandSupport.checkAdminPermission(plugin, sender, action)
 }
